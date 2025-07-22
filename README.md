@@ -1,5 +1,5 @@
 
-# repository_name
+# genome_assembly_pipeline
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
@@ -14,9 +14,9 @@ Follow these steps to set up and run the workflow:
 Clone this repository to your local machine:
 
 ```
-git clone https://github.com/mkrg01/repository_name.git
+git clone https://github.com/mkrg01/genome_assembly_pipeline.git
 
-cd repository_name
+cd genome_assembly_pipeline
 ```
 
 ### 2. Install Snakemake

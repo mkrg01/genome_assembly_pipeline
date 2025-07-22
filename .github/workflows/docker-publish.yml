@@ -1,7 +1,7 @@
 name: Build and Push Docker Image
 
 env:
-  IMAGE_BASE: template # Base name for the Docker image (e.g., "template" in "username/template:<tag>"")
+  IMAGE_BASE: genome_assembly_pipeline # Base name for the Docker image (e.g., "template" in "username/template:<tag>"")
 
 on:
   push:
