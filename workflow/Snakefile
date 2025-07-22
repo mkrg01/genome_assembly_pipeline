@@ -1,0 +1,8 @@
+# containerized: "docker://aurelia01/XXX:YYY"
+configfile: "config/config.yml"
+include: "rules/test.smk"
+
+rule all:
+    input:
+        "results/test_conda.txt",
+        "results/test_container.txt"

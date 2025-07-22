@@ -1,0 +1,53 @@
+name: Build and Push Docker Image
+
+env:
+  IMAGE_BASE: template # Base name for the Docker image (e.g., "template" in "username/template:<tag>"")
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract tag name and image name
+        id: vars
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "image_name=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_BASE }}" >> $GITHUB_OUTPUT
+          echo "ghcr_image=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_BASE }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag }}
+            ${{ steps.vars.outputs.image_name }}:latest
+            ${{ steps.vars.outputs.ghcr_image }}:${{ steps.vars.outputs.tag }}
+            ${{ steps.vars.outputs.ghcr_image }}:latest

@@ -1,0 +1,4 @@
+usage:
+  software-stack-deployment:
+    apptainer+conda: true # whether pipeline works with "--sdm conda apptainer/singularity"
+  report: true # whether creation of reports using "snakemake --report report.zip" is supported

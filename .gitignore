@@ -1,0 +1,16 @@
+# Data
+/results/
+/raw_data/
+/*.gz
+/busco_downloads/
+
+# Log
+/logs/
+/.log_jobscripts/
+/.snakemake/
+
+# Job scheduling
+/jobscripts/
+
+# Container image
+*.sif
