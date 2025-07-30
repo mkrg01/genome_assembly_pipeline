@@ -1,8 +1,24 @@
 # containerized: "docker://aurelia01/XXX:YYY"
 configfile: "config/config.yml"
-include: "rules/test.smk"
+include: "rules/genome_assembly.smk"
+include: "rules/softmask.smk"
+include: "rules/gene_prediction.smk"
+
+import os
+import glob
+sample = glob.glob("raw_data/*.hifi_reads.bam")
+if len(sample) == 0:
+    raise RuntimeError("No HiFi read files matching 'raw_data/*.hifi_reads.bam' were found. Please check the input directory.")
+elif len(sample) > 1:
+    raise RuntimeError("Multiple HiFi read files found. Please ensure only one HiFi read file is present in 'raw_data/'.")
+sample_id = os.path.basename(sample[0]).replace(".hifi_reads.bam", "")
 
 rule all:
     input:
-        "results/test_conda.txt",
-        "results/test_container.txt"
+        f"results/genomescope2/{sample_id}/linear_plot.png",
+        f"results/hifiasm/{sample_id}_seqkit_stats.txt",
+        f"results/busco_genome/{sample_id}/",
+        f"results/dfam/dfam_info.txt",
+        f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt",
+        f"results/repeatmasker/{sample_id}_softmasked_percentage.txt",
+        f"results/braker3/{sample_id}/braker3.gff3"

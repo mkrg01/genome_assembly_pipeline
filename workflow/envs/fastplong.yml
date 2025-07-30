@@ -1,0 +1,5 @@
+name: fastplong
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::fastplong=0.3.0

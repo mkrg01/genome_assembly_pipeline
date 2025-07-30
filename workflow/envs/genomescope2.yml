@@ -1,0 +1,5 @@
+name: genomescope2
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::genomescope2=2.0.1

@@ -1,8 +1,7 @@
 # Data
 /results/
-/raw_data/
 /*.gz
-/busco_downloads/
+/busco_*
 
 # Log
 /logs/

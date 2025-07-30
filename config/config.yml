@@ -1,1 +1,8 @@
-cowsay: "custom"
+ploidy: "2" # Ploidly level of the genome (e.g., 2 = diploid); used by GenomeScope2.
+busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
+dfam_version: "3.9" # Version of the Dfam database to download (used by RepeatMasker). See: https://www.dfam.org
+dfam_lineage_id: "6" # Dfam lineage ID (6 = Viridiplantae). See: https://www.dfam.org/releases/current/families/FamDB/README.txt
+dfam_lineage_name: "Viridiplantae" # Name of the Dfam lineage to use.
+orthodb_version: "12" # Version of OrthoDB to download (used by Braker3). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
+orthodb_lineage: "Viridiplantae" # OrthoDB lineage dataset to use. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
+orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587" # MD5 checksum of the OrthoDB database. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/

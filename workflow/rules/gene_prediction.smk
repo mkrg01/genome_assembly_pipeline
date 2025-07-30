@@ -1,0 +1,93 @@
+import os
+import glob
+rnaseq_samples = glob.glob("raw_data/*_1.fastq.gz")
+if not rnaseq_samples:
+    raise RuntimeError("No RNA-Seq files matching 'raw_data/*_1.fastq.gz' were found. Please check the input directory.")
+rnaseq_sample_ids = sorted({os.path.basename(f).replace("_1.fastq.gz", "") for f in rnaseq_samples})
+
+rule fastp_rnaseq_sample:
+    input:
+        rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
+        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz"
+    output:
+        rnaseq_1 = "results/rnaseq_fastp/{rnaseq_sample_id}_1.fastq",
+        rnaseq_2 = "results/rnaseq_fastp/{rnaseq_sample_id}_2.fastq",
+        html = "results/rnaseq_fastp/{rnaseq_sample_id}_fastp.html",
+        json = "results/rnaseq_fastp/{rnaseq_sample_id}_fastp.json"
+    log:
+        out = "logs/fastp_rnaseq_sample_{rnaseq_sample_id}.out",
+        err = "logs/fastp_rnaseq_sample_{rnaseq_sample_id}.err"
+    conda:
+        "../envs/fastp.yml"
+    threads:
+        1
+    shell:
+        "fastp \
+            --in1 {input.rnaseq_1} \
+            --in2 {input.rnaseq_2} \
+            --out1 {output.rnaseq_1} \
+            --out2 {output.rnaseq_2} \
+            --html {output.html} \
+            --json {output.json} \
+            --thread {threads} > {log.out} 2> {log.err}"
+
+rule download_orthodb_proteins:
+    output:
+        f"results/orthodb/{config['orthodb_lineage']}.fa"
+    log:
+        out = "logs/download_orthodb_proteins.out",
+        err = "logs/download_orthodb_proteins.err"
+    container:
+        "docker://teambraker/braker3:v3.0.7.6"
+    params:
+        url = f"https://bioinf.uni-greifswald.de/bioinf/partitioned_odb{config['orthodb_version']}/{config['orthodb_lineage']}.fa.gz",
+        md5sum = config['orthodb_md5sum']
+    shell:
+        """
+        (
+            wget -O {output}.gz {params.url}
+            actual_md5=$(md5sum {output}.gz | cut -d' ' -f1)
+            if [ "$actual_md5" != "{params.md5sum}" ]; then
+                echo "MD5 checksum mismatch for {output}.gz"
+                echo "Expected: {params.md5sum}, but got: $actual_md5"
+                echo "Please check the download URL or the MD5 checksum."
+                echo "Exiting with error code 1."
+                exit 1
+            else
+                echo "MD5 checksum verified for {output}.gz"
+            fi
+            gunzip {output}.gz
+        ) > {log.out} 2> {log.err}
+        """
+
+rule braker3:
+    input:
+        assembly = "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked",
+        rnaseq = expand("results/rnaseq_fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
+        protein_dataset = f"results/orthodb/{config['orthodb_lineage']}.fa"
+    output:
+        "results/braker3/{sample_id}/braker3.gff3"
+    log:
+        out = "logs/braker3_{sample_id}.out",
+        err = "logs/braker3_{sample_id}.err"
+    container:
+        "docker://teambraker/braker3:v3.0.7.6"
+    threads:
+        workflow.cores
+    params:
+        rnaseq_ids=",".join(rnaseq_sample_ids),
+        rnaseq_dir=lambda wildcards, input: os.path.commonpath(input.rnaseq)
+    shell:
+        """
+        (
+            braker.pl \
+                --species={wildcards.sample_id} \
+                --genome={input.assembly} \
+                --prot_seq={input.protein_dataset} \
+                --rnaseq_sets_ids={params.rnaseq_ids} \
+                --rnaseq_sets_dirs={params.rnaseq_dir} \
+                --workingdir=$(dirname {output}) \
+                --gff3 \
+                --threads {threads}
+        ) > {log.out} 2> {log.err}
+        """

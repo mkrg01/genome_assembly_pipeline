@@ -1,0 +1,5 @@
+name: jellyfish
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::kmer-jellyfish=2.3.1
