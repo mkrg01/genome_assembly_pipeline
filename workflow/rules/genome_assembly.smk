@@ -204,3 +204,43 @@ rule busco_genome_mode:
             --lineage_dataset {params.lineage_dataset} \
             --download_path {input.database} \
             --offline > {log.out} 2> {log.err}"
+
+rule inspector:
+    input:
+        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
+        reads = "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+    output:
+        directory("results/inspector/{sample_id}")
+    log:
+        out = "logs/inspector_{sample_id}.out",
+        err = "logs/inspector_{sample_id}.err"
+    conda:
+        "../envs/inspector.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        "inspector.py \
+            --contig {input.assembly} \
+            --read {input.reads} \
+            --datatype hifi \
+            --outpath {output} \
+            --thread {threads} > {log.out} 2> {log.err}"
+
+# rule inspector_correct:
+#     input:
+#         "results/inspector/{sample_id}"
+#     output:
+#         directory("results/inspector_correct/{sample_id}")
+#     log:
+#         out = "logs/inspector_correct_{sample_id}.out",
+#         err = "logs/inspector_correct_{sample_id}.err"
+#     conda:
+#         "../envs/inspector.yml"
+#     threads:
+#         max(1, int(workflow.cores * 0.9))
+#     shell:
+#         "inspector.py \
+#             --inspector {input.assembly} \
+#             --datatype pacbio-hifi \
+#             --outpath {output} \
+#             --thread {threads} > {log.out} 2> {log.err}"
