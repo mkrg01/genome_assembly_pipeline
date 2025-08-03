@@ -1,6 +1,6 @@
 rule build_repeatmodeler_database:
     input:
-        "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
         nhr = "results/repeatmodeler_db/{sample_id}.nhr",
         nin = "results/repeatmodeler_db/{sample_id}.nin",
@@ -158,7 +158,7 @@ rule merge_repeat_datasets:
 rule repeatmasker:
     input:
         library = "results/repeatmasker_lib/{sample_id}_repeatmasker_lib.fa",
-        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
         "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked"
     log:

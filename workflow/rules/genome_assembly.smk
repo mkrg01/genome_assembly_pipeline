@@ -149,11 +149,117 @@ rule convert_gfa_to_fa:
     shell:
         "awk -f workflow/scripts/convert_gfa_to_fa.awk {input} > {output} 2> {log}"
 
+rule fcs_gx_get_code:
+    output:
+        "results/fcs.py"
+    log:
+        out = "logs/fcs_gx_get_code.out",
+        err = "logs/fcs_gx_get_code.err"
+    container:
+        "docker://ncbi/fcs-gx:0.5.5"
+    shell:
+        "curl -L https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py -o {output} > {log.out} 2> {log.err}"
+
+rule fcs_gx_get_db:
+    input:
+        code = "results/fcs.py"
+    output:
+        readme = "results/fcs_gx_db/all.README.txt",
+        assemblies = "results/fcs_gx_db/all.assemblies.tsv",
+        blast_div = "results/fcs_gx_db/all.blast_div.tsv.gz",
+        gxi = "results/fcs_gx_db/all.gxi",
+        gxs = "results/fcs_gx_db/all.gxs",
+        manifest = "results/fcs_gx_db/all.manifest",
+        meta = "results/fcs_gx_db/all.meta.jsonl",
+        seq_info = "results/fcs_gx_db/all.seq_info.tsv.gz",
+        taxa = "results/fcs_gx_db/all.taxa.tsv"
+    log:
+        out = "logs/fcs_gx_get_db.out",
+        err = "logs/fcs_gx_get_db.err"
+    container:
+        "docker://ncbi/fcs-gx:0.5.5"
+    shell:
+        "python3 {input.code} db get \
+            --mft 'https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest' \
+            --dir $(dirname {output.readme}) > {log.out} 2> {log.err}"
+
+rule fcs_gx_check_db:
+    input:
+        code = "results/fcs.py",
+        readme = "results/fcs_gx_db/all.README.txt",
+        assemblies = "results/fcs_gx_db/all.assemblies.tsv",
+        blast_div = "results/fcs_gx_db/all.blast_div.tsv.gz",
+        gxi = "results/fcs_gx_db/all.gxi",
+        gxs = "results/fcs_gx_db/all.gxs",
+        manifest = "results/fcs_gx_db/all.manifest",
+        meta = "results/fcs_gx_db/all.meta.jsonl",
+        seq_info = "results/fcs_gx_db/all.seq_info.tsv.gz",
+        taxa = "results/fcs_gx_db/all.taxa.tsv"
+    output:
+        directory("results/fcs_gx_db_check")
+    log:
+        out = "logs/fcs_gx_check_db.out",
+        err = "logs/fcs_gx_check_db.err"
+    container:
+        "docker://ncbi/fcs-gx:0.5.5"
+    shell:
+        "python3 {input.code} db check \
+            --mft {input.manifest} \
+            --dir {output} > {log.out} 2> {log.err}"
+
+rule fcs_gx_screen:
+    input:
+        code = "results/fcs.py",
+        manifest = "results/fcs_gx_db/all.manifest",
+        check = "results/fcs_gx_db_check",
+        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+    output:
+        directory("results/fcs_gx_screen/{sample_id}")
+    log:
+        out = "logs/fcs_gx_screen_{sample_id}.out",
+        err = "logs/fcs_gx_screen_{sample_id}.err"
+    container:
+        "docker://ncbi/fcs-gx:0.5.5"
+    params:
+        taxid = config["fcs_gx_taxid"]
+    threads:
+        48
+    shell:
+        "python3 {input.code} screen genome \
+            --fasta {input.assembly} \
+            --out-dir {output} \
+            --gx-db $(dirname {input.manifest}) \
+            --tax-id {params.taxid} > {log.out} 2> {log.err}"
+
+rule fcs_gx_clean:
+    input:
+        code = "results/fcs.py",
+        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
+        screen = "results/fcs_gx_screen/{sample_id}"
+    output:
+        clean = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+    log:
+        out = "logs/fcs_gx_clean_{sample_id}.out",
+        err = "logs/fcs_gx_clean_{sample_id}.err"
+    container:
+        "docker://ncbi/fcs-gx:0.5.5"
+    params:
+        taxid = config["fcs_gx_taxid"]
+    threads:
+        48
+    shell:
+        "zcat {input.assembly} | \
+        python3 {input.code} clean genome \
+            --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.fa.{params.taxid}.fcs_gx_report.txt \
+            --output {output.clean} \
+            --contam-fasta-out {output.contam} > {log.out} 2> {log.err}"
+
 rule seqkit_stats:
     input:
-        "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
-        "results/hifiasm/{sample_id}_seqkit_stats.txt"
+        "results/fcs_gx_clean/{sample_id}_seqkit_stats.txt"
     log:
         "logs/seqkit_stats_{sample_id}.err"
     conda:
@@ -182,7 +288,7 @@ rule download_busco_database:
 
 rule busco_genome_mode:
     input:
-        genome = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
+        genome = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
         database = "results/busco_downloads"
     output:
         directory("results/busco_genome/{sample_id}")
@@ -207,7 +313,7 @@ rule busco_genome_mode:
 
 rule meryl:
     input:
-        "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
         "results/merqury/{sample_id}.meryl"
     log:
@@ -227,7 +333,7 @@ rule meryl:
 rule merqury:
     input:
         db = "results/merqury/{sample_id}.meryl",
-        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
         "results/merqury/{sample_id}.qv"
     log:
@@ -243,7 +349,7 @@ rule merqury:
 
 rule inspector:
     input:
-        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
+        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
         reads = "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
         directory("results/inspector/{sample_id}")
