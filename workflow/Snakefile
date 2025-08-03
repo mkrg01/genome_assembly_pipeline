@@ -20,6 +20,7 @@ rule all:
         f"results/busco_genome/{sample_id}/",
         f"results/merqury/{sample_id}.qv",
         f"results/inspector/{sample_id}/",
+        f"results/lai/{sample_id}.fa.out.LAI",
         f"results/dfam/dfam_info.txt",
         f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt",
         f"results/repeatmasker/{sample_id}_softmasked_percentage.txt",

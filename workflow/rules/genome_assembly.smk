@@ -386,3 +386,126 @@ rule inspector:
 #             --datatype pacbio-hifi \
 #             --outpath {output} \
 #             --thread {threads} > {log.out} 2> {log.err}"
+
+rule gt_suffixerator:
+    input:
+        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+    output:
+        assembly = "results/lai/{sample_id}.fa",
+        index = "results/lai/{sample_id}_index"
+    log:
+        out = "logs/gt_suffixerator_{sample_id}.out",
+        err = "logs/gt_suffixerator_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    shell:
+        """
+        (
+            cp {input} {output.assembly}
+            gt suffixerator \
+                -db {output.assembly} \
+                -indexname {output.index} \
+                -tis \
+                -suf \
+                -lcp \
+                -des \
+                -ssp \
+                -sds \
+                -dna
+        ) > {log.out} 2> {log.err}
+        """
+
+rule gt_ltrharvest:
+    input:
+        "results/lai/{sample_id}_index"
+    output:
+        "results/lai/{sample_id}.fa.harvest.scn"
+    log:
+        err = "logs/gt_ltrharvest_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    shell:
+        "gt ltrharvest \
+            -index {input} \
+            -minlenltr 100 \
+            -maxlenltr 7000 \
+            -mintsd 4 \
+            -maxtsd 6 \
+            -motif TGCA \
+            -motifmis 1 \
+            -similar 85 \
+            -vic 10 \
+            -seed 20 \
+            -seqids yes > {output} 2> {log.err}"
+
+rule ltr_finder_parallel:
+    input:
+        "results/lai/{sample_id}.fa"
+    output:
+        "results/lai/{sample_id}.fa.finder.combine.scn"
+    log:
+        out = "logs/ltr_finder_parallel_{sample_id}.out",
+        err = "logs/ltr_finder_parallel_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        "LTR_FINDER_parallel \
+            -seq {input} \
+            -threads {threads} \
+            -harvest_out \
+            -size 1000000 \
+            -time 300 > {log.out} 2> {log.err}"
+
+rule merge_ltrharvest_and_ltrfinder:
+    input:
+        ltrharvest = "results/lai/{sample_id}.fa.harvest.scn",
+        ltrfinder = "results/lai/{sample_id}.fa.finder.combine.scn"
+    output:
+        "results/lai/{sample_id}.fa.rawLTR.scn"
+    log:
+        err = "logs/merge_ltrharvest_and_ltrfinder_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    shell:
+        "cat {input.ltrharvest} {input.ltrfinder} > {output} 2> {log.err}"
+
+rule ltr_retriever:
+    input:
+        assembly = "results/lai/{sample_id}.fa",
+        inharvest = "results/lai/{sample_id}.fa.rawLTR.scn"
+    output:
+        "results/lai/{sample_id}.fa.pass.list"
+    log:
+        out = "logs/ltr_retriever_{sample_id}.out",
+        err = "logs/ltr_retriever_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        "LTR_retriever \
+            -genome {input.assembly} \
+            -inharvest {input.inharvest} \
+            -threads {threads} > {log.out} 2> {log.err}"
+
+rule lai:
+    input:
+        assembly = "results/lai/{sample_id}.fa",
+        intact = "results/lai/{sample_id}.fa.pass.list"
+    output:
+        "results/lai/{sample_id}.fa.out.LAI"
+    log:
+        out = "logs/lai_{sample_id}.out",
+        err = "logs/lai_{sample_id}.err"
+    conda:
+        "../envs/lai.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        "LAI \
+            -genome {input.assembly} \
+            -intact {input.intact} \
+            -all {input.assembly}.out \
+            -t {threads} > {log.out} 2> {log.err}"
