@@ -205,6 +205,42 @@ rule busco_genome_mode:
             --download_path {input.database} \
             --offline > {log.out} 2> {log.err}"
 
+rule meryl:
+    input:
+        "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+    output:
+        "results/merqury/{sample_id}.meryl"
+    log:
+        out = "logs/meryl_{sample_id}.out",
+        err = "logs/meryl_{sample_id}.err"
+    conda:
+        "../envs/merqury.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        "meryl count \
+            output {output} \
+            k=21 \
+            threads {threads} \
+            {input} > {log.out} 2> {log.err}"
+
+rule merqury:
+    input:
+        db = "results/merqury/{sample_id}.meryl",
+        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+    output:
+        "results/merqury/{sample_id}.qv"
+    log:
+        out = "logs/merqury_{sample_id}.out",
+        err = "logs/merqury_{sample_id}.err"
+    conda:
+        "../envs/merqury.yml"
+    shell:
+        "merqury.sh \
+            {input.db} \
+            {input.assembly} \
+            $(dirname {output})/$(basename {output} .qv) > {log.out} 2> {log.err}"
+
 rule inspector:
     input:
         assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",

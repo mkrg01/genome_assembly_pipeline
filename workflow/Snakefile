@@ -18,6 +18,7 @@ rule all:
         f"results/genomescope2/{sample_id}/linear_plot.png",
         f"results/hifiasm/{sample_id}_seqkit_stats.txt",
         f"results/busco_genome/{sample_id}/",
+        f"results/merqury/{sample_id}.qv",
         f"results/inspector/{sample_id}/",
         f"results/dfam/dfam_info.txt",
         f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt",

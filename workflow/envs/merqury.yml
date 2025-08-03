@@ -1,0 +1,5 @@
+name: merqury
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::merqury=1.3
