@@ -281,6 +281,7 @@ rule download_busco_database:
         """
         (
             busco --download {params.lineage_dataset}
+            mkdir -p {output}
             mv busco_downloads/* {output}
             rm -rf busco_downloads
         ) > {log.out} 2> {log.err}

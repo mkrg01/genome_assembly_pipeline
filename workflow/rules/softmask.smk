@@ -82,8 +82,8 @@ rule download_dfam_database:
             wget -O {output.root_md5} {params.root_md5}
             wget -O {output.lineage} {params.lineage}
             wget -O {output.lineage_md5} {params.lineage_md5}
-            python workflow/scripts/dfam_md5_validator.py --file {output.root} --md5_file {output.root_md5}
-            python workflow/scripts/dfam_md5_validator.py --file {output.lineage} --md5_file {output.lineage_md5}
+            python3 workflow/scripts/dfam_md5_validator.py --file {output.root} --md5_file {output.root_md5}
+            python3 workflow/scripts/dfam_md5_validator.py --file {output.lineage} --md5_file {output.lineage_md5}
         ) > {log.out} 2> {log.err}
         """
 
