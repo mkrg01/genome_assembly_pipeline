@@ -32,6 +32,8 @@ rule fastp_rnaseq_sample:
             --thread {threads} > {log.out} 2> {log.err}"
 
 rule download_orthodb_proteins:
+    input:
+        "results/dfam/dfam_info.txt"
     output:
         f"results/orthodb/{config['orthodb_lineage']}.fa"
     log:

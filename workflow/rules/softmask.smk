@@ -60,6 +60,8 @@ rule repeatmodeler:
         """
 
 rule download_dfam_database:
+    input:
+        "results/fcs_gx_db/check"
     output:
         root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
         root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
