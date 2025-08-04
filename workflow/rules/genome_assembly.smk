@@ -155,8 +155,8 @@ rule fcs_gx_get_code:
     log:
         out = "logs/fcs_gx_get_code.out",
         err = "logs/fcs_gx_get_code.err"
-    container:
-        "docker://ncbi/fcs-gx:0.5.5"
+    conda:
+        "../envs/fcs-gx.yml" # Dummy
     shell:
         "wget -O {output} https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py > {log.out} 2> {log.err}"
 
@@ -164,72 +164,95 @@ rule fcs_gx_get_db:
     input:
         code = "results/fcs.py"
     output:
-        readme = "results/fcs_gx_db/all.README.txt",
-        assemblies = "results/fcs_gx_db/all.assemblies.tsv",
-        blast_div = "results/fcs_gx_db/all.blast_div.tsv.gz",
-        gxi = "results/fcs_gx_db/all.gxi",
-        gxs = "results/fcs_gx_db/all.gxs",
-        manifest = "results/fcs_gx_db/all.manifest",
-        meta = "results/fcs_gx_db/all.meta.jsonl",
-        seq_info = "results/fcs_gx_db/all.seq_info.tsv.gz",
-        taxa = "results/fcs_gx_db/all.taxa.tsv"
+        readme = "results/fcs_gx_db/gxdb/all.README.txt",
+        assemblies = "results/fcs_gx_db/gxdb/all.assemblies.tsv",
+        blast_div = "results/fcs_gx_db/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/fcs_gx_db/gxdb/all.gxi",
+        gxs = "results/fcs_gx_db/gxdb/all.gxs",
+        manifest = "results/fcs_gx_db/gxdb/all.manifest",
+        meta = "results/fcs_gx_db/gxdb/all.meta.jsonl",
+        seq_info = "results/fcs_gx_db/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/fcs_gx_db/gxdb/all.taxa.tsv"
     log:
         out = "logs/fcs_gx_get_db.out",
         err = "logs/fcs_gx_get_db.err"
-    container:
-        "docker://ncbi/fcs-gx:0.5.5"
+    conda:
+        "../envs/fcs-gx.yml" # Dummy
+    params:
+        sif = "fcs-gx_0.5.5.sif",
+        docker = "docker://ncbi/fcs-gx:0.5.5",
+        mft = "https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest"
     shell:
-        "python3 {input.code} db get \
-            --mft 'https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest' \
-            --dir $(dirname {output.readme}) > {log.out} 2> {log.err}"
+        """
+        (
+            singularity pull {params.sif} {params.docker}
+            export FCS_DEFAULT_IMAGE={params.sif}
+            python3 {input.code} db get \
+                --mft {params.mft} \
+                --dir $(dirname {output.readme}) > {log.out} 2> {log.err}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule fcs_gx_check_db:
     input:
         code = "results/fcs.py",
-        readme = "results/fcs_gx_db/all.README.txt",
-        assemblies = "results/fcs_gx_db/all.assemblies.tsv",
-        blast_div = "results/fcs_gx_db/all.blast_div.tsv.gz",
-        gxi = "results/fcs_gx_db/all.gxi",
-        gxs = "results/fcs_gx_db/all.gxs",
-        manifest = "results/fcs_gx_db/all.manifest",
-        meta = "results/fcs_gx_db/all.meta.jsonl",
-        seq_info = "results/fcs_gx_db/all.seq_info.tsv.gz",
-        taxa = "results/fcs_gx_db/all.taxa.tsv"
+        readme = "results/fcs_gx_db/gxdb/all.README.txt",
+        assemblies = "results/fcs_gx_db/gxdb/all.assemblies.tsv",
+        blast_div = "results/fcs_gx_db/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/fcs_gx_db/gxdb/all.gxi",
+        gxs = "results/fcs_gx_db/gxdb/all.gxs",
+        manifest = "results/fcs_gx_db/gxdb/all.manifest",
+        meta = "results/fcs_gx_db/gxdb/all.meta.jsonl",
+        seq_info = "results/fcs_gx_db/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/fcs_gx_db/gxdb/all.taxa.tsv"
     output:
-        directory("results/fcs_gx_db_check")
+        directory("results/fcs_gx_db/check")
     log:
         out = "logs/fcs_gx_check_db.out",
         err = "logs/fcs_gx_check_db.err"
-    container:
-        "docker://ncbi/fcs-gx:0.5.5"
+    conda:
+        "../envs/fcs-gx.yml" # Dummy
+    params:
+        sif = "fcs-gx_0.5.5.sif"
     shell:
-        "python3 {input.code} db check \
-            --mft {input.manifest} \
-            --dir {output} > {log.out} 2> {log.err}"
+        """
+        (
+            export FCS_DEFAULT_IMAGE={params.sif}
+            python3 {input.code} db check \
+                --mft {input.manifest} \
+                --dir {output}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule fcs_gx_screen:
     input:
         code = "results/fcs.py",
-        manifest = "results/fcs_gx_db/all.manifest",
-        check = "results/fcs_gx_db_check",
+        manifest = "results/fcs_gx_db/gxdb/all.manifest",
+        check = "results/fcs_gx_db/check",
         assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
     output:
         directory("results/fcs_gx_screen/{sample_id}")
     log:
         out = "logs/fcs_gx_screen_{sample_id}.out",
         err = "logs/fcs_gx_screen_{sample_id}.err"
-    container:
-        "docker://ncbi/fcs-gx:0.5.5"
+    conda:
+        "../envs/fcs-gx.yml" # Dummy
     params:
-        taxid = config["fcs_gx_taxid"]
+        taxid = config["fcs_gx_taxid"],
+        sif = "fcs-gx_0.5.5.sif"
     threads:
         48
     shell:
-        "python3 {input.code} screen genome \
-            --fasta {input.assembly} \
-            --out-dir {output} \
-            --gx-db $(dirname {input.manifest}) \
-            --tax-id {params.taxid} > {log.out} 2> {log.err}"
+        """
+        (
+            export FCS_DEFAULT_IMAGE={params.sif}
+            python3 {input.code} screen genome \
+                --fasta {input.assembly} \
+                --out-dir {output} \
+                --gx-db $(dirname {input.manifest}) \
+                --tax-id {params.taxid}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule fcs_gx_clean:
     input:
@@ -242,18 +265,24 @@ rule fcs_gx_clean:
     log:
         out = "logs/fcs_gx_clean_{sample_id}.out",
         err = "logs/fcs_gx_clean_{sample_id}.err"
-    container:
-        "docker://ncbi/fcs-gx:0.5.5"
+    conda:
+        "../envs/fcs-gx.yml" # Dummy
     params:
-        taxid = config["fcs_gx_taxid"]
+        taxid = config["fcs_gx_taxid"],
+        sif = "fcs-gx_0.5.5.sif"
     threads:
         48
     shell:
-        "zcat {input.assembly} | \
-        python3 {input.code} clean genome \
-            --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.fa.{params.taxid}.fcs_gx_report.txt \
-            --output {output.clean} \
-            --contam-fasta-out {output.contam} > {log.out} 2> {log.err}"
+        """
+        (
+            export FCS_DEFAULT_IMAGE={params.sif}
+            zcat {input.assembly} | \
+            python3 {input.code} clean genome \
+                --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.fa.{params.taxid}.fcs_gx_report.txt \
+                --output {output.clean} \
+                --contam-fasta-out {output.contam}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule seqkit_stats:
     input:
