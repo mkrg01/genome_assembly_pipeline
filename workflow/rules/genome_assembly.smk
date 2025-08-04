@@ -158,7 +158,7 @@ rule fcs_gx_get_code:
     container:
         "docker://ncbi/fcs-gx:0.5.5"
     shell:
-        "curl -L https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py -o {output} > {log.out} 2> {log.err}"
+        "wget -O {output} https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py > {log.out} 2> {log.err}"
 
 rule fcs_gx_get_db:
     input:
