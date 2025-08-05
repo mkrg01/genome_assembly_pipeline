@@ -1,0 +1,5 @@
+name: smudgeplot
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::smudgeplot=0.4.0

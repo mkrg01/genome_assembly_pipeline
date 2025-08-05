@@ -38,6 +38,67 @@ rule fastplong:
             --json {output.report_json} \
             --thread {threads} > {log.out} 2> {log.err}"
 
+rule fastk:
+    input:
+        "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+    output:
+        hist = "results/fastk/{sample_id}.hist",
+        ktab = "results/fastk/{sample_id}.ktab"
+    log:
+        out = "logs/fastk_{sample_id}.out",
+        err = "logs/fastk_{sample_id}.err"
+    conda:
+        "../envs/fastk.yml"
+    threads:
+        1
+    shell:
+        "FastK \
+            -v \
+            -t4 \
+            -k31 \
+            -M16 \
+            -T{threads} \
+            {input} \
+            -N$(dirname {output.hist})/$(basename {output.hist} .hist) > {log.out} 2> {log.err}"
+
+rule smudgeplot_hetmers:
+    input:
+        hist = "results/fastk/{sample_id}.hist",
+        ktab = "results/fastk/{sample_id}.ktab"
+    output:
+        "results/fastk/{sample_id}_kmerpairs_text.smu"
+    log:
+        out = "logs/smudgeplot_hetmers_{sample_id}.out",
+        err = "logs/smudgeplot_hetmers_{sample_id}.err"
+    conda:
+        "../envs/smudgeplot.yml"
+    threads:
+        1
+    shell:
+        "smudgeplot.py hetmers \
+            -L 12 \
+            -t {threads} \
+            -o $(dirname {output})/$(basename {output} _text.smu) \
+            --verbose \
+            {input} > {log.out} 2> {log.err}"
+
+rule smudgeplot_all:
+    input:
+        "results/fastk/{sample_id}_kmerpairs_text.smu"
+    output:
+        directory("results/smudgeplot/{sample_id}")
+    log:
+        out = "logs/smudgeplot_all_{sample_id}.out",
+        err = "logs/smudgeplot_all_{sample_id}.err"
+    conda:
+        "../envs/smudgeplot.yml"
+    threads:
+        1
+    shell:
+        "smudgeplot.py all \
+            -o {output}/smudgeplot \
+            {input} > {log.out} 2> {log.err}"
+
 rule jellyfish_count:
     input:
         "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
