@@ -80,7 +80,7 @@ rule smudgeplot_hetmers:
             -t {threads} \
             -o $(dirname {output})/$(basename {output} _text.smu) \
             --verbose \
-            {input} > {log.out} 2> {log.err}"
+            $(dirname {input.hist})/$(basename {input.hist} .hist) > {log.out} 2> {log.err}"
 
 rule smudgeplot_all:
     input:
@@ -338,7 +338,7 @@ rule fcs_gx_clean:
             export FCS_DEFAULT_IMAGE={input.sif}
             zcat {input.assembly} | \
             python3 {input.code} clean genome \
-                --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.fa.{params.taxid}.fcs_gx_report.txt \
+                --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.{params.taxid}.fcs_gx_report.txt \
                 --output {output.clean} \
                 --contam-fasta-out {output.contam}
         ) > {log.out} 2> {log.err}
