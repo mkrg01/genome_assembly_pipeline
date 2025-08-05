@@ -7,8 +7,8 @@ from pathlib import Path
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Validate MD5 checksum of a file against a provided MD5 file.")
-    parser.add_argument("file", type=Path, required=True, help="Path to the file to validate.")
-    parser.add_argument("md5_file", type=Path, required=True, help="Path to the MD5 file containing expected checksum.")
+    parser.add_argument("--file", type=Path, required=True, help="Path to the file to validate.")
+    parser.add_argument("--md5_file", type=Path, required=True, help="Path to the MD5 file containing expected checksum.")
     return parser.parse_args()
 
 def check_md5(file_path, md5_path):
