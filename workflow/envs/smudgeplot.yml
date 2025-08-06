@@ -2,4 +2,5 @@ name: smudgeplot
 channels:
   - conda-forge
 dependencies:
+  - bioconda::fastk=1.1.0
   - bioconda::smudgeplot=0.4.0

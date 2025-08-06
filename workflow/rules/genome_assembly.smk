@@ -48,7 +48,7 @@ rule fastk:
         out = "logs/fastk_{sample_id}.out",
         err = "logs/fastk_{sample_id}.err"
     conda:
-        "../envs/fastk.yml"
+        "../envs/smudgeplot.yml"
     threads:
         1
     shell:
@@ -336,7 +336,7 @@ rule fcs_gx_clean:
         """
         (
             export FCS_DEFAULT_IMAGE={input.sif}
-            zcat {input.assembly} | \
+            cat {input.assembly} | \
             python3 {input.code} clean genome \
                 --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.{params.taxid}.fcs_gx_report.txt \
                 --output {output.clean} \

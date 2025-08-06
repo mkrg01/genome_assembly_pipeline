@@ -1,5 +1,0 @@
-name: fastk
-channels:
-  - conda-forge
-dependencies:
-  - bioconda::fastk=1.1.0

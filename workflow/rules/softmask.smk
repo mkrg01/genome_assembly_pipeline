@@ -91,7 +91,10 @@ rule download_dfam_database:
 
 rule print_dfam_database_info:
     input:
-        f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     output:
         "results/dfam/dfam_info.txt"
     log:
@@ -100,12 +103,15 @@ rule print_dfam_database_info:
         "docker://dfam/tetools:1.93"
     shell:
         "famdb.py \
-            -i {input} \
+            -i $(dirname {input.lineage}) \
             info > {output} 2> {log}"
 
 rule print_dfam_repeat_number:
     input:
-        f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     output:
         f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     log:
@@ -116,7 +122,7 @@ rule print_dfam_repeat_number:
         lineage_name = config['dfam_lineage_name']
     shell:
         "famdb.py \
-            -i {input} \
+            -i $(dirname {input.lineage}) \
             lineage \
             --format totals \
             --ancestors \
@@ -125,7 +131,10 @@ rule print_dfam_repeat_number:
 
 rule export_dfam_repeat_fasta:
     input:
-        f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     output:
         f"results/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     log:
@@ -136,7 +145,7 @@ rule export_dfam_repeat_fasta:
         lineage_name = config['dfam_lineage_name']
     shell:
         "famdb.py \
-            -i {input} \
+            -i $(dirname {input.lineage}) \
             families \
             --format fasta_name \
             --ancestors \
