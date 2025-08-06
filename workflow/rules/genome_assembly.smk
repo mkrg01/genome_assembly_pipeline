@@ -42,8 +42,8 @@ rule fastk:
     input:
         "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        hist = "results/fastk/{sample_id}.hist",
-        ktab = "results/fastk/{sample_id}.ktab"
+        hist = "results/smudgeplot/{sample_id}_fastk.hist",
+        ktab = "results/smudgeplot/{sample_id}_fastk.ktab"
     log:
         out = "logs/fastk_{sample_id}.out",
         err = "logs/fastk_{sample_id}.err"
@@ -63,10 +63,10 @@ rule fastk:
 
 rule smudgeplot_hetmers:
     input:
-        hist = "results/fastk/{sample_id}.hist",
-        ktab = "results/fastk/{sample_id}.ktab"
+        hist = "results/smudgeplot/{sample_id}_fastk.hist",
+        ktab = "results/smudgeplot/{sample_id}_fastk.ktab"
     output:
-        "results/fastk/{sample_id}_kmerpairs_text.smu"
+        "results/smudgeplot/{sample_id}_kmerpairs_text.smu"
     log:
         out = "logs/smudgeplot_hetmers_{sample_id}.out",
         err = "logs/smudgeplot_hetmers_{sample_id}.err"
@@ -84,9 +84,9 @@ rule smudgeplot_hetmers:
 
 rule smudgeplot_all:
     input:
-        "results/fastk/{sample_id}_kmerpairs_text.smu"
+        "results/smudgeplot/{sample_id}_kmerpairs_text.smu"
     output:
-        directory("results/smudgeplot/{sample_id}")
+        "results/smudgeplot/{sample_id}_masked_errors_smu.txt"
     log:
         out = "logs/smudgeplot_all_{sample_id}.out",
         err = "logs/smudgeplot_all_{sample_id}.err"
@@ -96,7 +96,7 @@ rule smudgeplot_all:
         1
     shell:
         "smudgeplot.py all \
-            -o {output}/smudgeplot \
+            -o $(dirname {output})/{wildcards.sample_id} \
             {input} > {log.out} 2> {log.err}"
 
 rule jellyfish_count:
