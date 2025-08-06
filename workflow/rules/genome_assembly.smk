@@ -405,7 +405,7 @@ rule meryl:
     input:
         "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
-        "results/merqury/{sample_id}.meryl"
+        directory("results/merqury/{sample_id}.meryl")
     log:
         out = "logs/meryl_{sample_id}.out",
         err = "logs/meryl_{sample_id}.err"
