@@ -564,12 +564,18 @@ rule ltr_finder_parallel:
     threads:
         max(1, int(workflow.cores * 0.9))
     shell:
-        "LTR_FINDER_parallel \
-            -seq {input} \
-            -threads {threads} \
-            -harvest_out \
-            -size 1000000 \
-            -time 300 > {log.out} 2> {log.err}"
+        """
+        (
+            cd results/lai
+            LTR_FINDER_parallel \
+                -seq ../../{input} \
+                -threads {threads} \
+                -harvest_out \
+                -size 1000000 \
+                -time 300
+            cd ../..
+        ) > {log.out} 2> {log.err}
+        """
 
 rule merge_ltrharvest_and_ltrfinder:
     input:
