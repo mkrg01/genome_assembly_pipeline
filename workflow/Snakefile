@@ -15,7 +15,7 @@ sample_id = os.path.basename(sample[0]).replace(".hifi_reads.bam", "")
 
 rule all:
     input:
-        f"results/smudgeplot/{sample_id}/",
+        f"results/smudgeplot/{sample_id}_masked_errors_smu.txt",
         f"results/genomescope2/{sample_id}/linear_plot.png",
         f"results/fcs_gx_clean/{sample_id}_seqkit_stats.txt",
         f"results/busco_genome/{sample_id}/",
