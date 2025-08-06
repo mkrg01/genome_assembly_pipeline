@@ -19,7 +19,7 @@ rule all:
         f"results/genomescope2/{sample_id}/linear_plot.png",
         f"results/fcs_gx_clean/{sample_id}_seqkit_stats.txt",
         f"results/busco_genome/{sample_id}/",
-        f"results/merqury/{sample_id}.qv",
+        f"results/merqury/{sample_id}.merqury.qv",
         f"results/inspector/{sample_id}/",
         f"results/lai/{sample_id}.fa.out.LAI",
         f"results/dfam/dfam_info.txt",
