@@ -488,7 +488,15 @@ rule gt_suffixerator:
         "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
         assembly = "results/lai/{sample_id}.fa",
-        index = "results/lai/{sample_id}_index"
+        des = "results/lai/{sample_id}_index.des",
+        esq = "results/lai/{sample_id}_index.esq",
+        lcp = "results/lai/{sample_id}_index.lcp",
+        llv = "results/lai/{sample_id}_index.llv",
+        md5 = "results/lai/{sample_id}_index.md5",
+        prj = "results/lai/{sample_id}_index.prj",
+        sds = "results/lai/{sample_id}_index.sds",
+        ssp = "results/lai/{sample_id}_index.ssp",
+        suf = "results/lai/{sample_id}_index.suf"
     log:
         out = "logs/gt_suffixerator_{sample_id}.out",
         err = "logs/gt_suffixerator_{sample_id}.err"
@@ -500,7 +508,7 @@ rule gt_suffixerator:
             cp {input} {output.assembly}
             gt suffixerator \
                 -db {output.assembly} \
-                -indexname {output.index} \
+                -indexname $(dirname {output.des})/$(basename {output.des} .des) \
                 -tis \
                 -suf \
                 -lcp \
@@ -513,7 +521,16 @@ rule gt_suffixerator:
 
 rule gt_ltrharvest:
     input:
-        "results/lai/{sample_id}_index"
+        assembly = "results/lai/{sample_id}.fa",
+        des = "results/lai/{sample_id}_index.des",
+        esq = "results/lai/{sample_id}_index.esq",
+        lcp = "results/lai/{sample_id}_index.lcp",
+        llv = "results/lai/{sample_id}_index.llv",
+        md5 = "results/lai/{sample_id}_index.md5",
+        prj = "results/lai/{sample_id}_index.prj",
+        sds = "results/lai/{sample_id}_index.sds",
+        ssp = "results/lai/{sample_id}_index.ssp",
+        suf = "results/lai/{sample_id}_index.suf"
     output:
         "results/lai/{sample_id}.fa.harvest.scn"
     log:
@@ -522,7 +539,7 @@ rule gt_ltrharvest:
         "../envs/lai.yml"
     shell:
         "gt ltrharvest \
-            -index {input} \
+            -index $(dirname {input.des})/$(basename {input.des} .des) \
             -minlenltr 100 \
             -maxlenltr 7000 \
             -mintsd 4 \
