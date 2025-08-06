@@ -2,6 +2,6 @@ name: lai
 channels:
   - conda-forge
 dependencies:
-  - bioconda::genometools=1.2.1
+  - bioconda::genometools-genometools=1.6.5
   - bioconda::ltr_finder_parallel=1.3.0
   - bioconda::ltr_retriever=2.9.0
