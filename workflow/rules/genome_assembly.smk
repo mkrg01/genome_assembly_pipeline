@@ -417,7 +417,7 @@ rule meryl:
         "meryl count \
             output {output} \
             k=21 \
-            threads {threads} \
+            threads={threads} \
             {input} > {log.out} 2> {log.err}"
 
 rule merqury:
