@@ -22,7 +22,18 @@ rule build_repeatmodeler_database:
 
 rule repeatmodeler:
     input:
-        "results/repeatmodeler_db/{sample_id}.nhr"
+        nhr = "results/repeatmodeler_db/{sample_id}.nhr",
+        nin = "results/repeatmodeler_db/{sample_id}.nin",
+        njs = "results/repeatmodeler_db/{sample_id}.njs",
+        nnd = "results/repeatmodeler_db/{sample_id}.nnd",
+        nni = "results/repeatmodeler_db/{sample_id}.nni",
+        nog = "results/repeatmodeler_db/{sample_id}.nog",
+        nsq = "results/repeatmodeler_db/{sample_id}.nsq",
+        translation = "results/repeatmodeler_db/{sample_id}.translation",
+        busco = "results/busco_genome/{sample_id}",
+        merqury = "results/merqury/{sample_id}.merqury.qv",
+        inspector = "results/inspector/{sample_id}",
+        lai = "results/lai/{sample_id}.fa.out.LAI"
     output:
         consensus = "results/repeatmodeler/{sample_id}-families.fa",
         seed = "results/repeatmodeler/{sample_id}-families.stk",
@@ -38,7 +49,7 @@ rule repeatmodeler:
         """
         (
             RepeatModeler \
-                -database $(dirname {input})/$(basename {input} .nhr) \
+                -database $(dirname {input.nhr})/$(basename {input.nhr} .nhr) \
                 -threads {threads} \
                 -srand 1 \
                 -LTRStruct > {log.out} 2> {log.err}
