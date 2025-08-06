@@ -425,17 +425,23 @@ rule merqury:
         db = "results/merqury/{sample_id}.meryl",
         assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
-        "results/merqury/{sample_id}.qv"
+        "results/merqury/{sample_id}.merqury.qv"
     log:
         out = "logs/merqury_{sample_id}.out",
         err = "logs/merqury_{sample_id}.err"
     conda:
         "../envs/merqury.yml"
     shell:
-        "merqury.sh \
-            {input.db} \
-            {input.assembly} \
-            $(dirname {output})/$(basename {output} .qv) > {log.out} 2> {log.err}"
+        """
+        (
+            cd results/merqury
+            merqury.sh \
+                ../../{input.db} \
+                ../../{input.assembly} \
+                $(basename {output} .qv)
+            cd ../..
+        ) > {log.out} 2> {log.err}
+        """
 
 rule inspector:
     input:
