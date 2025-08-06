@@ -63,10 +63,10 @@ rule download_dfam_database:
     input:
         "results/fcs_gx_db/check"
     output:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     log:
         out = "logs/download_dfam_database.out",
         err = "logs/download_dfam_database.err"
@@ -89,12 +89,33 @@ rule download_dfam_database:
         ) > {log.out} 2> {log.err}
         """
 
+rule unzip_dfam_database:
+    input:
+        root = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+    output:
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+    log:
+        out = "logs/unzip_dfam_database.out",
+        err = "logs/unzip_dfam_database.err"
+    container:
+        "docker://dfam/tetools:1.93"
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output.root})
+            zcat {input.root} > {output.root}
+            zcat {input.lineage} > {output.lineage}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule print_dfam_database_info:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
         "results/dfam/dfam_info.txt"
     log:
@@ -108,10 +129,8 @@ rule print_dfam_database_info:
 
 rule print_dfam_repeat_number:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
         f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     log:
@@ -131,10 +150,8 @@ rule print_dfam_repeat_number:
 
 rule export_dfam_repeat_fasta:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
         f"results/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     log:
