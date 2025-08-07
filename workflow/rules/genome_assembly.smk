@@ -604,10 +604,16 @@ rule ltr_retriever:
     threads:
         max(1, int(workflow.cores * 0.9))
     shell:
-        "LTR_retriever \
-            -genome {input.assembly} \
-            -inharvest {input.inharvest} \
-            -threads {threads} > {log.out} 2> {log.err}"
+        """
+        (
+            cd results/lai
+            LTR_retriever \
+                -genome ../../{input.assembly} \
+                -inharvest ../../{input.inharvest} \
+                -threads {threads}
+            cd ../..
+        ) > {log.out} 2> {log.err}
+        """
 
 rule lai:
     input:
