@@ -373,11 +373,11 @@ rule copy_fcs_gx_clean:
 
 rule seqkit_stats:
     input:
-        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        "results/fcs_gx/seqkit/{sample_id}_seqkit_stats.txt"
+        "results/{assembly}/seqkit/{sample_id}_seqkit_stats.txt"
     log:
-        "logs/seqkit_stats_{sample_id}.err"
+        "logs/seqkit_stats_{assembly}_{sample_id}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -405,13 +405,13 @@ rule download_busco_database:
 
 rule busco_genome_mode:
     input:
-        genome = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        genome = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa",
         database = "results/downloads/busco_downloads"
     output:
-        directory("results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa")
+        directory("results/{assembly}/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa")
     log:
-        out = "logs/busco_genome_mode_{sample_id}.out",
-        err = "logs/busco_genome_mode_{sample_id}.err"
+        out = "logs/busco_genome_mode_{assembly}_{sample_id}.out",
+        err = "logs/busco_genome_mode_{assembly}_{sample_id}.err"
     conda:
         "../envs/busco.yml"
     threads:
@@ -450,12 +450,12 @@ rule meryl:
 rule merqury:
     input:
         db = "results/hifi_reads/meryl/{sample_id}",
-        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        assembly = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        "results/fcs_gx/merqury/{sample_id}.merqury.qv"
+        "results/{assembly}/merqury/{sample_id}.merqury.qv"
     log:
-        out = "logs/merqury_{sample_id}.out",
-        err = "logs/merqury_{sample_id}.err"
+        out = "logs/merqury_{assembly}_{sample_id}.out",
+        err = "logs/merqury_{assembly}_{sample_id}.err"
     conda:
         "../envs/merqury.yml"
     shell:
@@ -472,13 +472,13 @@ rule merqury:
 
 rule inspector:
     input:
-        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        assembly = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa",
         reads = "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        directory("results/fcs_gx/inspector/{sample_id}")
+        directory("results/{assembly}/inspector/{sample_id}")
     log:
-        out = "logs/inspector_{sample_id}.out",
-        err = "logs/inspector_{sample_id}.err"
+        out = "logs/inspector_{assembly}_{sample_id}.out",
+        err = "logs/inspector_{assembly}_{sample_id}.err"
     conda:
         "../envs/inspector.yml"
     threads:
@@ -493,12 +493,12 @@ rule inspector:
 
 # rule inspector_correct:
 #     input:
-#         "results/fcs_gx/inspector/{sample_id}"
+#         "results/{assembly}/inspector/{sample_id}"
 #     output:
-#         directory("results/fcs_gx/inspector_correct/{sample_id}")
+#         directory("results/{assembly}/inspector_correct/{sample_id}")
 #     log:
-#         out = "logs/inspector_correct_{sample_id}.out",
-#         err = "logs/inspector_correct_{sample_id}.err"
+#         out = "logs/inspector_correct_{assembly}_{sample_id}.out",
+#         err = "logs/inspector_correct_{assembly}_{sample_id}.err"
 #     conda:
 #         "../envs/inspector.yml"
 #     threads:
@@ -512,21 +512,21 @@ rule inspector:
 
 rule gt_suffixerator:
     input:
-        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
-        des = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.des",
-        esq = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.esq",
-        lcp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.lcp",
-        llv = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.llv",
-        md5 = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.md5",
-        prj = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.prj",
-        sds = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.sds",
-        ssp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.ssp",
-        suf = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.suf"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
+        des = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.des",
+        esq = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.esq",
+        lcp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.lcp",
+        llv = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.llv",
+        md5 = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.md5",
+        prj = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.prj",
+        sds = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.sds",
+        ssp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.ssp",
+        suf = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.suf"
     log:
-        out = "logs/gt_suffixerator_{sample_id}.out",
-        err = "logs/gt_suffixerator_{sample_id}.err"
+        out = "logs/gt_suffixerator_{assembly}_{sample_id}.out",
+        err = "logs/gt_suffixerator_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -548,20 +548,20 @@ rule gt_suffixerator:
 
 rule gt_ltrharvest:
     input:
-        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
-        des = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.des",
-        esq = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.esq",
-        lcp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.lcp",
-        llv = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.llv",
-        md5 = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.md5",
-        prj = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.prj",
-        sds = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.sds",
-        ssp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.ssp",
-        suf = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.suf"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
+        des = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.des",
+        esq = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.esq",
+        lcp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.lcp",
+        llv = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.llv",
+        md5 = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.md5",
+        prj = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.prj",
+        sds = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.sds",
+        ssp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.ssp",
+        suf = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.suf"
     output:
-        "results/fcs_gx/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn"
+        "results/{assembly}/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn"
     log:
-        err = "logs/gt_ltrharvest_{sample_id}.err"
+        err = "logs/gt_ltrharvest_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -580,12 +580,12 @@ rule gt_ltrharvest:
 
 rule ltr_finder_parallel:
     input:
-        "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa"
+        "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa"
     output:
-        "results/fcs_gx/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
+        "results/{assembly}/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
     log:
-        out = "logs/ltr_finder_parallel_{sample_id}.out",
-        err = "logs/ltr_finder_parallel_{sample_id}.err"
+        out = "logs/ltr_finder_parallel_{assembly}_{sample_id}.out",
+        err = "logs/ltr_finder_parallel_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     threads:
@@ -606,12 +606,12 @@ rule ltr_finder_parallel:
 
 rule merge_ltrharvest_and_ltrfinder:
     input:
-        ltrharvest = "results/fcs_gx/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn",
-        ltrfinder = "results/fcs_gx/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
+        ltrharvest = "results/{assembly}/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn",
+        ltrfinder = "results/{assembly}/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
     output:
-        "results/fcs_gx/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
+        "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
     log:
-        err = "logs/merge_ltrharvest_and_ltrfinder_{sample_id}.err"
+        err = "logs/merge_ltrharvest_and_ltrfinder_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -619,13 +619,13 @@ rule merge_ltrharvest_and_ltrfinder:
 
 rule ltr_retriever:
     input:
-        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
-        inharvest = "results/fcs_gx/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
+        inharvest = "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
     output:
-        "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.pass.list"
+        "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.pass.list"
     log:
-        out = "logs/ltr_retriever_{sample_id}.out",
-        err = "logs/ltr_retriever_{sample_id}.err"
+        out = "logs/ltr_retriever_{assembly}_{sample_id}.out",
+        err = "logs/ltr_retriever_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     threads:
@@ -644,13 +644,13 @@ rule ltr_retriever:
 
 rule lai:
     input:
-        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
-        intact = "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.pass.list"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
+        intact = "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.pass.list"
     output:
-        "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
+        "results/{assembly}/lai/{sample_id}.fa.out.LAI"
     log:
-        out = "logs/lai_{sample_id}.out",
-        err = "logs/lai_{sample_id}.err"
+        out = "logs/lai_{assembly}_{sample_id}.out",
+        err = "logs/lai_{assembly}_{sample_id}.err"
     conda:
         "../envs/lai.yml"
     threads:

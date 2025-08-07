@@ -30,10 +30,18 @@ rule repeatmodeler:
         nog = "results/repeatmodeler/db/{sample_id}.nog",
         nsq = "results/repeatmodeler/db/{sample_id}.nsq",
         translation = "results/repeatmodeler/db/{sample_id}.translation",
-        busco = "results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
-        merqury = "results/fcs_gx/merqury/{sample_id}.merqury.qv",
-        inspector = "results/fcs_gx/inspector/{sample_id}",
-        lai = "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
+        flag_smudgeplot = "results/hifi_reads/smudgeplot/{sample_id}_masked_errors_smu.txt",
+        flag_genomescope = "results/hifi_reads/genomescope2/{sample_id}_linear_plot.png",
+        flag_seqkit_hifiasm = "results/hifiasm/seqkit/{sample_id}_seqkit_stats.txt",
+        flag_seqkit_fcs_gx = "results/fcs_gx/seqkit/{sample_id}_seqkit_stats.txt",
+        flag_busco_hifiasm = "results/hifiasm/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
+        flag_busco_fcs_gx = "results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
+        flag_merqury_hifiasm = "results/hifiasm/merqury/{sample_id}.merqury.qv",
+        flag_merqury_fcs_gx = "results/fcs_gx/merqury/{sample_id}.merqury.qv",
+        flag_inspector_hifiasm = "results/hifiasm/inspector/{sample_id}",
+        flag_inspector_fcs_gx = "results/fcs_gx/inspector/{sample_id}",
+        flag_lai_hifiasm = "results/hifiasm/lai/{sample_id}.fa.out.LAI",
+        flag_lai_fcs_gx = "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
     output:
         consensus = "results/repeatmodeler/{sample_id}-families.fa",
         seed = "results/repeatmodeler/{sample_id}-families.stk",
@@ -72,7 +80,7 @@ rule repeatmodeler:
 
 rule download_dfam_database:
     input:
-        "results/downloads/.gxdb_checked"
+        flag_gxdb = "results/downloads/.gxdb_checked"
     output:
         root = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
         root_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",

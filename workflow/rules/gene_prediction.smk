@@ -33,7 +33,8 @@ rule fastp_rnaseq_sample:
 
 rule download_orthodb_proteins:
     input:
-        "results/repeatmasker/dfam/dfam_info.txt"
+        flag_dfam_1 = "results/repeatmasker/dfam/dfam_info.txt",
+        flag_dfam_2 = f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     output:
         f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     log:
@@ -66,7 +67,8 @@ rule braker3:
     input:
         assembly = "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked",
         rnaseq = expand("results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
-        protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
+        protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa",
+        flag_repeatmasker = "results/repeatmasker/{sample_id}_softmasked_percentage.txt"
     output:
         "results/braker3/{sample_id}/braker3.gff3"
     log:
