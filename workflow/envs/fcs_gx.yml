@@ -1,4 +1,4 @@
-name: fcs-gx
+name: fcs_gx
 channels:
   - conda-forge
 dependencies:

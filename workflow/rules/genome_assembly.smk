@@ -2,7 +2,7 @@ rule bam2fastq:
     input:
         "raw_data/{sample_id}.hifi_reads.bam"
     output:
-        "results/raw_reads/{sample_id}_hifi_reads.fastq.gz"
+        "results/hifi_reads/raw_reads/{sample_id}_hifi_reads.fastq.gz"
     log:
         out = "logs/bam2fastq_{sample_id}.out",
         err = "logs/bam2fastq_{sample_id}.err"
@@ -18,11 +18,11 @@ rule bam2fastq:
 
 rule fastplong:
     input:
-        "results/raw_reads/{sample_id}_hifi_reads.fastq.gz"
+        "results/hifi_reads/raw_reads/{sample_id}_hifi_reads.fastq.gz"
     output:
-        reads = "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz",
-        report_html = "results/fastplong/{sample_id}_report.html",
-        report_json = "results/fastplong/{sample_id}_report.json"
+        reads = "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz",
+        report_html = "results/hifi_reads/fastplong/{sample_id}_report.html",
+        report_json = "results/hifi_reads/fastplong/{sample_id}_report.json"
     log:
         out = "logs/fastplong_{sample_id}.out",
         err = "logs/fastplong_{sample_id}.err"
@@ -40,10 +40,10 @@ rule fastplong:
 
 rule fastk:
     input:
-        "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        hist = "results/smudgeplot/{sample_id}_fastk.hist",
-        ktab = "results/smudgeplot/{sample_id}_fastk.ktab"
+        hist = "results/hifi_reads/smudgeplot/{sample_id}_fastk.hist",
+        ktab = "results/hifi_reads/smudgeplot/{sample_id}_fastk.ktab"
     log:
         out = "logs/fastk_{sample_id}.out",
         err = "logs/fastk_{sample_id}.err"
@@ -63,10 +63,10 @@ rule fastk:
 
 rule smudgeplot_hetmers:
     input:
-        hist = "results/smudgeplot/{sample_id}_fastk.hist",
-        ktab = "results/smudgeplot/{sample_id}_fastk.ktab"
+        hist = "results/hifi_reads/smudgeplot/{sample_id}_fastk.hist",
+        ktab = "results/hifi_reads/smudgeplot/{sample_id}_fastk.ktab"
     output:
-        "results/smudgeplot/{sample_id}_kmerpairs_text.smu"
+        "results/hifi_reads/smudgeplot/{sample_id}_kmerpairs_text.smu"
     log:
         out = "logs/smudgeplot_hetmers_{sample_id}.out",
         err = "logs/smudgeplot_hetmers_{sample_id}.err"
@@ -84,9 +84,9 @@ rule smudgeplot_hetmers:
 
 rule smudgeplot_all:
     input:
-        "results/smudgeplot/{sample_id}_kmerpairs_text.smu"
+        "results/hifi_reads/smudgeplot/{sample_id}_kmerpairs_text.smu"
     output:
-        "results/smudgeplot/{sample_id}_masked_errors_smu.txt"
+        "results/hifi_reads/smudgeplot/{sample_id}_masked_errors_smu.txt"
     log:
         out = "logs/smudgeplot_all_{sample_id}.out",
         err = "logs/smudgeplot_all_{sample_id}.err"
@@ -101,9 +101,9 @@ rule smudgeplot_all:
 
 rule jellyfish_count:
     input:
-        "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        "results/jellyfish/{sample_id}_mer_counts.jf"
+        "results/hifi_reads/genomescope2/{sample_id}_jellyfish_mer_counts.jf"
     log:
         out = "logs/jellyfish_count_{sample_id}.out",
         err = "logs/jellyfish_count_{sample_id}.err"
@@ -122,9 +122,9 @@ rule jellyfish_count:
 
 rule jellyfish_histo:
     input:
-        "results/jellyfish/{sample_id}_mer_counts.jf"
+        "results/hifi_reads/genomescope2/{sample_id}_jellyfish_mer_counts.jf"
     output:
-        "results/jellyfish/{sample_id}_jellyfish.histo"
+        "results/hifi_reads/genomescope2/{sample_id}_jellyfish.histo"
     log:
         out = "logs/jellyfish_histo_{sample_id}.out",
         err = "logs/jellyfish_histo_{sample_id}.err"
@@ -140,15 +140,15 @@ rule jellyfish_histo:
 
 rule genomescope2:
     input:
-        "results/jellyfish/{sample_id}_jellyfish.histo"
+        "results/hifi_reads/genomescope2/{sample_id}_jellyfish.histo"
     output:
-        linear_plot = "results/genomescope2/{sample_id}/linear_plot.png",
-        log_plot = "results/genomescope2/{sample_id}/log_plot.png",
-        model = "results/genomescope2/{sample_id}/model.txt",
-        progress = "results/genomescope2/{sample_id}/progress.txt",
-        summary = "results/genomescope2/{sample_id}/summary.txt",
-        transformed_linear_plot = "results/genomescope2/{sample_id}/transformed_linear_plot.png",
-        transformed_log_plot = "results/genomescope2/{sample_id}/transformed_log_plot.png"
+        linear_plot = "results/hifi_reads/genomescope2/{sample_id}_linear_plot.png",
+        log_plot = "results/hifi_reads/genomescope2/{sample_id}_log_plot.png",
+        model = "results/hifi_reads/genomescope2/{sample_id}_model.txt",
+        progress = "results/hifi_reads/genomescope2/{sample_id}_progress.txt",
+        summary = "results/hifi_reads/genomescope2/{sample_id}_summary.txt",
+        transformed_linear_plot = "results/hifi_reads/genomescope2/{sample_id}_transformed_linear_plot.png",
+        transformed_log_plot = "results/hifi_reads/genomescope2/{sample_id}_transformed_log_plot.png"
     log:
         out = "logs/genomescope2_{sample_id}.out",
         err = "logs/genomescope2_{sample_id}.err"
@@ -157,34 +157,45 @@ rule genomescope2:
     params:
         ploidy = config["ploidy"]
     shell:
-        "genomescope2 \
-            --input {input} \
-            --output $(dirname {output.linear_plot}) \
-            --kmer_length 21 \
-            --ploidy {params.ploidy} > {log.out} 2> {log.err}"
+        """
+        (
+            genomescope2 \
+                --input {input} \
+                --output $(dirname {output.linear_plot}) \
+                --kmer_length 21 \
+                --ploidy {params.ploidy}
+            mv $(dirname {output.linear_plot})/linear_plot.png {output.linear_plot}
+            mv $(dirname {output.log_plot})/log_plot.png {output.log_plot}
+            mv $(dirname {output.model})/model.txt {output.model}
+            mv $(dirname {output.progress})/progress.txt {output.progress}
+            mv $(dirname {output.summary})/summary.txt {output.summary}
+            mv $(dirname {output.transformed_linear_plot})/transformed_linear_plot.png {output.transformed_linear_plot}
+            mv $(dirname {output.transformed_log_plot})/transformed_log_plot.png {output.transformed_log_plot}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule hifiasm:
     input:
-        "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        bp_hap1_p_ctg_gfa = "results/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.gfa",
-        bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.lowQ.bed",
-        bp_hap1_p_ctg_noseq_gfa = "results/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.noseq.gfa",
-        bp_hap2_p_ctg_gfa = "results/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.gfa",
-        bp_hap2_p_ctg_lowQ_bed = "results/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.lowQ.bed",
-        bp_hap2_p_ctg_noseq_gfa = "results/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.noseq.gfa",
-        bp_p_ctg_gfa = "results/hifiasm/{sample_id}.asm.bp.p_ctg.gfa",
-        bp_p_ctg_lowQ_bed = "results/hifiasm/{sample_id}.asm.bp.p_ctg.lowQ.bed",
-        bp_p_ctg_noseq_gfa = "results/hifiasm/{sample_id}.asm.bp.p_ctg.noseq.gfa",
-        bp_p_utg_gfa = "results/hifiasm/{sample_id}.asm.bp.p_utg.gfa",
-        bp_p_utg_lowQ_bed = "results/hifiasm/{sample_id}.asm.bp.p_utg.lowQ.bed",
-        bp_p_utg_noseq_gfa = "results/hifiasm/{sample_id}.asm.bp.p_utg.noseq.gfa",
-        bp_r_utg_gfa = "results/hifiasm/{sample_id}.asm.bp.r_utg.gfa",
-        bp_r_utg_lowQ_bed = "results/hifiasm/{sample_id}.asm.bp.r_utg.lowQ.bed",
-        bp_r_utg_noseq_gfa = "results/hifiasm/{sample_id}.asm.bp.r_utg.noseq.gfa",
-        ec_bin = "results/hifiasm/{sample_id}.asm.ec.bin",
-        ovlp_reverse_bin = "results/hifiasm/{sample_id}.asm.ovlp.reverse.bin",
-        ovlp_source_bin = "results/hifiasm/{sample_id}.asm.ovlp.source.bin"
+        bp_hap1_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.gfa",
+        bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.lowQ.bed",
+        bp_hap1_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.noseq.gfa",
+        bp_hap2_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.gfa",
+        bp_hap2_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.lowQ.bed",
+        bp_hap2_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.noseq.gfa",
+        bp_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.gfa",
+        bp_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.lowQ.bed",
+        bp_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.noseq.gfa",
+        bp_p_utg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.gfa",
+        bp_p_utg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.lowQ.bed",
+        bp_p_utg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.noseq.gfa",
+        bp_r_utg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.gfa",
+        bp_r_utg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.lowQ.bed",
+        bp_r_utg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.noseq.gfa",
+        ec_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ec.bin",
+        ovlp_reverse_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ovlp.reverse.bin",
+        ovlp_source_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ovlp.source.bin"
     log:
         out = "logs/hifiasm_{sample_id}.out",
         err = "logs/hifiasm_{sample_id}.err"
@@ -200,9 +211,9 @@ rule hifiasm:
 
 rule convert_gfa_to_fa:
     input:
-        "results/hifiasm/{sample_id}.asm.bp.p_ctg.gfa"
+        "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.gfa"
     output:
-        "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa"
+        "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa"
     log:
         "logs/convert_gfa_to_fa_{sample_id}.err"
     conda:
@@ -212,34 +223,36 @@ rule convert_gfa_to_fa:
 
 rule fcs_gx_get_code:
     output:
-        "results/fcs.py"
+        "results/downloads/fcs.py"
     log:
         out = "logs/fcs_gx_get_code.out",
         err = "logs/fcs_gx_get_code.err"
     conda:
-        "../envs/fcs-gx.yml" # Dummy
+        "../envs/fcs_gx.yml" # Dummy
+    params:
+        url = "https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py"
     shell:
-        "wget -O {output} https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py > {log.out} 2> {log.err}"
+        "wget -O {output} {params.url} > {log.out} 2> {log.err}"
 
 rule fcs_gx_get_db:
     input:
-        code = "results/fcs.py"
+        code = "results/downloads/fcs.py"
     output:
-        readme = "results/fcs_gx_db/gxdb/all.README.txt",
-        assemblies = "results/fcs_gx_db/gxdb/all.assemblies.tsv",
-        blast_div = "results/fcs_gx_db/gxdb/all.blast_div.tsv.gz",
-        gxi = "results/fcs_gx_db/gxdb/all.gxi",
-        gxs = "results/fcs_gx_db/gxdb/all.gxs",
-        manifest = "results/fcs_gx_db/gxdb/all.manifest",
-        meta = "results/fcs_gx_db/gxdb/all.meta.jsonl",
-        seq_info = "results/fcs_gx_db/gxdb/all.seq_info.tsv.gz",
-        taxa = "results/fcs_gx_db/gxdb/all.taxa.tsv",
-        sif = "results/fcs-gx_0.5.5.sif"
+        readme = "results/downloads/gxdb/all.README.txt",
+        assemblies = "results/downloads/gxdb/all.assemblies.tsv",
+        blast_div = "results/downloads/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/downloads/gxdb/all.gxi",
+        gxs = "results/downloads/gxdb/all.gxs",
+        manifest = "results/downloads/gxdb/all.manifest",
+        meta = "results/downloads/gxdb/all.meta.jsonl",
+        seq_info = "results/downloads/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/downloads/gxdb/all.taxa.tsv",
+        sif = "results/downloads/fcs_gx_0.5.5.sif"
     log:
         out = "logs/fcs_gx_get_db.out",
         err = "logs/fcs_gx_get_db.err"
     conda:
-        "../envs/fcs-gx.yml" # Dummy
+        "../envs/fcs_gx.yml" # Dummy
     params:
         docker = "docker://ncbi/fcs-gx:0.5.5",
         mft = "https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest"
@@ -250,30 +263,30 @@ rule fcs_gx_get_db:
             export FCS_DEFAULT_IMAGE={output.sif}
             python3 {input.code} db get \
                 --mft {params.mft} \
-                --dir $(dirname {output.readme}) > {log.out} 2> {log.err}
+                --dir $(dirname {output.readme})
         ) > {log.out} 2> {log.err}
         """
 
 rule fcs_gx_check_db:
     input:
-        code = "results/fcs.py",
-        readme = "results/fcs_gx_db/gxdb/all.README.txt",
-        assemblies = "results/fcs_gx_db/gxdb/all.assemblies.tsv",
-        blast_div = "results/fcs_gx_db/gxdb/all.blast_div.tsv.gz",
-        gxi = "results/fcs_gx_db/gxdb/all.gxi",
-        gxs = "results/fcs_gx_db/gxdb/all.gxs",
-        manifest = "results/fcs_gx_db/gxdb/all.manifest",
-        meta = "results/fcs_gx_db/gxdb/all.meta.jsonl",
-        seq_info = "results/fcs_gx_db/gxdb/all.seq_info.tsv.gz",
-        taxa = "results/fcs_gx_db/gxdb/all.taxa.tsv",
-        sif = "results/fcs-gx_0.5.5.sif"
+        code = "results/downloads/fcs.py",
+        readme = "results/downloads/gxdb/all.README.txt",
+        assemblies = "results/downloads/gxdb/all.assemblies.tsv",
+        blast_div = "results/downloads/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/downloads/gxdb/all.gxi",
+        gxs = "results/downloads/gxdb/all.gxs",
+        manifest = "results/downloads/gxdb/all.manifest",
+        meta = "results/downloads/gxdb/all.meta.jsonl",
+        seq_info = "results/downloads/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/downloads/gxdb/all.taxa.tsv",
+        sif = "results/downloads/fcs_gx_0.5.5.sif"
     output:
-        directory("results/fcs_gx_db/check")
+        directory("results/downloads/.gxdb_checked")
     log:
         out = "logs/fcs_gx_check_db.out",
         err = "logs/fcs_gx_check_db.err"
     conda:
-        "../envs/fcs-gx.yml" # Dummy
+        "../envs/fcs_gx.yml" # Dummy
     shell:
         """
         (
@@ -286,18 +299,19 @@ rule fcs_gx_check_db:
 
 rule fcs_gx_screen:
     input:
-        code = "results/fcs.py",
-        manifest = "results/fcs_gx_db/gxdb/all.manifest",
-        check = "results/fcs_gx_db/check",
-        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
-        sif = "results/fcs-gx_0.5.5.sif"
+        code = "results/downloads/fcs.py",
+        manifest = "results/downloads/gxdb/all.manifest",
+        check = "results/downloads/.gxdb_checked",
+        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        sif = "results/downloads/fcs_gx_0.5.5.sif"
     output:
-        directory("results/fcs_gx_screen/{sample_id}")
+        report = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
+        taxonomy = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".taxonomy.rpt"
     log:
         out = "logs/fcs_gx_screen_{sample_id}.out",
         err = "logs/fcs_gx_screen_{sample_id}.err"
     conda:
-        "../envs/fcs-gx.yml" # Dummy
+        "../envs/fcs_gx.yml" # Dummy
     params:
         taxid = config["fcs_gx_taxid"]
     threads:
@@ -308,7 +322,7 @@ rule fcs_gx_screen:
             export FCS_DEFAULT_IMAGE={input.sif}
             python3 {input.code} screen genome \
                 --fasta {input.assembly} \
-                --out-dir {output} \
+                --out-dir $(dirname {output.report}) \
                 --gx-db $(dirname {input.manifest}) \
                 --tax-id {params.taxid}
         ) > {log.out} 2> {log.err}
@@ -316,18 +330,18 @@ rule fcs_gx_screen:
 
 rule fcs_gx_clean:
     input:
-        code = "results/fcs.py",
-        assembly = "results/hifiasm/{sample_id}.asm.bp.p_ctg.fa",
-        screen = "results/fcs_gx_screen/{sample_id}",
-        sif = "results/fcs-gx_0.5.5.sif"
+        code = "results/downloads/fcs.py",
+        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        screen_report = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
+        sif = "results/downloads/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
     log:
         out = "logs/fcs_gx_clean_{sample_id}.out",
         err = "logs/fcs_gx_clean_{sample_id}.err"
     conda:
-        "../envs/fcs-gx.yml" # Dummy
+        "../envs/fcs_gx.yml" # Dummy
     params:
         taxid = config["fcs_gx_taxid"]
     threads:
@@ -338,17 +352,30 @@ rule fcs_gx_clean:
             export FCS_DEFAULT_IMAGE={input.sif}
             cat {input.assembly} | \
             python3 {input.code} clean genome \
-                --action-report {input.screen}/{wildcards.sample_id}.asm.bp.p_ctg.{params.taxid}.fcs_gx_report.txt \
+                --action-report {input.screen_report} \
                 --output {output.clean} \
                 --contam-fasta-out {output.contam}
         ) > {log.out} 2> {log.err}
         """
 
+rule copy_fcs_gx_clean:
+    input:
+        "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+    output:
+        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+    log:
+        out = "logs/copy_fcs_gx_clean_{sample_id}.out",
+        err = "logs/copy_fcs_gx_clean_{sample_id}.err"
+    conda:
+        "../envs/fcs_gx.yml"
+    shell:
+        "cp {input} {output} > {log.out} 2> {log.err}"
+
 rule seqkit_stats:
     input:
-        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        "results/fcs_gx_clean/{sample_id}_seqkit_stats.txt"
+        "results/fcs_gx/seqkit/{sample_id}_seqkit_stats.txt"
     log:
         "logs/seqkit_stats_{sample_id}.err"
     conda:
@@ -358,7 +385,7 @@ rule seqkit_stats:
 
 rule download_busco_database:
     output:
-        directory("results/busco_downloads/")
+        directory("results/downloads/busco_downloads")
     log:
         out = "logs/download_busco_database.out",
         err = "logs/download_busco_database.err"
@@ -378,10 +405,10 @@ rule download_busco_database:
 
 rule busco_genome_mode:
     input:
-        genome = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        database = "results/busco_downloads"
+        genome = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        database = "results/downloads/busco_downloads"
     output:
-        directory("results/busco_genome/{sample_id}")
+        directory("results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa")
     log:
         out = "logs/busco_genome_mode_{sample_id}.out",
         err = "logs/busco_genome_mode_{sample_id}.err"
@@ -394,7 +421,7 @@ rule busco_genome_mode:
     shell:
         "busco \
             --in {input.genome} \
-            --out_path {output} \
+            --out_path $(dirname {output}) \
             --mode genome \
             --cpu {threads} \
             --lineage_dataset {params.lineage_dataset} \
@@ -403,16 +430,16 @@ rule busco_genome_mode:
 
 rule meryl:
     input:
-        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        directory("results/merqury/{sample_id}.meryl")
+        directory("results/hifi_reads/meryl/{sample_id}")
     log:
         out = "logs/meryl_{sample_id}.out",
         err = "logs/meryl_{sample_id}.err"
     conda:
         "../envs/merqury.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        1
     shell:
         "meryl count \
             output {output} \
@@ -422,10 +449,10 @@ rule meryl:
 
 rule merqury:
     input:
-        db = "results/merqury/{sample_id}.meryl",
-        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        db = "results/hifi_reads/meryl/{sample_id}",
+        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        "results/merqury/{sample_id}.merqury.qv"
+        "results/fcs_gx/merqury/{sample_id}.merqury.qv"
     log:
         out = "logs/merqury_{sample_id}.out",
         err = "logs/merqury_{sample_id}.err"
@@ -434,21 +461,21 @@ rule merqury:
     shell:
         """
         (
-            cd results/merqury
+            cd $(dirname {output})
             merqury.sh \
-                ../../{input.db} \
-                ../../{input.assembly} \
+                ../../../{input.db} \
+                ../../../{input.assembly} \
                 $(basename {output} .qv)
-            cd ../..
+            cd ../../..
         ) > {log.out} 2> {log.err}
         """
 
 rule inspector:
     input:
-        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        reads = "results/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        reads = "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
     output:
-        directory("results/inspector/{sample_id}")
+        directory("results/fcs_gx/inspector/{sample_id}")
     log:
         out = "logs/inspector_{sample_id}.out",
         err = "logs/inspector_{sample_id}.err"
@@ -466,9 +493,9 @@ rule inspector:
 
 # rule inspector_correct:
 #     input:
-#         "results/inspector/{sample_id}"
+#         "results/fcs_gx/inspector/{sample_id}"
 #     output:
-#         directory("results/inspector_correct/{sample_id}")
+#         directory("results/fcs_gx/inspector_correct/{sample_id}")
 #     log:
 #         out = "logs/inspector_correct_{sample_id}.out",
 #         err = "logs/inspector_correct_{sample_id}.err"
@@ -478,25 +505,25 @@ rule inspector:
 #         max(1, int(workflow.cores * 0.9))
 #     shell:
 #         "inspector.py \
-#             --inspector {input.assembly} \
+#             --inspector {input} \
 #             --datatype pacbio-hifi \
 #             --outpath {output} \
 #             --thread {threads} > {log.out} 2> {log.err}"
 
 rule gt_suffixerator:
     input:
-        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        assembly = "results/lai/{sample_id}.fa",
-        des = "results/lai/{sample_id}_index.des",
-        esq = "results/lai/{sample_id}_index.esq",
-        lcp = "results/lai/{sample_id}_index.lcp",
-        llv = "results/lai/{sample_id}_index.llv",
-        md5 = "results/lai/{sample_id}_index.md5",
-        prj = "results/lai/{sample_id}_index.prj",
-        sds = "results/lai/{sample_id}_index.sds",
-        ssp = "results/lai/{sample_id}_index.ssp",
-        suf = "results/lai/{sample_id}_index.suf"
+        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
+        des = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.des",
+        esq = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.esq",
+        lcp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.lcp",
+        llv = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.llv",
+        md5 = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.md5",
+        prj = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.prj",
+        sds = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.sds",
+        ssp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.ssp",
+        suf = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.suf"
     log:
         out = "logs/gt_suffixerator_{sample_id}.out",
         err = "logs/gt_suffixerator_{sample_id}.err"
@@ -521,18 +548,18 @@ rule gt_suffixerator:
 
 rule gt_ltrharvest:
     input:
-        assembly = "results/lai/{sample_id}.fa",
-        des = "results/lai/{sample_id}_index.des",
-        esq = "results/lai/{sample_id}_index.esq",
-        lcp = "results/lai/{sample_id}_index.lcp",
-        llv = "results/lai/{sample_id}_index.llv",
-        md5 = "results/lai/{sample_id}_index.md5",
-        prj = "results/lai/{sample_id}_index.prj",
-        sds = "results/lai/{sample_id}_index.sds",
-        ssp = "results/lai/{sample_id}_index.ssp",
-        suf = "results/lai/{sample_id}_index.suf"
+        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
+        des = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.des",
+        esq = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.esq",
+        lcp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.lcp",
+        llv = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.llv",
+        md5 = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.md5",
+        prj = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.prj",
+        sds = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.sds",
+        ssp = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.ssp",
+        suf = "results/fcs_gx/lai/gt_suffixerator/{sample_id}_index.suf"
     output:
-        "results/lai/{sample_id}.fa.harvest.scn"
+        "results/fcs_gx/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn"
     log:
         err = "logs/gt_ltrharvest_{sample_id}.err"
     conda:
@@ -553,9 +580,9 @@ rule gt_ltrharvest:
 
 rule ltr_finder_parallel:
     input:
-        "results/lai/{sample_id}.fa"
+        "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa"
     output:
-        "results/lai/{sample_id}.fa.finder.combine.scn"
+        "results/fcs_gx/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
     log:
         out = "logs/ltr_finder_parallel_{sample_id}.out",
         err = "logs/ltr_finder_parallel_{sample_id}.err"
@@ -566,23 +593,23 @@ rule ltr_finder_parallel:
     shell:
         """
         (
-            cd results/lai
+            cd $(dirname {output})
             LTR_FINDER_parallel \
-                -seq ../../{input} \
+                -seq ../../../../{input} \
                 -threads {threads} \
                 -harvest_out \
                 -size 1000000 \
                 -time 300
-            cd ../..
+            cd ../../../../
         ) > {log.out} 2> {log.err}
         """
 
 rule merge_ltrharvest_and_ltrfinder:
     input:
-        ltrharvest = "results/lai/{sample_id}.fa.harvest.scn",
-        ltrfinder = "results/lai/{sample_id}.fa.finder.combine.scn"
+        ltrharvest = "results/fcs_gx/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn",
+        ltrfinder = "results/fcs_gx/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
     output:
-        "results/lai/{sample_id}.fa.rawLTR.scn"
+        "results/fcs_gx/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
     log:
         err = "logs/merge_ltrharvest_and_ltrfinder_{sample_id}.err"
     conda:
@@ -592,10 +619,10 @@ rule merge_ltrharvest_and_ltrfinder:
 
 rule ltr_retriever:
     input:
-        assembly = "results/lai/{sample_id}.fa",
-        inharvest = "results/lai/{sample_id}.fa.rawLTR.scn"
+        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
+        inharvest = "results/fcs_gx/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
     output:
-        "results/lai/{sample_id}.fa.pass.list"
+        "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.pass.list"
     log:
         out = "logs/ltr_retriever_{sample_id}.out",
         err = "logs/ltr_retriever_{sample_id}.err"
@@ -606,21 +633,21 @@ rule ltr_retriever:
     shell:
         """
         (
-            cd results/lai
+            cd $(dirname {output})
             LTR_retriever \
-                -genome ../../{input.assembly} \
-                -inharvest ../../{input.inharvest} \
+                -genome ../../../../{input.assembly} \
+                -inharvest ../../../../{input.inharvest} \
                 -threads {threads}
-            cd ../..
+            cd ../../../../
         ) > {log.out} 2> {log.err}
         """
 
 rule lai:
     input:
-        assembly = "results/lai/{sample_id}.fa",
-        intact = "results/lai/{sample_id}.fa.pass.list"
+        assembly = "results/fcs_gx/lai/gt_suffixerator/{sample_id}.fa",
+        intact = "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.pass.list"
     output:
-        "results/lai/{sample_id}.fa.out.LAI"
+        "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
     log:
         out = "logs/lai_{sample_id}.out",
         err = "logs/lai_{sample_id}.err"

@@ -10,10 +10,10 @@ rule fastp_rnaseq_sample:
         rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
         rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz"
     output:
-        rnaseq_1 = "results/rnaseq_fastp/{rnaseq_sample_id}_1.fastq",
-        rnaseq_2 = "results/rnaseq_fastp/{rnaseq_sample_id}_2.fastq",
-        html = "results/rnaseq_fastp/{rnaseq_sample_id}_fastp.html",
-        json = "results/rnaseq_fastp/{rnaseq_sample_id}_fastp.json"
+        rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
+        rnaseq_2 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_2.fastq",
+        html = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_fastp.html",
+        json = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_fastp.json"
     log:
         out = "logs/fastp_rnaseq_sample_{rnaseq_sample_id}.out",
         err = "logs/fastp_rnaseq_sample_{rnaseq_sample_id}.err"
@@ -33,9 +33,9 @@ rule fastp_rnaseq_sample:
 
 rule download_orthodb_proteins:
     input:
-        "results/dfam/dfam_info.txt"
+        "results/repeatmasker/dfam/dfam_info.txt"
     output:
-        f"results/orthodb/{config['orthodb_lineage']}.fa"
+        f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     log:
         out = "logs/download_orthodb_proteins.out",
         err = "logs/download_orthodb_proteins.err"
@@ -65,8 +65,8 @@ rule download_orthodb_proteins:
 rule braker3:
     input:
         assembly = "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked",
-        rnaseq = expand("results/rnaseq_fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
-        protein_dataset = f"results/orthodb/{config['orthodb_lineage']}.fa"
+        rnaseq = expand("results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
+        protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
         "results/braker3/{sample_id}/braker3.gff3"
     log:

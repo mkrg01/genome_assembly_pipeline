@@ -1,15 +1,15 @@
 rule build_repeatmodeler_database:
     input:
-        "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        nhr = "results/repeatmodeler_db/{sample_id}.nhr",
-        nin = "results/repeatmodeler_db/{sample_id}.nin",
-        njs = "results/repeatmodeler_db/{sample_id}.njs",
-        nnd = "results/repeatmodeler_db/{sample_id}.nnd",
-        nni = "results/repeatmodeler_db/{sample_id}.nni",
-        nog = "results/repeatmodeler_db/{sample_id}.nog",
-        nsq = "results/repeatmodeler_db/{sample_id}.nsq",
-        translation = "results/repeatmodeler_db/{sample_id}.translation"
+        nhr = "results/repeatmodeler/db/{sample_id}.nhr",
+        nin = "results/repeatmodeler/db/{sample_id}.nin",
+        njs = "results/repeatmodeler/db/{sample_id}.njs",
+        nnd = "results/repeatmodeler/db/{sample_id}.nnd",
+        nni = "results/repeatmodeler/db/{sample_id}.nni",
+        nog = "results/repeatmodeler/db/{sample_id}.nog",
+        nsq = "results/repeatmodeler/db/{sample_id}.nsq",
+        translation = "results/repeatmodeler/db/{sample_id}.translation"
     log:
         out = "logs/build_repeatmodeler_database_{sample_id}.out",
         err = "logs/build_repeatmodeler_database_{sample_id}.err"
@@ -22,18 +22,18 @@ rule build_repeatmodeler_database:
 
 rule repeatmodeler:
     input:
-        nhr = "results/repeatmodeler_db/{sample_id}.nhr",
-        nin = "results/repeatmodeler_db/{sample_id}.nin",
-        njs = "results/repeatmodeler_db/{sample_id}.njs",
-        nnd = "results/repeatmodeler_db/{sample_id}.nnd",
-        nni = "results/repeatmodeler_db/{sample_id}.nni",
-        nog = "results/repeatmodeler_db/{sample_id}.nog",
-        nsq = "results/repeatmodeler_db/{sample_id}.nsq",
-        translation = "results/repeatmodeler_db/{sample_id}.translation",
-        busco = "results/busco_genome/{sample_id}",
-        merqury = "results/merqury/{sample_id}.merqury.qv",
-        inspector = "results/inspector/{sample_id}",
-        lai = "results/lai/{sample_id}.fa.out.LAI"
+        nhr = "results/repeatmodeler/db/{sample_id}.nhr",
+        nin = "results/repeatmodeler/db/{sample_id}.nin",
+        njs = "results/repeatmodeler/db/{sample_id}.njs",
+        nnd = "results/repeatmodeler/db/{sample_id}.nnd",
+        nni = "results/repeatmodeler/db/{sample_id}.nni",
+        nog = "results/repeatmodeler/db/{sample_id}.nog",
+        nsq = "results/repeatmodeler/db/{sample_id}.nsq",
+        translation = "results/repeatmodeler/db/{sample_id}.translation",
+        busco = "results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
+        merqury = "results/fcs_gx/merqury/{sample_id}.merqury.qv",
+        inspector = "results/fcs_gx/inspector/{sample_id}",
+        lai = "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
     output:
         consensus = "results/repeatmodeler/{sample_id}-families.fa",
         seed = "results/repeatmodeler/{sample_id}-families.stk",
@@ -72,12 +72,12 @@ rule repeatmodeler:
 
 rule download_dfam_database:
     input:
-        "results/fcs_gx_db/check"
+        "results/downloads/.gxdb_checked"
     output:
-        root = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     log:
         out = "logs/download_dfam_database.out",
         err = "logs/download_dfam_database.err"
@@ -102,13 +102,13 @@ rule download_dfam_database:
 
 rule unzip_dfam_database:
     input:
-        root = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/dfam_downloads/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        root = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
+        root_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
+        lineage = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
+        lineage_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
     output:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     log:
         out = "logs/unzip_dfam_database.out",
         err = "logs/unzip_dfam_database.err"
@@ -125,10 +125,10 @@ rule unzip_dfam_database:
 
 rule print_dfam_database_info:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
-        "results/dfam/dfam_info.txt"
+        "results/repeatmasker/dfam/dfam_info.txt"
     log:
         "logs/print_dfam_database_info.err"
     container:
@@ -140,10 +140,10 @@ rule print_dfam_database_info:
 
 rule print_dfam_repeat_number:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
-        f"results/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
+        f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     log:
         "logs/print_dfam_repeat_number.err"
     container:
@@ -161,10 +161,10 @@ rule print_dfam_repeat_number:
 
 rule export_dfam_repeat_fasta:
     input:
-        root = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
+        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
     output:
-        f"results/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
+        f"results/repeatmasker/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     log:
         "logs/export_dfam_repeat_fasta.err"
     container:
@@ -184,9 +184,9 @@ rule export_dfam_repeat_fasta:
 rule merge_repeat_datasets:
     input:
         repeatmodeler = "results/repeatmodeler/{sample_id}-families.fa",
-        dfam = f"results/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
+        dfam = f"results/repeatmasker/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     output:
-        "results/repeatmasker_lib/{sample_id}_repeatmasker_lib.fa"
+        "results/repeatmasker/library/{sample_id}_repeatmasker_lib.fa"
     log:
         "logs/merge_repeat_datasets_{sample_id}.err"
     container:
@@ -196,8 +196,8 @@ rule merge_repeat_datasets:
 
 rule repeatmasker:
     input:
-        library = "results/repeatmasker_lib/{sample_id}_repeatmasker_lib.fa",
-        assembly = "results/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        library = "results/repeatmasker/library/{sample_id}_repeatmasker_lib.fa",
+        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
         "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked"
     log:
