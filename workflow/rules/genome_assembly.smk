@@ -344,8 +344,6 @@ rule fcs_gx_clean:
         "../envs/fcs_gx.yml" # Dummy
     params:
         taxid = config["fcs_gx_taxid"]
-    threads:
-        48
     shell:
         """
         (
