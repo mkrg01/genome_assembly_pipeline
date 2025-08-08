@@ -587,7 +587,7 @@ rule ltr_finder_parallel:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.1))
+        max(1, int(workflow.cores * 0.1) - 1)
     shell:
         """
         (
@@ -627,7 +627,7 @@ rule ltr_retriever:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.1))
+        max(1, int(workflow.cores * 0.1) - 1)
     shell:
         """
         (
@@ -652,7 +652,7 @@ rule lai:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.1))
+        max(1, int(workflow.cores * 0.1) - 1)
     shell:
         "LAI \
             -genome {input.assembly} \
