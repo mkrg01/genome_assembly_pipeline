@@ -39,9 +39,7 @@ rule repeatmodeler:
         flag_merqury_hifiasm = "results/hifiasm/merqury/{sample_id}.merqury.qv",
         flag_merqury_fcs_gx = "results/fcs_gx/merqury/{sample_id}.merqury.qv",
         flag_inspector_hifiasm = "results/hifiasm/inspector/{sample_id}",
-        flag_inspector_fcs_gx = "results/fcs_gx/inspector/{sample_id}",
-        flag_lai_hifiasm = "results/hifiasm/lai/{sample_id}.fa.out.LAI",
-        flag_lai_fcs_gx = "results/fcs_gx/lai/{sample_id}.fa.out.LAI"
+        flag_inspector_fcs_gx = "results/fcs_gx/inspector/{sample_id}"
     output:
         consensus = "results/repeatmodeler/{sample_id}-families.fa",
         seed = "results/repeatmodeler/{sample_id}-families.stk",
@@ -52,7 +50,7 @@ rule repeatmodeler:
     container:
         "docker://dfam/tetools:1.93"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.8))
     shell:
         """
         (
@@ -214,7 +212,7 @@ rule repeatmasker:
     container:
         "docker://dfam/tetools:1.93"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.8))
     shell:
         "RepeatMasker \
             -engine rmblast \

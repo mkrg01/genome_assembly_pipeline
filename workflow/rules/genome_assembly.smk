@@ -415,7 +415,7 @@ rule busco_genome_mode:
     conda:
         "../envs/busco.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.8))
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     shell:
@@ -482,7 +482,7 @@ rule inspector:
     conda:
         "../envs/inspector.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.8))
     shell:
         "inspector.py \
             --contig {input.assembly} \
@@ -589,7 +589,7 @@ rule ltr_finder_parallel:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.1))
     shell:
         """
         (
@@ -629,7 +629,7 @@ rule ltr_retriever:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.1))
     shell:
         """
         (
@@ -654,7 +654,7 @@ rule lai:
     conda:
         "../envs/lai.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.1))
     shell:
         "LAI \
             -genome {input.assembly} \
