@@ -2,7 +2,8 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
-*(A workflow overview image will be added soon.)*
+> [!WARNING]
+> This repository is currently under active development.
 
 This is an integrated pipeline for genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads, both of which are required as inputs.
