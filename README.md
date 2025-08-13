@@ -7,7 +7,7 @@
 
 This is an integrated pipeline for genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads, both of which are required as inputs.
-See [this page]() for details on the expected outputs.
+See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-%60results-%60) for details on the expected outputs.
 
 ## Requirements
 
@@ -46,4 +46,4 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources. 
 
-The output will be generated in the `results` directory.
+The output will be generated in the [`results` directory](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-%60results-%60).
