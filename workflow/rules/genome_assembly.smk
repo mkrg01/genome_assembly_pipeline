@@ -620,7 +620,7 @@ rule ltr_retriever:
         assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
         inharvest = "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
     output:
-        "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.pass.list"
+        "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.out.LAI"
     log:
         out = "logs/ltr_retriever_{assembly}_{sample_id}.out",
         err = "logs/ltr_retriever_{assembly}_{sample_id}.err"
@@ -639,23 +639,3 @@ rule ltr_retriever:
             cd ../../../../
         ) > {log.out} 2> {log.err}
         """
-
-rule lai:
-    input:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
-        intact = "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.pass.list"
-    output:
-        "results/{assembly}/lai/{sample_id}.fa.out.LAI"
-    log:
-        out = "logs/lai_{assembly}_{sample_id}.out",
-        err = "logs/lai_{assembly}_{sample_id}.err"
-    conda:
-        "../envs/lai.yml"
-    threads:
-        max(1, int(workflow.cores * 0.1) - 1)
-    shell:
-        "LAI \
-            -genome {input.assembly} \
-            -intact {input.intact} \
-            -all {input.assembly}.out \
-            -t {threads} > {log.out} 2> {log.err}"
