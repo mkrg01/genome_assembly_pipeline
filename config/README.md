@@ -3,7 +3,7 @@
 This document explains:
 
 1. **Required input files** to be placed in the `raw_data` directory.  
-2. **Configuration parameters** to set in `config/config.yaml`.
+2. **Configuration parameters** to set in `config/config.yml`.
 
 ---
 
@@ -28,9 +28,9 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 
 ---
 
-## 2. Configuration File (`config/config.yaml`)
+## 2. Configuration File (`config/config.yml`)
 
-Edit `config/config.yaml` to match your dataset and analysis requirements.  
+Edit `config/config.yml` to match your dataset and analysis requirements.  
 Below are the available parameters:
 
 | Parameter               | Description                                                  | Example                                    |
