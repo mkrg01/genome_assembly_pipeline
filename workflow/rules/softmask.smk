@@ -2,14 +2,14 @@ rule build_repeatmodeler_database:
     input:
         "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
-        nhr = "results/repeatmodeler/db/{sample_id}.nhr",
-        nin = "results/repeatmodeler/db/{sample_id}.nin",
-        njs = "results/repeatmodeler/db/{sample_id}.njs",
-        nnd = "results/repeatmodeler/db/{sample_id}.nnd",
-        nni = "results/repeatmodeler/db/{sample_id}.nni",
-        nog = "results/repeatmodeler/db/{sample_id}.nog",
-        nsq = "results/repeatmodeler/db/{sample_id}.nsq",
-        translation = "results/repeatmodeler/db/{sample_id}.translation"
+        nhr = "results/repeatmodeler/{sample_id}.nhr",
+        nin = "results/repeatmodeler/{sample_id}.nin",
+        njs = "results/repeatmodeler/{sample_id}.njs",
+        nnd = "results/repeatmodeler/{sample_id}.nnd",
+        nni = "results/repeatmodeler/{sample_id}.nni",
+        nog = "results/repeatmodeler/{sample_id}.nog",
+        nsq = "results/repeatmodeler/{sample_id}.nsq",
+        translation = "results/repeatmodeler/{sample_id}.translation"
     log:
         out = "logs/build_repeatmodeler_database_{sample_id}.out",
         err = "logs/build_repeatmodeler_database_{sample_id}.err"
@@ -22,14 +22,14 @@ rule build_repeatmodeler_database:
 
 rule repeatmodeler:
     input:
-        nhr = "results/repeatmodeler/db/{sample_id}.nhr",
-        nin = "results/repeatmodeler/db/{sample_id}.nin",
-        njs = "results/repeatmodeler/db/{sample_id}.njs",
-        nnd = "results/repeatmodeler/db/{sample_id}.nnd",
-        nni = "results/repeatmodeler/db/{sample_id}.nni",
-        nog = "results/repeatmodeler/db/{sample_id}.nog",
-        nsq = "results/repeatmodeler/db/{sample_id}.nsq",
-        translation = "results/repeatmodeler/db/{sample_id}.translation",
+        nhr = "results/repeatmodeler/{sample_id}.nhr",
+        nin = "results/repeatmodeler/{sample_id}.nin",
+        njs = "results/repeatmodeler/{sample_id}.njs",
+        nnd = "results/repeatmodeler/{sample_id}.nnd",
+        nni = "results/repeatmodeler/{sample_id}.nni",
+        nog = "results/repeatmodeler/{sample_id}.nog",
+        nsq = "results/repeatmodeler/{sample_id}.nsq",
+        translation = "results/repeatmodeler/{sample_id}.translation",
         flag_smudgeplot = "results/hifi_reads/smudgeplot/{sample_id}_masked_errors_smu.txt",
         flag_genomescope = "results/hifi_reads/genomescope2/{sample_id}_linear_plot.png",
         flag_seqkit_hifiasm = "results/hifiasm/seqkit/{sample_id}_seqkit_stats.txt",
@@ -54,25 +54,13 @@ rule repeatmodeler:
     shell:
         """
         (
+            cd $(dirname {input.nhr})
             RepeatModeler \
-                -database $(dirname {input.nhr})/$(basename {input.nhr} .nhr) \
+                -database {wildcards.sample_id} \
                 -threads {threads} \
                 -srand 1 \
-                -LTRStruct > {log.out} 2> {log.err}
-            rm_dir=$(find . -maxdepth 1 -type d -name "RM_*" | head -n 1)
-            if [ -z "$rm_dir" ]; then
-                echo "Error: RM_ output directory not found." >&2
-                exit 1
-            fi
-            families_fa=$(find "$rm_dir" -type f -name "{wildcards.sample_id}-families.fa" | head -n 1)
-            families_stk=$(find "$rm_dir" -type f -name "{wildcards.sample_id}-families.stk" | head -n 1)
-            rmod_log=$(find "$rm_dir" -type f -name "{wildcards.sample_id}-rmod.log" | head -n 1)
-            if [ ! -f "$families_fa" ] || [ ! -f "$families_stk" ] || [ ! -f "$rmod_log" ]; then
-                echo "Error: Expected output files not found in $rm_dir." >&2
-                exit 1
-            fi
-            mv $rm_dir/* $(dirname {output.consensus})/
-            rm -rf $rm_dir
+                -LTRStruct
+            cd ../../
         ) > {log.out} 2> {log.err}
         """
 
