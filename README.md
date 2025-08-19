@@ -5,7 +5,7 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
-This is an integrated pipeline for genome assembly and gene annotation.
+This is an integrated pipeline for genome assembly and gene annotation in eukaryotic genomes.
 It currently supports PacBio HiFi reads and RNA-seq reads, both of which are required as inputs.
 See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results) for details on the expected outputs.
 
