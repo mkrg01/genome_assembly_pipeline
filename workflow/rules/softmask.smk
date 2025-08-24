@@ -224,6 +224,6 @@ rule print_softmasked_percentage:
         """
         num_total_bp=$(grep -v '^>' {input} | wc -c | tr -d ' ')
         num_masked_bp=$(grep -v '^>' {input} | tr -d -c 'atgc' | wc -c | tr -d ' ')
-        python -c 'import sys; num = int(sys.argv[1]); den = int(sys.argv[2]); print("{{:,.1f}}% masked ({{:,}}/{{:,}} bp)".format(num/den*100, num, den))' \
+        python3 -c 'import sys; num = int(sys.argv[1]); den = int(sys.argv[2]); print("{{:,.1f}}% masked ({{:,}}/{{:,}} bp)".format(num/den*100, num, den))' \
             $num_masked_bp $num_total_bp > {output} 2> {log}
         """
