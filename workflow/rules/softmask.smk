@@ -200,7 +200,7 @@ rule repeatmasker:
     container:
         "docker://dfam/tetools:1.93"
     threads:
-        max(1, int(workflow.cores * 0.8))
+        workflow.cores
     shell:
         """
         (
