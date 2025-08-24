@@ -214,6 +214,7 @@ rule repeatmasker:
                 --gff \
                 ../../{input.assembly}
             cd ../../
+            mv .RepeatMaskerCache $(dirname {output})/
         ) > {log.out} 2> {log.err}
         """
 
