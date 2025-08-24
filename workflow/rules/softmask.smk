@@ -202,14 +202,20 @@ rule repeatmasker:
     threads:
         max(1, int(workflow.cores * 0.8))
     shell:
-        "RepeatMasker \
-            -engine rmblast \
-            -parallel $(( {threads} / 4)) \
-            -lib {input.library} \
-            -dir $(dirname {output}) \
-            -xsmall \
-            --gff \
-            {input.assembly} > {log.out} 2> {log.err}"
+        """
+        (
+            cd $(dirname {output})
+            RepeatMasker \
+                -engine rmblast \
+                -parallel $(( {threads} / 4)) \
+                -lib ../../{input.library} \
+                -dir ../../$(dirname {output}) \
+                -xsmall \
+                --gff \
+                ../../{input.assembly}
+            cd ../../
+        ) > {log.out} 2> {log.err}
+        """
 
 rule print_softmasked_percentage:
     input:
