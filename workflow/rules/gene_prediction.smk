@@ -63,11 +63,28 @@ rule download_orthodb_proteins:
         ) > {log.out} 2> {log.err}
         """
 
+rule copy_augustus_config: # https://github.com/Gaius-Augustus/BRAKER/issues/609
+    output:
+        directory("results/braker3/augustus_config")
+    log:
+        out = "logs/copy_augustus_config.out",
+        err = "logs/copy_augustus_config.err"
+    container:
+        "docker://teambraker/braker3:v3.0.7.6"
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output})
+            cp -r /opt/Augustus/config {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule braker3:
     input:
         assembly = "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked",
         rnaseq = expand("results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa",
+        augustus_config = "results/braker3/augustus_config",
         flag_repeatmasker = "results/repeatmasker/{sample_id}_softmasked_percentage.txt"
     output:
         "results/braker3/{sample_id}/braker3.gff3"
@@ -84,6 +101,7 @@ rule braker3:
     shell:
         """
         (
+            export AUGUSTUS_CONFIG_PATH=$PWD/{input.augustus_config}
             braker.pl \
                 --species={wildcards.sample_id} \
                 --genome={input.assembly} \
