@@ -77,7 +77,7 @@ rule braker3:
     container:
         "docker://teambraker/braker3:v3.0.7.6"
     threads:
-        workflow.cores
+        48
     params:
         rnaseq_ids=",".join(rnaseq_sample_ids),
         rnaseq_dir=lambda wildcards, input: os.path.commonpath(input.rnaseq)
