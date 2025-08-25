@@ -70,8 +70,8 @@ rule braker3:
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa",
         flag_repeatmasker = "results/repeatmasker/{sample_id}_softmasked_percentage.txt"
     output:
-        braker = "results/braker3/{sample_id}/braker3.gff3",
-        augustus_config = "results/braker3/{sample_id}/augustus_config"
+        braker = "results/braker3/{sample_id}/braker.gff3",
+        augustus_config = directory("results/braker3/{sample_id}/augustus_config")
     log:
         out = "logs/braker3_{sample_id}.out",
         err = "logs/braker3_{sample_id}.err"
