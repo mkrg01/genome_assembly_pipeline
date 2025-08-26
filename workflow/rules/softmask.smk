@@ -191,7 +191,9 @@ rule merge_repeat_datasets:
 rule repeatmasker:
     input:
         library = "results/repeatmasker/library/{sample_id}_repeatmasker_lib.fa",
-        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        flag_lai_1 = "results/hifiasm/lai/ltr_retriever/{sample_id}.fa.out.LAI",
+        flag_lai_2 = "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.out.LAI"
     output:
         "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked"
     log:

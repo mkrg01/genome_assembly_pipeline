@@ -15,6 +15,4 @@ sample_id = os.path.basename(sample[0]).replace(".hifi_reads.bam", "")
 
 rule all:
     input:
-        f"results/braker3/{sample_id}/braker.gff3",
-        f"results/hifiasm/lai/ltr_retriever/{sample_id}.fa.out.LAI",
-        f"results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.out.LAI"
+        f"results/braker3/{sample_id}/braker.gff3"
