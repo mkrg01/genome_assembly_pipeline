@@ -70,7 +70,10 @@ rule braker3:
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa",
         flag_repeatmasker = "results/repeatmasker/{sample_id}_softmasked_percentage.txt"
     output:
-        braker = "results/braker3/{sample_id}/braker.gff3",
+        gff3 = "results/braker3/{sample_id}/braker.gff3",
+        gtf = "results/braker3/{sample_id}/braker.gtf",
+        cds = "results/braker3/{sample_id}/braker.codingseq",
+        aa = "results/braker3/{sample_id}/braker.aa",
         augustus_config = directory("results/braker3/{sample_id}/augustus_config")
     log:
         out = "logs/braker3_{sample_id}.out",
@@ -93,8 +96,55 @@ rule braker3:
                 --prot_seq={input.protein_dataset} \
                 --rnaseq_sets_ids={params.rnaseq_ids} \
                 --rnaseq_sets_dirs={params.rnaseq_dir} \
-                --workingdir=$(dirname {output.braker}) \
+                --workingdir=$(dirname {output.gff3}) \
                 --gff3 \
                 --threads {threads}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule copy_isoforms:
+    input:
+        cds = "results/braker3/{sample_id}/braker.codingseq",
+        aa = "results/braker3/{sample_id}/braker.aa"
+    output:
+        cds = "results/isoforms/{sample_id}_cds.fa",
+        aa = "results/isoforms/{sample_id}_aa.fa"
+    log:
+        out = "logs/copy_isoforms_{sample_id}.out",
+        err = "logs/copy_isoforms_{sample_id}.err"
+    conda:
+        "../envs/cdskit.yml"
+    shell:
+        """
+        (
+            cp {input.cds} {output.cds}
+            cp {input.aa} {output.aa}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule extract_longest_cds:
+    input:
+        cds = "results/braker3/{sample_id}/braker.codingseq",
+        aa = "results/braker3/{sample_id}/braker.aa"
+    output:
+        cds = "results/longest_cds/{sample_id}_cds.fa",
+        aa = "results/longest_cds/{sample_id}_aa.fa"
+    log:
+        out = "logs/extract_longest_cds_{sample_id}.out",
+        err = "logs/extract_longest_cds_{sample_id}.err"
+    conda:
+        "../envs/cdskit.yml"
+    threads:
+        4
+    shell:
+        """
+        (
+            seqkit seq --threads {threads} {input.cds} \
+            | cdskit aggregate --expression "t.*" \
+            | seqkit seq --threads {threads} --out-file {output.cds}
+
+            seqkit seq --threads {threads} {input.aa} \
+            | cdskit aggregate --expression "t.*" \
+            | seqkit seq --threads {threads} --out-file {output.aa}
         ) > {log.out} 2> {log.err}
         """
