@@ -149,6 +149,20 @@ rule extract_longest_cds:
         ) > {log.out} 2> {log.err}
         """
 
+rule seqkit_stats_proteins:
+    input:
+        "results/{gene}/{sample_id}_aa.fa"
+    output:
+        "results/{gene}/seqkit/{sample_id}_seqkit_stats.txt"
+    log:
+        "logs/seqkit_stats_proteins_{gene}_{sample_id}.err"
+    conda:
+        "../envs/seqkit.yml"
+    wildcard_constraints:
+        gene = "(isoforms|longest_cds)"
+    shell:
+        "seqkit stats {input} > {output} 2> {log}"
+
 rule busco_proteins_mode:
     input:
         aa = "results/{gene}/{sample_id}_aa.fa",

@@ -16,4 +16,6 @@ sample_id = os.path.basename(sample[0]).replace(".hifi_reads.bam", "")
 rule all:
     input:
         f"results/isoforms/busco_proteins/BUSCO_{sample_id}_aa.fa",
-        f"results/longest_cds/busco_proteins/BUSCO_{sample_id}_aa.fa"
+        f"results/longest_cds/busco_proteins/BUSCO_{sample_id}_aa.fa",
+        f"results/isoforms/seqkit/{sample_id}_seqkit_stats.txt",
+        f"results/longest_cds/seqkit/{sample_id}_seqkit_stats.txt"
