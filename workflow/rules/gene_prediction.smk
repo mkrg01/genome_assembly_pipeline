@@ -148,3 +148,30 @@ rule extract_longest_cds:
             | seqkit seq --threads {threads} --out-file {output.aa}
         ) > {log.out} 2> {log.err}
         """
+
+rule busco_proteins_mode:
+    input:
+        aa = "results/{gene}/{sample_id}_aa.fa",
+        database = "results/downloads/busco_downloads"
+    output:
+        directory("results/{gene}/busco_proteins/BUSCO_{sample_id}_aa.fa")
+    log:
+        out = "logs/busco_proteins_mode_{gene}_{sample_id}.out",
+        err = "logs/busco_proteins_mode_{gene}_{sample_id}.err"
+    conda:
+        "../envs/busco.yml"
+    threads:
+        workflow.cores
+    params:
+        lineage_dataset = config["busco_lineage_dataset"]
+    wildcard_constraints:
+        gene = "(isoforms|longest_cds)"
+    shell:
+        "busco \
+            --in {input.aa} \
+            --out_path $(dirname {output}) \
+            --mode proteins \
+            --cpu {threads} \
+            --lineage_dataset {params.lineage_dataset} \
+            --download_path {input.database} \
+            --offline > {log.out} 2> {log.err}"
