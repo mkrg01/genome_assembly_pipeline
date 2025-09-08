@@ -2,7 +2,7 @@ dfam_partitions = config["dfam_partitions"].split(",")
 
 rule build_repeatmodeler_database:
     input:
-        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly/{sample_id}.asm.bp.p_ctg.fa"
     output:
         nhr = "results/repeatmodeler/{sample_id}.nhr",
         nin = "results/repeatmodeler/{sample_id}.nin",
@@ -35,13 +35,13 @@ rule repeatmodeler:
         flag_smudgeplot = "results/hifi_reads/smudgeplot/{sample_id}_masked_errors_smu.txt",
         flag_genomescope = "results/hifi_reads/genomescope2/{sample_id}_linear_plot.png",
         flag_seqkit_hifiasm = "results/hifiasm/seqkit/{sample_id}_seqkit_stats.txt",
-        flag_seqkit_fcs_gx = "results/fcs_gx/seqkit/{sample_id}_seqkit_stats.txt",
+        flag_seqkit_fcs = "results/fcs/seqkit/{sample_id}_seqkit_stats.txt",
         flag_busco_hifiasm = "results/hifiasm/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
-        flag_busco_fcs_gx = "results/fcs_gx/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
+        flag_busco_fcs = "results/fcs/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa",
         flag_merqury_hifiasm = "results/hifiasm/merqury/{sample_id}.merqury.qv",
-        flag_merqury_fcs_gx = "results/fcs_gx/merqury/{sample_id}.merqury.qv",
+        flag_merqury_fcs = "results/fcs/merqury/{sample_id}.merqury.qv",
         flag_inspector_hifiasm = "results/hifiasm/inspector/{sample_id}",
-        flag_inspector_fcs_gx = "results/fcs_gx/inspector/{sample_id}"
+        flag_inspector_fcs = "results/fcs/inspector/{sample_id}"
     output:
         consensus = "results/repeatmodeler/{sample_id}-families.fa",
         seed = "results/repeatmodeler/{sample_id}-families.stk",
@@ -68,7 +68,7 @@ rule repeatmodeler:
 
 rule download_dfam_database:
     input:
-        flag_gxdb = "results/downloads/.gxdb_checked"
+        flag_gxdb = "results/downloads/fcs/.gxdb_checked"
     output:
         db = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz",
         md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz.md5"
@@ -178,9 +178,9 @@ rule merge_repeat_datasets:
 rule repeatmasker:
     input:
         library = "results/repeatmasker/library/{sample_id}_repeatmasker_lib.fa",
-        assembly = "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        assembly = "results/fcs/assembly/{sample_id}.asm.bp.p_ctg.fa",
         flag_lai_1 = "results/hifiasm/lai/ltr_retriever/{sample_id}.fa.out.LAI",
-        flag_lai_2 = "results/fcs_gx/lai/ltr_retriever/{sample_id}.fa.out.LAI"
+        flag_lai_2 = "results/fcs/lai/ltr_retriever/{sample_id}.fa.out.LAI"
     output:
         "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked"
     log:

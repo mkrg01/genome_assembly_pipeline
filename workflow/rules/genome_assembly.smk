@@ -221,46 +221,139 @@ rule convert_gfa_to_fa:
     shell:
         "awk -f workflow/scripts/convert_gfa_to_fa.awk {input} > {output} 2> {log}"
 
-rule fcs_gx_get_code:
+rule fcs_get_code:
     output:
-        "results/downloads/fcs.py"
+        fcs_py = "results/downloads/fcs/fcs.py",
+        run_fcsadaptor_sh = "results/downloads/fcs/run_fcsadaptor.sh"
     log:
-        out = "logs/fcs_gx_get_code.out",
-        err = "logs/fcs_gx_get_code.err"
+        out = "logs/fcs_get_code.out",
+        err = "logs/fcs_get_code.err"
     conda:
-        "../envs/fcs_gx.yml" # Dummy
+        "../envs/fcs.yml"
     params:
-        url = "https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py"
+        fcs_py_url = "https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/fcs.py",
+        run_fcsadaptor_sh_url = "https://raw.githubusercontent.com/ncbi/fcs/refs/tags/v0.5.5/dist/run_fcsadaptor.sh"
     shell:
-        "wget -O {output} {params.url} > {log.out} 2> {log.err}"
+        """
+        (
+            wget -O {output.fcs_py} {params.fcs_py_url}
+            wget -O {output.run_fcsadaptor_sh} {params.run_fcsadaptor_sh_url}
+            chmod 755 {output.run_fcsadaptor_sh}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule fcs_pull_image:
+    output:
+        fcs_adaptor_sif = "results/downloads/fcs/fcs_adaptor_0.5.5.sif",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
+    log:
+        out = "logs/fcs_pull_image.out",
+        err = "logs/fcs_pull_image.err"
+    conda:
+        "../envs/fcs.yml"
+    params:
+        fcs_adaptor_docker = "docker://ncbi/fcs-adaptor:0.5.5",
+        fcs_gx_docker = "docker://ncbi/fcs-gx:0.5.5"
+    shell:
+        """
+        (
+            singularity pull {output.fcs_adaptor_sif} {params.fcs_adaptor_docker}
+            singularity pull {output.fcs_gx_sif} {params.fcs_gx_docker}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule fcs_adaptor_screen:
+    input:
+        run_fcsadaptor_sh = "results/downloads/fcs/run_fcsadaptor.sh",
+        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        fcs_adaptor_sif = "results/downloads/fcs/fcs_adaptor_0.5.5.sif"
+    output:
+        assembly = "results/fcs/fcs_adaptor_screen/cleaned_sequences/{sample_id}.asm.bp.p_ctg.fa",
+        combined_calls_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_combined.calls.jsonl",
+        fcs_log = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs.log",
+        fcs_adaptor_log = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor.log",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor_report.txt",
+        logs_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_logs.jsonl",
+        pipeline_args_yaml = "results/fcs/fcs_adaptor_screen/{sample_id}_pipeline_args.yaml",
+        skipped_trims_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_skipped_trims.jsonl",
+        validate_fasta_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_validate_fasta.txt"
+    log:
+        out = "logs/fcs_adaptor_screen_{sample_id}.out",
+        err = "logs/fcs_adaptor_screen_{sample_id}.err"
+    conda:
+        "../envs/fcs.yml"
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output.fcs_adaptor_report_txt})
+            {input.run_fcsadaptor_sh} \
+                --fasta-input {input.assembly} \
+                --out-dir $(dirname {output.fcs_adaptor_report_txt}) \
+                --euk \
+                --container-engine singularity \
+                --image {input.fcs_adaptor_sif}
+            mv $(dirname {output.combined_calls_jsonl})/combined.calls.jsonl {output.combined_calls_jsonl}
+            mv $(dirname {output.fcs_log})/fcs.log {output.fcs_log}
+            mv $(dirname {output.fcs_adaptor_log})/fcs_adaptor.log {output.fcs_adaptor_log}
+            mv $(dirname {output.fcs_adaptor_report_txt})/fcs_adaptor_report.txt {output.fcs_adaptor_report_txt}
+            mv $(dirname {output.logs_jsonl})/logs.jsonl {output.logs_jsonl}
+            mv $(dirname {output.pipeline_args_yaml})/pipeline_args.yaml {output.pipeline_args_yaml}
+            mv $(dirname {output.skipped_trims_jsonl})/skipped_trims.jsonl {output.skipped_trims_jsonl}
+            mv $(dirname {output.validate_fasta_txt})/validate_fasta.txt {output.validate_fasta_txt}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule fcs_adaptor_clean:
+    input:
+        fcs_py = "results/downloads/fcs/fcs.py",
+        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor_report.txt",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
+    output:
+        clean = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+    log:
+        out = "logs/fcs_adaptor_clean_{sample_id}.out",
+        err = "logs/fcs_adaptor_clean_{sample_id}.err"
+    conda:
+        "../envs/fcs.yml"
+    shell:
+        """
+        (
+            export FCS_DEFAULT_IMAGE={input.fcs_gx_sif}
+            cat {input.assembly} | \
+            python3 {input.fcs_py} clean genome \
+                --action-report {input.fcs_adaptor_report_txt} \
+                --output {output.clean} \
+                --contam-fasta-out {output.contam} \
+        ) > {log.out} 2> {log.err}
+        """
 
 rule fcs_gx_get_db:
     input:
-        code = "results/downloads/fcs.py"
+        code = "results/downloads/fcs/fcs.py",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        readme = "results/downloads/gxdb/all.README.txt",
-        assemblies = "results/downloads/gxdb/all.assemblies.tsv",
-        blast_div = "results/downloads/gxdb/all.blast_div.tsv.gz",
-        gxi = "results/downloads/gxdb/all.gxi",
-        gxs = "results/downloads/gxdb/all.gxs",
-        manifest = "results/downloads/gxdb/all.manifest",
-        meta = "results/downloads/gxdb/all.meta.jsonl",
-        seq_info = "results/downloads/gxdb/all.seq_info.tsv.gz",
-        taxa = "results/downloads/gxdb/all.taxa.tsv",
-        sif = "results/downloads/fcs_gx_0.5.5.sif"
+        readme = "results/downloads/fcs/gxdb/all.README.txt",
+        assemblies = "results/downloads/fcs/gxdb/all.assemblies.tsv",
+        blast_div = "results/downloads/fcs/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/downloads/fcs/gxdb/all.gxi",
+        gxs = "results/downloads/fcs/gxdb/all.gxs",
+        manifest = "results/downloads/fcs/gxdb/all.manifest",
+        meta = "results/downloads/fcs/gxdb/all.meta.jsonl",
+        seq_info = "results/downloads/fcs/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/downloads/fcs/gxdb/all.taxa.tsv"
     log:
         out = "logs/fcs_gx_get_db.out",
         err = "logs/fcs_gx_get_db.err"
     conda:
-        "../envs/fcs_gx.yml" # Dummy
+        "../envs/fcs.yml"
     params:
-        docker = "docker://ncbi/fcs-gx:0.5.5",
         mft = "https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest"
     shell:
         """
         (
-            singularity pull {output.sif} {params.docker}
-            export FCS_DEFAULT_IMAGE={output.sif}
+            export FCS_DEFAULT_IMAGE={input.fcs_gx_sif}
             python3 {input.code} db get \
                 --mft {params.mft} \
                 --dir $(dirname {output.readme})
@@ -269,28 +362,28 @@ rule fcs_gx_get_db:
 
 rule fcs_gx_check_db:
     input:
-        code = "results/downloads/fcs.py",
-        readme = "results/downloads/gxdb/all.README.txt",
-        assemblies = "results/downloads/gxdb/all.assemblies.tsv",
-        blast_div = "results/downloads/gxdb/all.blast_div.tsv.gz",
-        gxi = "results/downloads/gxdb/all.gxi",
-        gxs = "results/downloads/gxdb/all.gxs",
-        manifest = "results/downloads/gxdb/all.manifest",
-        meta = "results/downloads/gxdb/all.meta.jsonl",
-        seq_info = "results/downloads/gxdb/all.seq_info.tsv.gz",
-        taxa = "results/downloads/gxdb/all.taxa.tsv",
-        sif = "results/downloads/fcs_gx_0.5.5.sif"
+        code = "results/downloads/fcs/fcs.py",
+        readme = "results/downloads/fcs/gxdb/all.README.txt",
+        assemblies = "results/downloads/fcs/gxdb/all.assemblies.tsv",
+        blast_div = "results/downloads/fcs/gxdb/all.blast_div.tsv.gz",
+        gxi = "results/downloads/fcs/gxdb/all.gxi",
+        gxs = "results/downloads/fcs/gxdb/all.gxs",
+        manifest = "results/downloads/fcs/gxdb/all.manifest",
+        meta = "results/downloads/fcs/gxdb/all.meta.jsonl",
+        seq_info = "results/downloads/fcs/gxdb/all.seq_info.tsv.gz",
+        taxa = "results/downloads/fcs/gxdb/all.taxa.tsv",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        directory("results/downloads/.gxdb_checked")
+        directory("results/downloads/fcs/.gxdb_checked")
     log:
         out = "logs/fcs_gx_check_db.out",
         err = "logs/fcs_gx_check_db.err"
     conda:
-        "../envs/fcs_gx.yml" # Dummy
+        "../envs/fcs.yml"
     shell:
         """
         (
-            export FCS_DEFAULT_IMAGE={input.sif}
+            export FCS_DEFAULT_IMAGE={input.fcs_gx_sif}
             python3 {input.code} db check \
                 --mft {input.manifest} \
                 --dir {output}
@@ -299,19 +392,19 @@ rule fcs_gx_check_db:
 
 rule fcs_gx_screen:
     input:
-        code = "results/downloads/fcs.py",
-        manifest = "results/downloads/gxdb/all.manifest",
-        check = "results/downloads/.gxdb_checked",
-        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
-        sif = "results/downloads/fcs_gx_0.5.5.sif"
+        code = "results/downloads/fcs/fcs.py",
+        manifest = "results/downloads/fcs/gxdb/all.manifest",
+        check = "results/downloads/fcs/.gxdb_checked",
+        assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        report = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
-        taxonomy = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".taxonomy.rpt"
+        report = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
+        taxonomy = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".taxonomy.rpt"
     log:
         out = "logs/fcs_gx_screen_{sample_id}.out",
         err = "logs/fcs_gx_screen_{sample_id}.err"
     conda:
-        "../envs/fcs_gx.yml" # Dummy
+        "../envs/fcs.yml"
     params:
         taxid = config["fcs_gx_taxid"]
     threads:
@@ -319,7 +412,7 @@ rule fcs_gx_screen:
     shell:
         """
         (
-            export FCS_DEFAULT_IMAGE={input.sif}
+            export FCS_DEFAULT_IMAGE={input.fcs_gx_sif}
             python3 {input.code} screen genome \
                 --fasta {input.assembly} \
                 --out-dir $(dirname {output.report}) \
@@ -330,24 +423,24 @@ rule fcs_gx_screen:
 
 rule fcs_gx_clean:
     input:
-        code = "results/downloads/fcs.py",
-        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
-        screen_report = "results/fcs_gx/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
-        sif = "results/downloads/fcs_gx_0.5.5.sif"
+        code = "results/downloads/fcs/fcs.py",
+        assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        screen_report = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
+        fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
     log:
         out = "logs/fcs_gx_clean_{sample_id}.out",
         err = "logs/fcs_gx_clean_{sample_id}.err"
     conda:
-        "../envs/fcs_gx.yml" # Dummy
+        "../envs/fcs.yml"
     params:
         taxid = config["fcs_gx_taxid"]
     shell:
         """
         (
-            export FCS_DEFAULT_IMAGE={input.sif}
+            export FCS_DEFAULT_IMAGE={input.fcs_gx_sif}
             cat {input.assembly} | \
             python3 {input.code} clean genome \
                 --action-report {input.screen_report} \
@@ -358,14 +451,14 @@ rule fcs_gx_clean:
 
 rule copy_fcs_gx_clean:
     input:
-        "results/fcs_gx/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
     output:
-        "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly/{sample_id}.asm.bp.p_ctg.fa"
     log:
         out = "logs/copy_fcs_gx_clean_{sample_id}.out",
         err = "logs/copy_fcs_gx_clean_{sample_id}.err"
     conda:
-        "../envs/fcs_gx.yml"
+        "../envs/fcs.yml"
     shell:
         "cp {input} {output} > {log.out} 2> {log.err}"
 
