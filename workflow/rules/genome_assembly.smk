@@ -398,8 +398,8 @@ rule fcs_gx_screen:
         assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        report = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
-        taxonomy = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".taxonomy.rpt"
+        report = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
+        taxonomy = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.{config["fcs_gx_taxid"]}.taxonomy.rpt"
     log:
         out = "logs/fcs_gx_screen_{sample_id}.out",
         err = "logs/fcs_gx_screen_{sample_id}.err"
@@ -425,7 +425,7 @@ rule fcs_gx_clean:
     input:
         code = "results/downloads/fcs/fcs.py",
         assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        screen_report = "results/fcs/fcs_gx_screen/{sample_id}.asm.bp.p_ctg." + config["fcs_gx_taxid"] + ".fcs_gx_report.txt",
+        screen_report = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
         clean = "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",

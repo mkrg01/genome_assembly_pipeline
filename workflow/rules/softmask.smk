@@ -70,16 +70,16 @@ rule download_dfam_database:
     input:
         flag_gxdb = "results/downloads/fcs/.gxdb_checked"
     output:
-        db = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz",
-        md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz.md5"
+        db = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz",
+        md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz.md5"
     log:
         out = "logs/download_dfam_database_{partition}.out",
         err = "logs/download_dfam_database_{partition}.err"
     container:
         "docker://dfam/tetools:1.93"
     params:
-        url_db = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz",
-        url_md5 = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz.md5"
+        url_db = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz",
+        url_md5 = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz.md5"
     shell:
         """
         (
@@ -91,9 +91,9 @@ rule download_dfam_database:
 
 rule unzip_dfam_database:
     input:
-        f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz"
+        f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz"
     output:
-        f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5"
+        f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5"
     log:
         out = "logs/unzip_dfam_database_{partition}.out",
         err = "logs/unzip_dfam_database_{partition}.err"
@@ -109,7 +109,7 @@ rule unzip_dfam_database:
 
 rule print_dfam_database_info:
     input:
-        expand(f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5", partition=dfam_partitions)
+        expand(f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5", partition=dfam_partitions)
     output:
         "results/repeatmasker/dfam/dfam_info.txt"
     log:
