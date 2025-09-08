@@ -1,3 +1,5 @@
+dfam_partitions = config["dfam_partitions"].split(",")
+
 rule build_repeatmodeler_database:
     input:
         "results/fcs_gx/assembly/{sample_id}.asm.bp.p_ctg.fa"
@@ -68,59 +70,46 @@ rule download_dfam_database:
     input:
         flag_gxdb = "results/downloads/.gxdb_checked"
     output:
-        root = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        db = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz",
+        md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz.md5"
     log:
-        out = "logs/download_dfam_database.out",
-        err = "logs/download_dfam_database.err"
+        out = "logs/download_dfam_database_{partition}.out",
+        err = "logs/download_dfam_database_{partition}.err"
     container:
         "docker://dfam/tetools:1.93"
     params:
-        root = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        url_db = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz",
+        url_md5 = f"https://www.dfam.org/releases/Dfam_{config['dfam_version']}/families/FamDB/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz.md5"
     shell:
         """
         (
-            wget -O {output.root} {params.root}
-            wget -O {output.root_md5} {params.root_md5}
-            wget -O {output.lineage} {params.lineage}
-            wget -O {output.lineage_md5} {params.lineage_md5}
-            python3 workflow/scripts/dfam_md5_validator.py --file {output.root} --md5_file {output.root_md5}
-            python3 workflow/scripts/dfam_md5_validator.py --file {output.lineage} --md5_file {output.lineage_md5}
+            wget -O {output.db} {params.url_db}
+            wget -O {output.md5} {params.url_md5}
+            python3 workflow/scripts/dfam_md5_validator.py --file {output.db} --md5_file {output.md5}
         ) > {log.out} 2> {log.err}
         """
 
 rule unzip_dfam_database:
     input:
-        root = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz",
-        root_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5.gz.md5",
-        lineage = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz",
-        lineage_md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5.gz.md5"
+        f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5.gz"
     output:
-        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5"
     log:
-        out = "logs/unzip_dfam_database.out",
-        err = "logs/unzip_dfam_database.err"
+        out = "logs/unzip_dfam_database_{partition}.out",
+        err = "logs/unzip_dfam_database_{partition}.err"
     container:
         "docker://dfam/tetools:1.93"
     shell:
         """
         (
-            mkdir -p $(dirname {output.root})
-            zcat {input.root} > {output.root}
-            zcat {input.lineage} > {output.lineage}
+            mkdir -p $(dirname {output})
+            zcat {input} > {output}
         ) > {log.out} 2> {log.err}
         """
 
 rule print_dfam_database_info:
     input:
-        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        expand(f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full." + {partition} + ".h5", partition=dfam_partitions)
     output:
         "results/repeatmasker/dfam/dfam_info.txt"
     log:
@@ -129,13 +118,12 @@ rule print_dfam_database_info:
         "docker://dfam/tetools:1.93"
     shell:
         "famdb.py \
-            -i $(dirname {input.lineage}) \
+            -i $(dirname {output}) \
             info > {output} 2> {log}"
 
 rule print_dfam_repeat_number:
     input:
-        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        "results/repeatmasker/dfam/dfam_info.txt"
     output:
         f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     log:
@@ -146,7 +134,7 @@ rule print_dfam_repeat_number:
         lineage_name = config['dfam_lineage_name']
     shell:
         "famdb.py \
-            -i $(dirname {input.lineage}) \
+            -i $(dirname {input}) \
             lineage \
             --format totals \
             --ancestors \
@@ -155,8 +143,7 @@ rule print_dfam_repeat_number:
 
 rule export_dfam_repeat_fasta:
     input:
-        root = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.0.h5",
-        lineage = f"results/repeatmasker/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{config['dfam_lineage_id']}.h5"
+        f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     output:
         f"results/repeatmasker/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     log:
@@ -167,7 +154,7 @@ rule export_dfam_repeat_fasta:
         lineage_name = config['dfam_lineage_name']
     shell:
         "famdb.py \
-            -i $(dirname {input.lineage}) \
+            -i $(dirname {input}) \
             families \
             --format fasta_name \
             --ancestors \

@@ -2,7 +2,7 @@ ploidy: "2" # Ploidly level of the genome (e.g., 2 = diploid); used by GenomeSco
 fcs_gx_taxid: "122299" # NCBI Taxonomy ID for FCS-GX. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 dfam_version: "3.9" # Version of the Dfam database to download (used by RepeatMasker). See: https://www.dfam.org
-dfam_lineage_id: "6" # Dfam lineage ID (6 = Viridiplantae). See: https://www.dfam.org/releases/current/families/FamDB/README.txt
+dfam_partitions: "0,5,6" # Dfam partitions (https://www.dfam.org/releases/current/families/FamDB/README.txt). Use comma to separate multiple partitions. "root" (partition 0) is necessary. For Viridiplantae, rosids (partition 5) should also be downloaded (https://github.com/Dfam-consortium/FamDB/issues/25).
 dfam_lineage_name: "Viridiplantae" # Name of the Dfam lineage to use.
 orthodb_version: "12" # Version of OrthoDB to download (used by Braker3). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
 orthodb_lineage: "Viridiplantae" # OrthoDB lineage dataset to use. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/

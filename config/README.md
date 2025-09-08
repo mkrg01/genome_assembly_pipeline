@@ -39,7 +39,7 @@ Below are the available parameters:
 | `fcs_gx_taxid`          | NCBI Taxonomy ID for FCS-GX screening. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
-| `dfam_lineage_id`       | Dfam lineage ID. See [README.txt](https://www.dfam.org/releases/current/families/FamDB/README.txt). | `"6"` (Viridiplantae)                      |
+| `dfam_partitions`       | Dfam partitions. See [README.txt](https://www.dfam.org/releases/current/families/FamDB/README.txt). | `"0,5,6"` (Viridiplantae)                      |
 | `dfam_lineage_name`     | Name of the Dfam lineage to use.                             | `"Viridiplantae"`                          |
 | `orthodb_version`       | Version of the OrthoDB database (used by Braker3). [ProtHint instructions](https://github.com/gatech-genemark/ProtHint#protein-database-preparation) | `"12"`                                     |
 | `orthodb_lineage`       | OrthoDB lineage dataset to use. [Lineage list](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"Viridiplantae"`                          |
