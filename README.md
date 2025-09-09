@@ -1,8 +1,5 @@
 # genome_assembly_pipeline
 
-> [!WARNING]
-> This repository is currently under active development.
-
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
 This is an integrated pipeline for genome assembly and gene annotation in eukaryotic genomes.
