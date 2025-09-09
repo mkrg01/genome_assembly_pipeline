@@ -288,7 +288,7 @@ rule fcs_adaptor_screen:
             mkdir -p $(dirname {output.fcs_adaptor_report_txt})
             {input.run_fcsadaptor_sh} \
                 --fasta-input {input.assembly} \
-                --out-dir $(dirname {output.fcs_adaptor_report_txt}) \
+                --output-dir $(dirname {output.fcs_adaptor_report_txt}) \
                 --euk \
                 --container-engine singularity \
                 --image {input.fcs_adaptor_sif}
