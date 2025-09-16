@@ -44,6 +44,6 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64
 > Adjust the `--cores` value based on your available computational resources.
 
 > [!NOTE]
-> All rules are containerized, ensuring reproducibility.
+> All rules will be executed in Singularity containers.
 
 The output will be generated in the [`results` directory](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results).
