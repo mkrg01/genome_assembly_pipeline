@@ -2,7 +2,7 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
-This is an integrated pipeline for genome assembly and gene annotation in eukaryotic genomes.
+This is an integrated pipeline for eukaryotic genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads, both of which are required as inputs.
 See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results) for details on the expected outputs.
 
@@ -38,7 +38,7 @@ Run the workflow from the repository root directory. Replace `/path/to/repo` wit
 ```
 cd /path/to/repo
 
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 48
 ```
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.
