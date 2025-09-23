@@ -206,20 +206,3 @@ rule repeatmasker:
             mv .RepeatMaskerCache $(dirname {output})/
         ) > {log.out} 2> {log.err}
         """
-
-rule print_softmasked_percentage:
-    input:
-        "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked"
-    output:
-        "results/repeatmasker/{sample_id}_softmasked_percentage.txt"
-    log:
-        "logs/print_softmasked_percentage_{sample_id}.log"
-    container:
-        "docker://dfam/tetools:1.93"
-    shell:
-        """
-        num_total_bp=$(grep -v '^>' {input} | wc -c | tr -d ' ')
-        num_masked_bp=$(grep -v '^>' {input} | tr -d -c 'atgc' | wc -c | tr -d ' ')
-        python3 -c 'import sys; num = int(sys.argv[1]); den = int(sys.argv[2]); print("{{:,.1f}}% masked ({{:,}}/{{:,}} bp)".format(num/den*100, num, den))' \
-            $num_masked_bp $num_total_bp > {output} 2> {log}
-        """
