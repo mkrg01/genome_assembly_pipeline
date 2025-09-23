@@ -1,6 +1,6 @@
 # genome_assembly_pipeline
 
-[![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
+[![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io)
 
 This is an integrated pipeline for eukaryotic genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads, both of which are required as inputs.
@@ -10,7 +10,7 @@ See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Director
 
 Before running the workflow, make sure the following software is installed:
 
-- [Snakemake ≥ 8.0.0](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html)
+- [Snakemake ≥ 9.0.0](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html)
 - [Apptainer (Singularity)](https://apptainer.org/docs/admin/main/installation.html)
 
 ## Getting Started
@@ -38,7 +38,7 @@ Run the workflow from the repository root directory. Replace `/path/to/repo` wit
 ```
 cd /path/to/repo
 
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 48
+snakemake --sdm apptainer --singularity-args "--bind $(pwd)" --cores 48
 ```
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.
