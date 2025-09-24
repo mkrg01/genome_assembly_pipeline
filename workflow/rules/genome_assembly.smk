@@ -154,16 +154,13 @@ rule genomescope2:
         err = "logs/genomescope2_{sample_id}.err"
     conda:
         "../envs/genomescope2.yml"
-    params:
-        ploidy = config["ploidy"]
     shell:
         """
         (
             genomescope2 \
                 --input {input} \
                 --output $(dirname {output.linear_plot}) \
-                --kmer_length 21 \
-                --ploidy {params.ploidy}
+                --kmer_length 21
             mv $(dirname {output.linear_plot})/linear_plot.png {output.linear_plot}
             mv $(dirname {output.log_plot})/log_plot.png {output.log_plot}
             mv $(dirname {output.model})/model.txt {output.model}
