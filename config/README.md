@@ -35,7 +35,6 @@ Below are the available parameters:
 
 | Parameter               | Description                                                  | Example                                    |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
-| `ploidy`                | Ploidy level of the genome (used by GenomeScope2).           | `"2"` for diploid                          |
 | `fcs_gx_taxid`          | NCBI Taxonomy ID for FCS-GX screening. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
