@@ -10,7 +10,8 @@ wildcard_constraints:
 
 rule bam2fastq:
     input:
-        "raw_data/{hifi_sample_id}.hifi_reads.bam"
+        read = "raw_data/{hifi_sample_id}.hifi_reads.bam",
+        index = "raw_data/{hifi_sample_id}.hifi_reads.bam.pbi"
     output:
         "results/hifi_reads/raw_reads/{hifi_sample_id}_hifi_reads.fastq.gz"
     log:
@@ -22,7 +23,7 @@ rule bam2fastq:
         max(1, int(workflow.cores * 0.1))
     shell:
         "bam2fastq \
-            {input} \
+            {input.read} \
             --output $(dirname {output})/$(basename {output} .fastq.gz) \
             --num-threads {threads} > {log.out} 2> {log.err}"
 

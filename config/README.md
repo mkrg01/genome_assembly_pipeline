@@ -16,6 +16,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 | File Type                  | Naming Pattern               | Example                                    |
 | -------------------------- | ---------------------------- | ------------------------------------------ |
 | PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
+| Index for HiFi reads  | `*.hifi_reads.bam.pbi` | `SAMPLE1.hifi_reads.bam.pbi`                    |
 | Paired-end RNA-seq (R1)    | `*_1.fastq.gz`        | `RNASEQ1_1.fastq.gz`                       |
 | Paired-end RNA-seq (R2)    | `*_2.fastq.gz`        | `RNASEQ1_2.fastq.gz`                       |
 
