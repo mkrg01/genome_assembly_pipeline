@@ -1,3 +1,4 @@
+assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
 fcs_gx_taxid: "122299" # NCBI Taxonomy ID for FCS-GX. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 dfam_version: "3.9" # Version of the Dfam database to download (used by RepeatMasker). See: https://www.dfam.org

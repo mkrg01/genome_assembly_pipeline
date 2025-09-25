@@ -5,6 +5,9 @@ if not rnaseq_samples:
     raise RuntimeError("No RNA-Seq files matching 'raw_data/*_1.fastq.gz' were found. Please check the input directory.")
 rnaseq_sample_ids = sorted({os.path.basename(f).replace("_1.fastq.gz", "") for f in rnaseq_samples})
 
+wildcard_constraints:
+    assembly_name = config["assembly_name"]
+
 rule fastp_rnaseq_sample:
     input:
         rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
@@ -65,18 +68,18 @@ rule download_orthodb_proteins:
 
 rule braker3:
     input:
-        assembly = "results/repeatmasker/{sample_id}.asm.bp.p_ctg.fa.masked",
+        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
         rnaseq = expand("results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
-        gff3 = "results/braker3/{sample_id}/braker.gff3",
-        gtf = "results/braker3/{sample_id}/braker.gtf",
-        cds = "results/braker3/{sample_id}/braker.codingseq",
-        aa = "results/braker3/{sample_id}/braker.aa",
-        augustus_config = directory("results/braker3/{sample_id}/augustus_config")
+        gff3 = "results/braker3/{assembly_name}/braker.gff3",
+        gtf = "results/braker3/{assembly_name}/braker.gtf",
+        cds = "results/braker3/{assembly_name}/braker.codingseq",
+        aa = "results/braker3/{assembly_name}/braker.aa",
+        augustus_config = directory("results/braker3/{assembly_name}/augustus_config")
     log:
-        out = "logs/braker3_{sample_id}.out",
-        err = "logs/braker3_{sample_id}.err"
+        out = "logs/braker3_{assembly_name}.out",
+        err = "logs/braker3_{assembly_name}.err"
     container:
         "docker://teambraker/braker3:v3.0.7.6"
     threads:
@@ -90,7 +93,7 @@ rule braker3:
             cp -r /opt/Augustus/config {output.augustus_config} # https://github.com/Gaius-Augustus/BRAKER/issues/609
             export AUGUSTUS_CONFIG_PATH=$PWD/{output.augustus_config}
             braker.pl \
-                --species={wildcards.sample_id} \
+                --species={wildcards.assembly_name} \
                 --genome={input.assembly} \
                 --prot_seq={input.protein_dataset} \
                 --rnaseq_sets_ids={params.rnaseq_ids} \
@@ -103,14 +106,14 @@ rule braker3:
 
 rule copy_isoforms:
     input:
-        cds = "results/braker3/{sample_id}/braker.codingseq",
-        aa = "results/braker3/{sample_id}/braker.aa"
+        cds = "results/braker3/{assembly_name}/braker.codingseq",
+        aa = "results/braker3/{assembly_name}/braker.aa"
     output:
-        cds = "results/isoforms/{sample_id}_cds.fa",
-        aa = "results/isoforms/{sample_id}_aa.fa"
+        cds = "results/isoforms/{assembly_name}_cds.fa",
+        aa = "results/isoforms/{assembly_name}_aa.fa"
     log:
-        out = "logs/copy_isoforms_{sample_id}.out",
-        err = "logs/copy_isoforms_{sample_id}.err"
+        out = "logs/copy_isoforms_{assembly_name}.out",
+        err = "logs/copy_isoforms_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     shell:
@@ -123,14 +126,14 @@ rule copy_isoforms:
 
 rule extract_longest_cds:
     input:
-        cds = "results/braker3/{sample_id}/braker.codingseq",
-        aa = "results/braker3/{sample_id}/braker.aa"
+        cds = "results/braker3/{assembly_name}/braker.codingseq",
+        aa = "results/braker3/{assembly_name}/braker.aa"
     output:
-        cds = "results/longest_cds/{sample_id}_cds.fa",
-        aa = "results/longest_cds/{sample_id}_aa.fa"
+        cds = "results/longest_cds/{assembly_name}_cds.fa",
+        aa = "results/longest_cds/{assembly_name}_aa.fa"
     log:
-        out = "logs/extract_longest_cds_{sample_id}.out",
-        err = "logs/extract_longest_cds_{sample_id}.err"
+        out = "logs/extract_longest_cds_{assembly_name}.out",
+        err = "logs/extract_longest_cds_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     threads:
@@ -150,11 +153,11 @@ rule extract_longest_cds:
 
 rule seqkit_stats_proteins:
     input:
-        "results/{gene}/{sample_id}_aa.fa"
+        "results/{gene}/{assembly_name}_aa.fa"
     output:
-        "results/{gene}/seqkit/{sample_id}_seqkit_stats.txt"
+        "results/{gene}/seqkit/{assembly_name}_seqkit_stats.txt"
     log:
-        "logs/seqkit_stats_proteins_{gene}_{sample_id}.err"
+        "logs/seqkit_stats_proteins_{gene}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     wildcard_constraints:
@@ -164,13 +167,13 @@ rule seqkit_stats_proteins:
 
 rule busco_proteins_mode:
     input:
-        aa = "results/{gene}/{sample_id}_aa.fa",
+        aa = "results/{gene}/{assembly_name}_aa.fa",
         database = "results/downloads/busco_downloads"
     output:
-        directory("results/{gene}/busco_proteins/BUSCO_{sample_id}_aa.fa")
+        directory("results/{gene}/busco_proteins/BUSCO_{assembly_name}_aa.fa")
     log:
-        out = "logs/busco_proteins_mode_{gene}_{sample_id}.out",
-        err = "logs/busco_proteins_mode_{gene}_{sample_id}.err"
+        out = "logs/busco_proteins_mode_{gene}_{assembly_name}.out",
+        err = "logs/busco_proteins_mode_{gene}_{assembly_name}.err"
     conda:
         "../envs/busco.yml"
     threads:

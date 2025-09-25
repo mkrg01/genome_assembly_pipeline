@@ -1,21 +1,14 @@
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.1.4"
+# containerized: "docker://aurelia01/genome_assembly_pipeline:v0.1.4"
 configfile: "config/config.yml"
 include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
 
-import os
-import glob
-sample = glob.glob("raw_data/*.hifi_reads.bam")
-if len(sample) == 0:
-    raise RuntimeError("No HiFi read files matching 'raw_data/*.hifi_reads.bam' were found. Please check the input directory.")
-elif len(sample) > 1:
-    raise RuntimeError("Multiple HiFi read files found. Please ensure only one HiFi read file is present in 'raw_data/'.")
-sample_id = os.path.basename(sample[0]).replace(".hifi_reads.bam", "")
+assembly_name = config["assembly_name"]
 
 rule all:
     input:
-        f"results/isoforms/busco_proteins/BUSCO_{sample_id}_aa.fa",
-        f"results/longest_cds/busco_proteins/BUSCO_{sample_id}_aa.fa",
-        f"results/isoforms/seqkit/{sample_id}_seqkit_stats.txt",
-        f"results/longest_cds/seqkit/{sample_id}_seqkit_stats.txt"
+        f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
+        f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
+        f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt"

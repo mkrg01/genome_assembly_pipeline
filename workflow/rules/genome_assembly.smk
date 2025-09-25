@@ -1,15 +1,25 @@
+import os
+import glob
+hifi_samples = glob.glob("raw_data/*.hifi_reads.bam")
+if len(hifi_samples) == 0:
+    raise RuntimeError("No HiFi read files matching 'raw_data/*.hifi_reads.bam' were found. Please check the input directory.")
+hifi_sample_ids = sorted({os.path.basename(f).replace(".hifi_reads.bam", "") for f in hifi_samples})
+
+wildcard_constraints:
+    assembly_name = config["assembly_name"]
+
 rule bam2fastq:
     input:
-        "raw_data/{sample_id}.hifi_reads.bam"
+        "raw_data/{hifi_sample_id}.hifi_reads.bam"
     output:
-        "results/hifi_reads/raw_reads/{sample_id}_hifi_reads.fastq.gz"
+        "results/hifi_reads/raw_reads/{hifi_sample_id}_hifi_reads.fastq.gz"
     log:
-        out = "logs/bam2fastq_{sample_id}.out",
-        err = "logs/bam2fastq_{sample_id}.err"
+        out = "logs/bam2fastq_{hifi_sample_id}.out",
+        err = "logs/bam2fastq_{hifi_sample_id}.err"
     conda:
         "../envs/bam2fastq.yml"
     threads:
-        max(1, int(workflow.cores * 0.5))
+        max(1, int(workflow.cores * 0.1))
     shell:
         "bam2fastq \
             {input} \
@@ -18,18 +28,18 @@ rule bam2fastq:
 
 rule fastplong:
     input:
-        "results/hifi_reads/raw_reads/{sample_id}_hifi_reads.fastq.gz"
+        "results/hifi_reads/raw_reads/{hifi_sample_id}_hifi_reads.fastq.gz"
     output:
-        reads = "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz",
-        report_html = "results/hifi_reads/fastplong/{sample_id}_report.html",
-        report_json = "results/hifi_reads/fastplong/{sample_id}_report.json"
+        reads = "results/hifi_reads/fastplong/{hifi_sample_id}_hifi_reads_curated.fastq.gz",
+        report_html = "results/hifi_reads/fastplong/{hifi_sample_id}_report.html",
+        report_json = "results/hifi_reads/fastplong/{hifi_sample_id}_report.json"
     log:
-        out = "logs/fastplong_{sample_id}.out",
-        err = "logs/fastplong_{sample_id}.err"
+        out = "logs/fastplong_{hifi_sample_id}.out",
+        err = "logs/fastplong_{hifi_sample_id}.err"
     conda:
         "../envs/fastplong.yml"
     threads:
-        max(1, int(workflow.cores * 0.5))
+        max(1, int(workflow.cores * 0.1))
     shell:
         "fastplong \
             --in {input} \
@@ -38,15 +48,28 @@ rule fastplong:
             --json {output.report_json} \
             --thread {threads} > {log.out} 2> {log.err}"
 
+rule merge_or_copy_hifi_reads:
+    input:
+        expand("results/hifi_reads/fastplong/{hifi_sample_id}_hifi_reads_curated.fastq.gz", hifi_sample_id=hifi_sample_ids)
+    output:
+        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
+    log:
+        out = "logs/fastplong_{assembly_name}.out",
+        err = "logs/fastplong_{assembly_name}.err"
+    conda:
+        "../envs/fastplong.yml"
+    shell:
+        "cat {input} > {output} 2> {log.err}"
+
 rule fastk:
     input:
-        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     output:
-        hist = "results/hifi_reads/smudgeplot/{sample_id}_fastk.hist",
-        ktab = "results/hifi_reads/smudgeplot/{sample_id}_fastk.ktab"
+        hist = "results/hifi_reads/smudgeplot/{assembly_name}_fastk.hist",
+        ktab = "results/hifi_reads/smudgeplot/{assembly_name}_fastk.ktab"
     log:
-        out = "logs/fastk_{sample_id}.out",
-        err = "logs/fastk_{sample_id}.err"
+        out = "logs/fastk_{assembly_name}.out",
+        err = "logs/fastk_{assembly_name}.err"
     conda:
         "../envs/smudgeplot.yml"
     threads:
@@ -63,13 +86,13 @@ rule fastk:
 
 rule smudgeplot_hetmers:
     input:
-        hist = "results/hifi_reads/smudgeplot/{sample_id}_fastk.hist",
-        ktab = "results/hifi_reads/smudgeplot/{sample_id}_fastk.ktab"
+        hist = "results/hifi_reads/smudgeplot/{assembly_name}_fastk.hist",
+        ktab = "results/hifi_reads/smudgeplot/{assembly_name}_fastk.ktab"
     output:
-        "results/hifi_reads/smudgeplot/{sample_id}_kmerpairs_text.smu"
+        "results/hifi_reads/smudgeplot/{assembly_name}_kmerpairs_text.smu"
     log:
-        out = "logs/smudgeplot_hetmers_{sample_id}.out",
-        err = "logs/smudgeplot_hetmers_{sample_id}.err"
+        out = "logs/smudgeplot_hetmers_{assembly_name}.out",
+        err = "logs/smudgeplot_hetmers_{assembly_name}.err"
     conda:
         "../envs/smudgeplot.yml"
     threads:
@@ -84,29 +107,29 @@ rule smudgeplot_hetmers:
 
 rule smudgeplot_all:
     input:
-        "results/hifi_reads/smudgeplot/{sample_id}_kmerpairs_text.smu"
+        "results/hifi_reads/smudgeplot/{assembly_name}_kmerpairs_text.smu"
     output:
-        "results/hifi_reads/smudgeplot/{sample_id}_masked_errors_smu.txt"
+        "results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt"
     log:
-        out = "logs/smudgeplot_all_{sample_id}.out",
-        err = "logs/smudgeplot_all_{sample_id}.err"
+        out = "logs/smudgeplot_all_{assembly_name}.out",
+        err = "logs/smudgeplot_all_{assembly_name}.err"
     conda:
         "../envs/smudgeplot.yml"
     threads:
         1
     shell:
         "smudgeplot.py all \
-            -o $(dirname {output})/{wildcards.sample_id} \
+            -o $(dirname {output})/{wildcards.assembly_name} \
             {input} > {log.out} 2> {log.err}"
 
 rule jellyfish_count:
     input:
-        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     output:
-        "results/hifi_reads/genomescope2/{sample_id}_jellyfish_mer_counts.jf"
+        "results/hifi_reads/genomescope2/{assembly_name}_jellyfish_mer_counts.jf"
     log:
-        out = "logs/jellyfish_count_{sample_id}.out",
-        err = "logs/jellyfish_count_{sample_id}.err"
+        out = "logs/jellyfish_count_{assembly_name}.out",
+        err = "logs/jellyfish_count_{assembly_name}.err"
     conda:
         "../envs/jellyfish.yml"
     threads:
@@ -122,12 +145,12 @@ rule jellyfish_count:
 
 rule jellyfish_histo:
     input:
-        "results/hifi_reads/genomescope2/{sample_id}_jellyfish_mer_counts.jf"
+        "results/hifi_reads/genomescope2/{assembly_name}_jellyfish_mer_counts.jf"
     output:
-        "results/hifi_reads/genomescope2/{sample_id}_jellyfish.histo"
+        "results/hifi_reads/genomescope2/{assembly_name}_jellyfish.histo"
     log:
-        out = "logs/jellyfish_histo_{sample_id}.out",
-        err = "logs/jellyfish_histo_{sample_id}.err"
+        out = "logs/jellyfish_histo_{assembly_name}.out",
+        err = "logs/jellyfish_histo_{assembly_name}.err"
     conda:
         "../envs/jellyfish.yml"
     threads:
@@ -140,18 +163,18 @@ rule jellyfish_histo:
 
 rule genomescope2:
     input:
-        "results/hifi_reads/genomescope2/{sample_id}_jellyfish.histo"
+        "results/hifi_reads/genomescope2/{assembly_name}_jellyfish.histo"
     output:
-        linear_plot = "results/hifi_reads/genomescope2/{sample_id}_linear_plot.png",
-        log_plot = "results/hifi_reads/genomescope2/{sample_id}_log_plot.png",
-        model = "results/hifi_reads/genomescope2/{sample_id}_model.txt",
-        progress = "results/hifi_reads/genomescope2/{sample_id}_progress.txt",
-        summary = "results/hifi_reads/genomescope2/{sample_id}_summary.txt",
-        transformed_linear_plot = "results/hifi_reads/genomescope2/{sample_id}_transformed_linear_plot.png",
-        transformed_log_plot = "results/hifi_reads/genomescope2/{sample_id}_transformed_log_plot.png"
+        linear_plot = "results/hifi_reads/genomescope2/{assembly_name}_linear_plot.png",
+        log_plot = "results/hifi_reads/genomescope2/{assembly_name}_log_plot.png",
+        model = "results/hifi_reads/genomescope2/{assembly_name}_model.txt",
+        progress = "results/hifi_reads/genomescope2/{assembly_name}_progress.txt",
+        summary = "results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
+        transformed_linear_plot = "results/hifi_reads/genomescope2/{assembly_name}_transformed_linear_plot.png",
+        transformed_log_plot = "results/hifi_reads/genomescope2/{assembly_name}_transformed_log_plot.png"
     log:
-        out = "logs/genomescope2_{sample_id}.out",
-        err = "logs/genomescope2_{sample_id}.err"
+        out = "logs/genomescope2_{assembly_name}.out",
+        err = "logs/genomescope2_{assembly_name}.err"
     conda:
         "../envs/genomescope2.yml"
     shell:
@@ -173,29 +196,29 @@ rule genomescope2:
 
 rule hifiasm:
     input:
-        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     output:
-        bp_hap1_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.gfa",
-        bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.lowQ.bed",
-        bp_hap1_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap1.p_ctg.noseq.gfa",
-        bp_hap2_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.gfa",
-        bp_hap2_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.lowQ.bed",
-        bp_hap2_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.hap2.p_ctg.noseq.gfa",
-        bp_p_ctg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.gfa",
-        bp_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.lowQ.bed",
-        bp_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.noseq.gfa",
-        bp_p_utg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.gfa",
-        bp_p_utg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.lowQ.bed",
-        bp_p_utg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_utg.noseq.gfa",
-        bp_r_utg_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.gfa",
-        bp_r_utg_lowQ_bed = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.lowQ.bed",
-        bp_r_utg_noseq_gfa = "results/hifiasm/hifiasm/{sample_id}.asm.bp.r_utg.noseq.gfa",
-        ec_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ec.bin",
-        ovlp_reverse_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ovlp.reverse.bin",
-        ovlp_source_bin = "results/hifiasm/hifiasm/{sample_id}.asm.ovlp.source.bin"
+        bp_hap1_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
+        bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.lowQ.bed",
+        bp_hap1_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.noseq.gfa",
+        bp_hap2_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.gfa",
+        bp_hap2_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.lowQ.bed",
+        bp_hap2_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.noseq.gfa",
+        bp_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
+        bp_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.lowQ.bed",
+        bp_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.noseq.gfa",
+        bp_p_utg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.gfa",
+        bp_p_utg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.lowQ.bed",
+        bp_p_utg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.noseq.gfa",
+        bp_r_utg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.gfa",
+        bp_r_utg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.lowQ.bed",
+        bp_r_utg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.noseq.gfa",
+        ec_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ec.bin",
+        ovlp_reverse_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ovlp.reverse.bin",
+        ovlp_source_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ovlp.source.bin"
     log:
-        out = "logs/hifiasm_{sample_id}.out",
-        err = "logs/hifiasm_{sample_id}.err"
+        out = "logs/hifiasm_{assembly_name}.out",
+        err = "logs/hifiasm_{assembly_name}.err"
     conda:
         "../envs/hifiasm.yml"
     threads:
@@ -208,11 +231,11 @@ rule hifiasm:
 
 rule convert_gfa_to_fa:
     input:
-        "results/hifiasm/hifiasm/{sample_id}.asm.bp.p_ctg.gfa"
+        "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa"
     output:
-        "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     log:
-        "logs/convert_gfa_to_fa_{sample_id}.err"
+        "logs/convert_gfa_to_fa_{assembly_name}.err"
     conda:
         "../envs/hifiasm.yml"
     shell:
@@ -262,21 +285,21 @@ rule fcs_pull_image:
 rule fcs_adaptor_screen:
     input:
         run_fcsadaptor_sh = "results/downloads/fcs/run_fcsadaptor.sh",
-        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa",
         fcs_adaptor_sif = "results/downloads/fcs/fcs_adaptor_0.5.5.sif"
     output:
-        assembly = "results/fcs/fcs_adaptor_screen/cleaned_sequences/{sample_id}.asm.bp.p_ctg.fa",
-        combined_calls_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_combined.calls.jsonl",
-        fcs_log = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs.log",
-        fcs_adaptor_log = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor.log",
-        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor_report.txt",
-        logs_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_logs.jsonl",
-        pipeline_args_yaml = "results/fcs/fcs_adaptor_screen/{sample_id}_pipeline_args.yaml",
-        skipped_trims_jsonl = "results/fcs/fcs_adaptor_screen/{sample_id}_skipped_trims.jsonl",
-        validate_fasta_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_validate_fasta.txt"
+        assembly = "results/fcs/fcs_adaptor_screen/cleaned_sequences/{assembly_name}.asm.bp.p_ctg.fa",
+        combined_calls_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_combined.calls.jsonl",
+        fcs_log = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs.log",
+        fcs_adaptor_log = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor.log",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor_report.txt",
+        logs_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_logs.jsonl",
+        pipeline_args_yaml = "results/fcs/fcs_adaptor_screen/{assembly_name}_pipeline_args.yaml",
+        skipped_trims_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_skipped_trims.jsonl",
+        validate_fasta_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_validate_fasta.txt"
     log:
-        out = "logs/fcs_adaptor_screen_{sample_id}.out",
-        err = "logs/fcs_adaptor_screen_{sample_id}.err"
+        out = "logs/fcs_adaptor_screen_{assembly_name}.out",
+        err = "logs/fcs_adaptor_screen_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     shell:
@@ -303,15 +326,15 @@ rule fcs_adaptor_screen:
 rule fcs_adaptor_clean:
     input:
         fcs_py = "results/downloads/fcs/fcs.py",
-        assembly = "results/hifiasm/assembly/{sample_id}.asm.bp.p_ctg.fa",
-        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{sample_id}_fcs_adaptor_report.txt",
+        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.contam.fa"
     log:
-        out = "logs/fcs_adaptor_clean_{sample_id}.out",
-        err = "logs/fcs_adaptor_clean_{sample_id}.err"
+        out = "logs/fcs_adaptor_clean_{assembly_name}.out",
+        err = "logs/fcs_adaptor_clean_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     shell:
@@ -392,14 +415,14 @@ rule fcs_gx_screen:
         code = "results/downloads/fcs/fcs.py",
         manifest = "results/downloads/fcs/gxdb/all.manifest",
         check = "results/downloads/fcs/.gxdb_checked",
-        assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
+        assembly = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        report = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
-        taxonomy = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.taxonomy.rpt"
+        report = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
+        taxonomy = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.taxonomy.rpt"
     log:
-        out = "logs/fcs_gx_screen_{sample_id}.out",
-        err = "logs/fcs_gx_screen_{sample_id}.err"
+        out = "logs/fcs_gx_screen_{assembly_name}.out",
+        err = "logs/fcs_gx_screen_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     params:
@@ -421,15 +444,15 @@ rule fcs_gx_screen:
 rule fcs_gx_clean:
     input:
         code = "results/downloads/fcs/fcs.py",
-        assembly = "results/fcs/fcs_adaptor_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        screen_report = f"results/fcs/fcs_gx_screen/{{sample_id}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
+        assembly = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
+        screen_report = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
+        contam = "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.contam.fa"
     log:
-        out = "logs/fcs_gx_clean_{sample_id}.out",
-        err = "logs/fcs_gx_clean_{sample_id}.err"
+        out = "logs/fcs_gx_clean_{assembly_name}.out",
+        err = "logs/fcs_gx_clean_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     params:
@@ -448,12 +471,12 @@ rule fcs_gx_clean:
 
 rule copy_fcs_gx_clean:
     input:
-        "results/fcs/fcs_gx_clean/{sample_id}.asm.bp.p_ctg.clean.fa"
+        "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.clean.fa"
     output:
-        "results/fcs/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     log:
-        out = "logs/copy_fcs_gx_clean_{sample_id}.out",
-        err = "logs/copy_fcs_gx_clean_{sample_id}.err"
+        out = "logs/copy_fcs_gx_clean_{assembly_name}.out",
+        err = "logs/copy_fcs_gx_clean_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     shell:
@@ -461,11 +484,11 @@ rule copy_fcs_gx_clean:
 
 rule seqkit_stats:
     input:
-        "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/{assembly}/seqkit/{sample_id}_seqkit_stats.txt"
+        "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.txt"
     log:
-        "logs/seqkit_stats_{assembly}_{sample_id}.err"
+        "logs/seqkit_stats_{assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -493,13 +516,13 @@ rule download_busco_database:
 
 rule busco_genome_mode:
     input:
-        genome = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa",
+        genome = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
         database = "results/downloads/busco_downloads"
     output:
-        directory("results/{assembly}/busco_genome/BUSCO_{sample_id}.asm.bp.p_ctg.fa")
+        directory("results/{assembly}/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa")
     log:
-        out = "logs/busco_genome_mode_{assembly}_{sample_id}.out",
-        err = "logs/busco_genome_mode_{assembly}_{sample_id}.err"
+        out = "logs/busco_genome_mode_{assembly}_{assembly_name}.out",
+        err = "logs/busco_genome_mode_{assembly}_{assembly_name}.err"
     conda:
         "../envs/busco.yml"
     threads:
@@ -518,12 +541,12 @@ rule busco_genome_mode:
 
 rule meryl:
     input:
-        "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     output:
-        directory("results/hifi_reads/meryl/{sample_id}")
+        directory("results/hifi_reads/meryl/{assembly_name}")
     log:
-        out = "logs/meryl_{sample_id}.out",
-        err = "logs/meryl_{sample_id}.err"
+        out = "logs/meryl_{assembly_name}.out",
+        err = "logs/meryl_{assembly_name}.err"
     conda:
         "../envs/merqury.yml"
     threads:
@@ -537,13 +560,13 @@ rule meryl:
 
 rule merqury:
     input:
-        db = "results/hifi_reads/meryl/{sample_id}",
-        assembly = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        db = "results/hifi_reads/meryl/{assembly_name}",
+        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/{assembly}/merqury/{sample_id}.merqury.qv"
+        "results/{assembly}/merqury/{assembly_name}.merqury.qv"
     log:
-        out = "logs/merqury_{assembly}_{sample_id}.out",
-        err = "logs/merqury_{assembly}_{sample_id}.err"
+        out = "logs/merqury_{assembly}_{assembly_name}.out",
+        err = "logs/merqury_{assembly}_{assembly_name}.err"
     conda:
         "../envs/merqury.yml"
     shell:
@@ -560,13 +583,13 @@ rule merqury:
 
 rule inspector:
     input:
-        assembly = "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa",
-        reads = "results/hifi_reads/fastplong/{sample_id}_hifi_reads_curated.fastq.gz"
+        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     output:
-        directory("results/{assembly}/inspector/{sample_id}")
+        directory("results/{assembly}/inspector/{assembly_name}")
     log:
-        out = "logs/inspector_{assembly}_{sample_id}.out",
-        err = "logs/inspector_{assembly}_{sample_id}.err"
+        out = "logs/inspector_{assembly}_{assembly_name}.out",
+        err = "logs/inspector_{assembly}_{assembly_name}.err"
     conda:
         "../envs/inspector.yml"
     threads:
@@ -579,42 +602,23 @@ rule inspector:
             --outpath {output} \
             --thread {threads} > {log.out} 2> {log.err}"
 
-# rule inspector_correct:
-#     input:
-#         "results/{assembly}/inspector/{sample_id}"
-#     output:
-#         directory("results/{assembly}/inspector_correct/{sample_id}")
-#     log:
-#         out = "logs/inspector_correct_{assembly}_{sample_id}.out",
-#         err = "logs/inspector_correct_{assembly}_{sample_id}.err"
-#     conda:
-#         "../envs/inspector.yml"
-#     threads:
-#         max(1, int(workflow.cores * 0.9))
-#     shell:
-#         "inspector.py \
-#             --inspector {input} \
-#             --datatype pacbio-hifi \
-#             --outpath {output} \
-#             --thread {threads} > {log.out} 2> {log.err}"
-
 rule gt_suffixerator:
     input:
-        "results/{assembly}/assembly/{sample_id}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
-        des = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.des",
-        esq = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.esq",
-        lcp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.lcp",
-        llv = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.llv",
-        md5 = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.md5",
-        prj = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.prj",
-        sds = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.sds",
-        ssp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.ssp",
-        suf = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.suf"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
+        des = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.des",
+        esq = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.esq",
+        lcp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.lcp",
+        llv = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.llv",
+        md5 = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.md5",
+        prj = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.prj",
+        sds = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.sds",
+        ssp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.ssp",
+        suf = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.suf"
     log:
-        out = "logs/gt_suffixerator_{assembly}_{sample_id}.out",
-        err = "logs/gt_suffixerator_{assembly}_{sample_id}.err"
+        out = "logs/gt_suffixerator_{assembly}_{assembly_name}.out",
+        err = "logs/gt_suffixerator_{assembly}_{assembly_name}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -636,20 +640,20 @@ rule gt_suffixerator:
 
 rule gt_ltrharvest:
     input:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
-        des = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.des",
-        esq = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.esq",
-        lcp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.lcp",
-        llv = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.llv",
-        md5 = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.md5",
-        prj = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.prj",
-        sds = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.sds",
-        ssp = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.ssp",
-        suf = "results/{assembly}/lai/gt_suffixerator/{sample_id}_index.suf"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
+        des = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.des",
+        esq = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.esq",
+        lcp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.lcp",
+        llv = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.llv",
+        md5 = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.md5",
+        prj = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.prj",
+        sds = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.sds",
+        ssp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.ssp",
+        suf = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.suf"
     output:
-        "results/{assembly}/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn"
+        "results/{assembly}/lai/gt_ltrharvest/{assembly_name}.fa.harvest.scn"
     log:
-        err = "logs/gt_ltrharvest_{assembly}_{sample_id}.err"
+        err = "logs/gt_ltrharvest_{assembly}_{assembly_name}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -668,12 +672,12 @@ rule gt_ltrharvest:
 
 rule ltr_finder_parallel:
     input:
-        "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa"
+        "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa"
     output:
-        "results/{assembly}/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
+        "results/{assembly}/lai/ltr_finder_parallel/{assembly_name}.fa.finder.combine.scn"
     log:
-        out = "logs/ltr_finder_parallel_{assembly}_{sample_id}.out",
-        err = "logs/ltr_finder_parallel_{assembly}_{sample_id}.err"
+        out = "logs/ltr_finder_parallel_{assembly}_{assembly_name}.out",
+        err = "logs/ltr_finder_parallel_{assembly}_{assembly_name}.err"
     conda:
         "../envs/lai.yml"
     threads:
@@ -694,12 +698,12 @@ rule ltr_finder_parallel:
 
 rule merge_ltrharvest_and_ltrfinder:
     input:
-        ltrharvest = "results/{assembly}/lai/gt_ltrharvest/{sample_id}.fa.harvest.scn",
-        ltrfinder = "results/{assembly}/lai/ltr_finder_parallel/{sample_id}.fa.finder.combine.scn"
+        ltrharvest = "results/{assembly}/lai/gt_ltrharvest/{assembly_name}.fa.harvest.scn",
+        ltrfinder = "results/{assembly}/lai/ltr_finder_parallel/{assembly_name}.fa.finder.combine.scn"
     output:
-        "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
+        "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{assembly_name}.fa.rawLTR.scn"
     log:
-        err = "logs/merge_ltrharvest_and_ltrfinder_{assembly}_{sample_id}.err"
+        err = "logs/merge_ltrharvest_and_ltrfinder_{assembly}_{assembly_name}.err"
     conda:
         "../envs/lai.yml"
     shell:
@@ -707,13 +711,13 @@ rule merge_ltrharvest_and_ltrfinder:
 
 rule ltr_retriever:
     input:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{sample_id}.fa",
-        inharvest = "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{sample_id}.fa.rawLTR.scn"
+        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
+        inharvest = "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{assembly_name}.fa.rawLTR.scn"
     output:
-        "results/{assembly}/lai/ltr_retriever/{sample_id}.fa.out.LAI"
+        "results/{assembly}/lai/ltr_retriever/{assembly_name}.fa.out.LAI"
     log:
-        out = "logs/ltr_retriever_{assembly}_{sample_id}.out",
-        err = "logs/ltr_retriever_{assembly}_{sample_id}.err"
+        out = "logs/ltr_retriever_{assembly}_{assembly_name}.out",
+        err = "logs/ltr_retriever_{assembly}_{assembly_name}.err"
     conda:
         "../envs/lai.yml"
     threads:

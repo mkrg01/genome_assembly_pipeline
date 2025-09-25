@@ -15,16 +15,13 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 
 | File Type                  | Naming Pattern               | Example                                    |
 | -------------------------- | ---------------------------- | ------------------------------------------ |
-| Paired-end RNA-seq (R1)    | `<RNA_ID>_1.fastq.gz`        | `RNASEQ1_1.fastq.gz`                       |
-| Paired-end RNA-seq (R2)    | `<RNA_ID>_2.fastq.gz`        | `RNASEQ1_2.fastq.gz`                       |
-| Additional RNA-seq samples | Continue numbering           | `RNASEQ2_1.fastq.gz`, `RNASEQ2_2.fastq.gz` |
-| PacBio HiFi reads          | `<SAMPLE_ID>.hifi_reads.bam` | `SAMPLE.hifi_reads.bam`                    |
+| PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
+| Paired-end RNA-seq (R1)    | `*_1.fastq.gz`        | `RNASEQ1_1.fastq.gz`                       |
+| Paired-end RNA-seq (R2)    | `*_2.fastq.gz`        | `RNASEQ1_2.fastq.gz`                       |
 
 **Notes:**
 
-- RNA-seq files must be **gzip-compressed** FASTQ files (`.fastq.gz`).
-- PacBio HiFi reads must be provided as a BAM file.
-- The pipeline will automatically detect and process multiple RNA-seq samples if present.
+- The pipeline will automatically detect and process multiple BacBio HiFi and RNA-seq samples, if present.
 
 ---
 
@@ -35,6 +32,7 @@ Below are the available parameters:
 
 | Parameter               | Description                                                  | Example                                    |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
+| `assembly_name`          | Name used for output files | Dioncophyllum_thollonii |
 | `fcs_gx_taxid`          | NCBI Taxonomy ID for FCS-GX screening. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
