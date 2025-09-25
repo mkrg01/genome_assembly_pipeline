@@ -38,7 +38,7 @@ Run the workflow from the repository root directory. Replace `/path/to/repo` wit
 ```
 cd /path/to/repo
 
-snakemake --sdm apptainer --singularity-args "--bind $(pwd)" --cores 48
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 48
 ```
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.
