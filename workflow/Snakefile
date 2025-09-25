@@ -1,4 +1,4 @@
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.1"
+# containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.1"
 configfile: "config/config.yml"
 include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
@@ -11,4 +11,5 @@ rule all:
         f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.txt",
-        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt"
+        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/longest_cds/omark/{assembly_name}_omark"

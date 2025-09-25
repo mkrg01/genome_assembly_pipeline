@@ -191,3 +191,53 @@ rule busco_proteins_mode:
             --lineage_dataset {params.lineage_dataset} \
             --download_path {input.database} \
             --offline > {log.out} 2> {log.err}"
+
+rule download_omamer_database:
+    input:
+        flag_orthodb = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
+    output:
+        "results/downloads/omamer/LUCA.h5"
+    log:
+        out = "logs/download_omamer_database.out",
+        err = "logs/download_omamer_database.err"
+    conda:
+        "../envs/omamer.yml"
+    params:
+        url = "https://omabrowser.org/All/LUCA.h5"
+    shell:
+        "wget {params.url} -O {output} > {log.out} 2> {log.err}"
+
+rule omamer_search:
+    input:
+        aa = "results/longest_cds/{assembly_name}_aa.fa",
+        database = "results/downloads/omamer/LUCA.h5"
+    output:
+        "results/longest_cds/omark/{assembly_name}.omamer"
+    log:
+        out = "logs/omamer_search_{assembly_name}.out",
+        err = "logs/omamer_search_{assembly_name}.err"
+    conda:
+        "../envs/omamer.yml"
+    shell:
+        "omamer search \
+            --db {input.database} \
+            --query {input.aa} \
+            --out $(dirname {output}) \
+            --nthreads {threads} > {log.out} 2> {log.err}"
+
+rule omark:
+    input:
+        database = "results/downloads/omamer/LUCA.h5",
+        omamer_search = "results/longest_cds/omark/{assembly_name}.omamer"
+    output:
+        directory("results/longest_cds/omark/{assembly_name}_omark")
+    log:
+        out = "logs/omark_{assembly_name}.out",
+        err = "logs/omark_{assembly_name}.err"
+    conda:
+        "../envs/omark.yml"
+    shell:
+        "omark \
+            --file {input.omamer_search} \
+            --db {input.database} \
+            --outputFolder {output} > {log.out} 2> {log.err}"

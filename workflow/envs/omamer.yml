@@ -1,0 +1,5 @@
+name: omamer
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::omamer=2.1.0
