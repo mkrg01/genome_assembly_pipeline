@@ -301,8 +301,8 @@ rule fcs_adaptor_screen:
     log:
         out = "logs/fcs_adaptor_screen_{assembly_name}.out",
         err = "logs/fcs_adaptor_screen_{assembly_name}.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     shell:
         """
         (
@@ -336,8 +336,8 @@ rule fcs_adaptor_clean:
     log:
         out = "logs/fcs_adaptor_clean_{assembly_name}.out",
         err = "logs/fcs_adaptor_clean_{assembly_name}.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     shell:
         """
         (
@@ -367,8 +367,8 @@ rule fcs_gx_get_db:
     log:
         out = "logs/fcs_gx_get_db.out",
         err = "logs/fcs_gx_get_db.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     params:
         mft = "https://ncbi-fcs-gx.s3.amazonaws.com/gxdb/latest/all.manifest"
     shell:
@@ -399,8 +399,8 @@ rule fcs_gx_check_db:
     log:
         out = "logs/fcs_gx_check_db.out",
         err = "logs/fcs_gx_check_db.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     shell:
         """
         (
@@ -424,8 +424,8 @@ rule fcs_gx_screen:
     log:
         out = "logs/fcs_gx_screen_{assembly_name}.out",
         err = "logs/fcs_gx_screen_{assembly_name}.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     params:
         taxid = config["fcs_gx_taxid"]
     threads:
@@ -454,8 +454,8 @@ rule fcs_gx_clean:
     log:
         out = "logs/fcs_gx_clean_{assembly_name}.out",
         err = "logs/fcs_gx_clean_{assembly_name}.err"
-    conda:
-        "../envs/fcs.yml"
+    container:
+        None # Wrapper scripts will invoke containers
     params:
         taxid = config["fcs_gx_taxid"]
     shell:

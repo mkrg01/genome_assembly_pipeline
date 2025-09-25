@@ -44,6 +44,6 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 48
 > Adjust the `--cores` value based on your available computational resources.
 
 > [!NOTE]
-> All rules will be executed in Singularity containers.
+> All rules except those with FCS wrapper scripts (`fcs.py`, `run_fcsadaptor.sh`) run in containers. These wrapper scripts internally call the main FCS functions, which are executed inside containers.
 
 The output will be generated in the [`results` directory](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results).
