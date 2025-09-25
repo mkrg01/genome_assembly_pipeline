@@ -9,7 +9,7 @@
 /.snakemake/
 
 # Job scheduling
-/jobscripts/
+/dev_job_scripts/
 
 # Container image
 *.sif
