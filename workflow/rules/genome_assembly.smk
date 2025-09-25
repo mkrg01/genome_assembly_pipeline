@@ -273,13 +273,13 @@ rule fcs_pull_image:
     conda:
         "../envs/fcs.yml"
     params:
-        fcs_adaptor_docker = "docker://ncbi/fcs-adaptor:0.5.5",
-        fcs_gx_docker = "docker://ncbi/fcs-gx:0.5.5"
+        fcs_adaptor_sif_url = "https://ftp.ncbi.nlm.nih.gov/genomes/TOOLS/FCS/releases/0.5.5/fcs-adaptor.sif",
+        fcs_gx_sif_url = "https://ftp.ncbi.nlm.nih.gov/genomes/TOOLS/FCS/releases/0.5.5/fcs-gx.sif"
     shell:
         """
         (
-            singularity pull {output.fcs_adaptor_sif} {params.fcs_adaptor_docker}
-            singularity pull {output.fcs_gx_sif} {params.fcs_gx_docker}
+            wget -O {output.fcs_adaptor_sif} {params.fcs_adaptor_sif_url}
+            wget -O {output.fcs_gx_sif} {params.fcs_gx_sif_url}
         ) > {log.out} 2> {log.err}
         """
 
