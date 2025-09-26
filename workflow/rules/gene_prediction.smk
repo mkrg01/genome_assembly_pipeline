@@ -224,7 +224,7 @@ rule omamer_search:
         "omamer search \
             --db {input.database} \
             --query {input.aa} \
-            --out $(dirname {output}) \
+            --out {output} \
             --nthreads {threads} > {log.out} 2> {log.err}"
 
 rule omark:
