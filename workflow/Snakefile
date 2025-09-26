@@ -1,4 +1,4 @@
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.4"
+containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.5"
 configfile: "config/config.yml"
 include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
