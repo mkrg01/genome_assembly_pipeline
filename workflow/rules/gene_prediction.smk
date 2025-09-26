@@ -241,5 +241,5 @@ rule omark:
     shell:
         "omark \
             --file {input.omamer_search} \
-            --db {input.database} \
+            --database {input.database} \
             --outputFolder {output} > {log.out} 2> {log.err}"
