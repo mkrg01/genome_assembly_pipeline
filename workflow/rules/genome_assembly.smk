@@ -20,7 +20,7 @@ rule bam2fastq:
     conda:
         "../envs/bam2fastq.yml"
     threads:
-        max(1, int(workflow.cores * 0.1))
+        max(1, int(workflow.cores * 0.3))
     shell:
         "bam2fastq \
             {input.read} \
@@ -40,7 +40,7 @@ rule fastplong:
     conda:
         "../envs/fastplong.yml"
     threads:
-        max(1, int(workflow.cores * 0.1))
+        max(1, int(workflow.cores * 0.3))
     shell:
         "fastplong \
             --in {input} \
@@ -74,13 +74,13 @@ rule fastk:
     conda:
         "../envs/smudgeplot.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.9))
     shell:
         "FastK \
             -v \
             -t4 \
             -k31 \
-            -M16 \
+            -M64 \
             -T{threads} \
             {input} \
             -N$(dirname {output.hist})/$(basename {output.hist} .hist) > {log.out} 2> {log.err}"
@@ -97,7 +97,7 @@ rule smudgeplot_hetmers:
     conda:
         "../envs/smudgeplot.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.9))
     shell:
         "smudgeplot.py hetmers \
             -L 12 \
@@ -116,8 +116,6 @@ rule smudgeplot_all:
         err = "logs/smudgeplot_all_{assembly_name}.err"
     conda:
         "../envs/smudgeplot.yml"
-    threads:
-        1
     shell:
         "smudgeplot.py all \
             -o $(dirname {output})/{wildcards.assembly_name} \
@@ -134,11 +132,11 @@ rule jellyfish_count:
     conda:
         "../envs/jellyfish.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.9))
     shell:
         "jellyfish count \
             --mer-len 21 \
-            --size 1G \
+            --size 16G \
             --threads {threads} \
             --canonical \
             --output {output} \
@@ -155,7 +153,7 @@ rule jellyfish_histo:
     conda:
         "../envs/jellyfish.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.9))
     shell:
         "jellyfish histo \
             {input} \
@@ -551,7 +549,7 @@ rule meryl:
     conda:
         "../envs/merqury.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.8))
     shell:
         "meryl count \
             output {output} \

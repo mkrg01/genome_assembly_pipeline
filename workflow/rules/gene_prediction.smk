@@ -11,7 +11,8 @@ wildcard_constraints:
 rule fastp_rnaseq_sample:
     input:
         rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
-        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz"
+        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz",
+        flag_repeatmasker = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
     output:
         rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
         rnaseq_2 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_2.fastq",
@@ -23,7 +24,7 @@ rule fastp_rnaseq_sample:
     conda:
         "../envs/fastp.yml"
     threads:
-        1
+        max(1, int(workflow.cores * 0.1))
     shell:
         "fastp \
             --in1 {input.rnaseq_1} \
@@ -36,8 +37,7 @@ rule fastp_rnaseq_sample:
 
 rule download_orthodb_proteins:
     input:
-        flag_dfam_1 = "results/repeatmasker/dfam/dfam_info.txt",
-        flag_dfam_2 = f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
+        flag_repeatmasker = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
     output:
         f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     log:
@@ -177,7 +177,7 @@ rule busco_proteins_mode:
     conda:
         "../envs/busco.yml"
     threads:
-        workflow.cores
+        max(1, int(workflow.cores * 0.9))
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     wildcard_constraints:
@@ -194,7 +194,7 @@ rule busco_proteins_mode:
 
 rule download_omamer_database:
     input:
-        flag_orthodb = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
+        flag_braker = "results/braker3/{assembly_name}/braker.aa"
     output:
         "results/downloads/omamer/LUCA.h5"
     log:
@@ -218,6 +218,8 @@ rule omamer_search:
         err = "logs/omamer_search_{assembly_name}.err"
     conda:
         "../envs/omamer.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
     shell:
         "omamer search \
             --db {input.database} \
