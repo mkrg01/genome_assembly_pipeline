@@ -11,8 +11,7 @@ wildcard_constraints:
 rule fastp_rnaseq_sample:
     input:
         rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
-        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz",
-        flag_repeatmasker = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz"
     output:
         rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
         rnaseq_2 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_2.fastq",
@@ -37,7 +36,8 @@ rule fastp_rnaseq_sample:
 
 rule download_orthodb_proteins:
     input:
-        flag_repeatmasker = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+        flag_dfam_1 = "results/repeatmasker/dfam/dfam_info.txt",
+        flag_dfam_2 = f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     output:
         f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     log:
@@ -194,7 +194,7 @@ rule busco_proteins_mode:
 
 rule download_omamer_database:
     input:
-        flag_braker = "results/braker3/{assembly_name}/braker.aa"
+        flag_orthodb = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
         "results/downloads/omamer/LUCA.h5"
     log:
