@@ -1,6 +1,6 @@
 FROM condaforge/miniforge3:latest
 LABEL io.github.snakemake.containerized="true"
-LABEL io.github.snakemake.conda_env_hash="95379847c3f41b5edb4440c46a453af6d9293943cb240ccb4661210261a07af5"
+LABEL io.github.snakemake.conda_env_hash="08716f956a5f932eb379f9ca1e6702cd9aac155c5bc71ab289191b8fd11d222a"
 
 # Step 2: Retrieve conda environments
 
@@ -184,6 +184,17 @@ COPY workflow/envs/seqkit.yml /conda-envs/2eace2598424741072f07c109da9f230/envir
 RUN mkdir -p /conda-envs/fba3c46ee9bfcd31e9dc9a0e556e010e
 COPY workflow/envs/smudgeplot.yml /conda-envs/fba3c46ee9bfcd31e9dc9a0e556e010e/environment.yaml
 
+# Conda environment:
+#   source: workflow/envs/tidk.yml
+#   prefix: /conda-envs/2e2d95d2893efc5ad203d140f0a56688
+#   name: tidk
+#   channels:
+#     - conda-forge
+#   dependencies:
+#     - bioconda::tidk=0.2.65
+RUN mkdir -p /conda-envs/2e2d95d2893efc5ad203d140f0a56688
+COPY workflow/envs/tidk.yml /conda-envs/2e2d95d2893efc5ad203d140f0a56688/environment.yaml
+
 # Step 3: Generate conda environments
 
 RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --file /conda-envs/a7401219cb36035d7c6438fc301a8525/environment.yaml && \
@@ -202,4 +213,5 @@ RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --fil
     conda env create --prefix /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8 --file /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8/environment.yaml && \
     conda env create --prefix /conda-envs/2eace2598424741072f07c109da9f230 --file /conda-envs/2eace2598424741072f07c109da9f230/environment.yaml && \
     conda env create --prefix /conda-envs/fba3c46ee9bfcd31e9dc9a0e556e010e --file /conda-envs/fba3c46ee9bfcd31e9dc9a0e556e010e/environment.yaml && \
+    conda env create --prefix /conda-envs/2e2d95d2893efc5ad203d140f0a56688 --file /conda-envs/2e2d95d2893efc5ad203d140f0a56688/environment.yaml && \
     conda clean --all -y

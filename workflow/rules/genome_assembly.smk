@@ -732,3 +732,93 @@ rule ltr_retriever:
             cd ../../../../
         ) > {log.out} 2> {log.err}
         """
+
+rule tidk_build:
+    output:
+        "results/downloads/tidk/tidk_database.csv"
+    log:
+        out = "logs/tidk_build.out",
+        err = "logs/tidk_build.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            if [[ -d ~/.local/share/tidk ]]; then
+                mv ~/.local/share/tidk $(dirname {output})/local_tidk
+            fi
+            tidk build
+            cp ~/.local/share/tidk/tidk_database.csv {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule tidk_find:
+    input:
+        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        database = "results/downloads/tidk/tidk_database.csv"
+    output:
+        "results/{assembly}/tidk/{assembly_name}_telomeric_repeat_windows.tsv"
+    log:
+        out = "logs/tidk_find_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_find_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    params:
+        tidk_clade = config["tidk_clade"]
+    shell:
+        """
+        (
+            mkdir -p ~/.local/share/tidk
+            cp {input.database} ~/.local/share/tidk/tidk_database.csv
+            tidk find \
+                --clade {params.tidk_clade} \
+                --dir $(dirname {output}) \
+                --output {wildcards.assembly_name} \
+                {input.assembly}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule tidk_plot:
+    input:
+        database = "results/downloads/tidk/tidk_database.csv",
+        tsv = "results/{assembly}/tidk/{assembly_name}_telomeric_repeat_windows.tsv"
+    output:
+        "results/{assembly}/tidk/{assembly_name}_tidk_plot.svg"
+    log:
+        out = "logs/tidk_plot_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_plot_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            mkdir -p ~/.local/share/tidk
+            cp {input.database} ~/.local/share/tidk/tidk_database.csv
+            tidk plot \
+                --tsv {input.tsv} \
+                --output $(dirname {output})/$(basename {output} .svg)
+        ) > {log.out} 2> {log.err}
+        """
+
+rule tidk_cleanup:
+    input:
+        database = "results/downloads/tidk/tidk_database.csv",
+        flag_tidk_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_plot.svg",
+        flag_tidk_fcs = "results/fcs/tidk/{assembly_name}_tidk_plot.svg"
+    output:
+        "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
+    log:
+        out = "logs/tidk_plot_{assembly_name}.out",
+        err = "logs/tidk_plot_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            rm -rf ~/.local/share/tidk
+            if [[ -d $(dirname {input.database})/local_tidk ]]; then
+                mv $(dirname {input.database})/local_tidk ~/.local/share/tidk
+            fi
+            touch {output}
+        ) > {log.out} 2> {log.err}
+        """

@@ -42,7 +42,8 @@ rule repeatmodeler:
         flag_merqury_hifiasm = "results/hifiasm/merqury/{assembly_name}.merqury.qv",
         flag_merqury_fcs = "results/fcs/merqury/{assembly_name}.merqury.qv",
         flag_inspector_hifiasm = "results/hifiasm/inspector/{assembly_name}",
-        flag_inspector_fcs = "results/fcs/inspector/{assembly_name}"
+        flag_inspector_fcs = "results/fcs/inspector/{assembly_name}",
+        flag_tidk = "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
     output:
         consensus = "results/repeatmodeler/{assembly_name}-families.fa",
         seed = "results/repeatmodeler/{assembly_name}-families.stk",
