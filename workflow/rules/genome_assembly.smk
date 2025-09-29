@@ -758,7 +758,7 @@ rule tidk_find:
         assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
         database = "results/downloads/tidk/tidk_database.csv"
     output:
-        "results/{assembly}/tidk/{assembly_name}_telomeric_repeat_windows.tsv"
+        "results/{assembly}/tidk/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
     log:
         out = "logs/tidk_find_{assembly}_{assembly_name}.out",
         err = "logs/tidk_find_{assembly}_{assembly_name}.err"
@@ -774,20 +774,20 @@ rule tidk_find:
             tidk find \
                 --clade {params.tidk_clade} \
                 --dir $(dirname {output}) \
-                --output {wildcards.assembly_name} \
+                --output $(basename {output} _telomeric_repeat_windows.tsv) \
                 {input.assembly}
         ) > {log.out} 2> {log.err}
         """
 
-rule tidk_plot:
+rule tidk_find_plot:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
-        tsv = "results/{assembly}/tidk/{assembly_name}_telomeric_repeat_windows.tsv"
+        tsv = "results/{assembly}/tidk/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_plot.svg"
+        "results/{assembly}/tidk/{assembly_name}_tidk_find.svg"
     log:
-        out = "logs/tidk_plot_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_plot_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_find_plot_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_find_plot_{assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     shell:
@@ -801,16 +801,81 @@ rule tidk_plot:
         ) > {log.out} 2> {log.err}
         """
 
+rule tidk_explore:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/tidk/{assembly_name}_tidk_explore.tsv"
+    log:
+        out = "logs/tidk_explore_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_explore_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            tidk explore \
+                --minimum 5 \
+                --maximum 12 \
+                {input} > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule tidk_search:
+    input:
+        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/tidk/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
+    log:
+        out = "logs/tidk_search_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_search_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    params:
+        telomeric_repeat_unit = config["tidk_telomeric_repeat_unit"]
+    shell:
+        """
+        (
+            tidk search \
+                --string {params.telomeric_repeat_unit} \
+                --dir $(dirname {output}) \
+                --output $(basename {output} _telomeric_repeat_windows.tsv) \
+                {input.assembly}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule tidk_search_plot:
+    input:
+        database = "results/downloads/tidk/tidk_database.csv",
+        tsv = "results/{assembly}/tidk/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
+    output:
+        "results/{assembly}/tidk/{assembly_name}_tidk_search.svg"
+    log:
+        out = "logs/tidk_search_plot_{assembly}_{assembly_name}.out",
+        err = "logs/tidk_search_plot_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            tidk plot \
+                --tsv {input.tsv} \
+                --output $(dirname {output})/$(basename {output} .svg)
+        ) > {log.out} 2> {log.err}
+        """
+
 rule tidk_cleanup:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
-        flag_tidk_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_plot.svg",
-        flag_tidk_fcs = "results/fcs/tidk/{assembly_name}_tidk_plot.svg"
+        flag_tidk_find_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_find.svg",
+        flag_tidk_find_fcs = "results/fcs/tidk/{assembly_name}_tidk_find.svg",
+        flag_tidk_search_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_search.svg",
+        flag_tidk_search_fcs = "results/fcs/tidk/{assembly_name}_tidk_search.svg"
     output:
         "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
     log:
-        out = "logs/tidk_plot_{assembly_name}.out",
-        err = "logs/tidk_plot_{assembly_name}.err"
+        out = "logs/tidk_cleanup_{assembly_name}.out",
+        err = "logs/tidk_cleanup_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     shell:

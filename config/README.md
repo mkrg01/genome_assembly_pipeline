@@ -36,7 +36,8 @@ Below are the available parameters:
 | `assembly_name`          | Name used for output files | Dioncophyllum_thollonii |
 | `fcs_gx_taxid`          | NCBI Taxonomy ID for FCS-GX screening. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
-| `tidk_clade` | Clade for [tidk](https://github.com/tolkit/telomeric-identifier). [Lineage list](https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find) | `"Caryophyllales"`|
+| `tidk_clade` | Clade for [tidk find](https://github.com/tolkit/telomeric-identifier). [Lineage list](https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find) | `"Caryophyllales"`|
+| `tidk_telomeric_repeat_unit` | A telomeric repeat unit for [tidk search](https://github.com/tolkit/telomeric-identifier). [A Telomeric Repeat Database](https://github.com/tolkit/a-telomeric-repeat-database) | `"AAACCCT"`|
 | `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
 | `dfam_partitions`       | Dfam partitions. See [README.txt](https://www.dfam.org/releases/current/families/FamDB/README.txt). | `"0,5,6"` (Viridiplantae)                      |
 | `dfam_lineage_name`     | Name of the Dfam lineage to use.                             | `"Viridiplantae"`                          |
