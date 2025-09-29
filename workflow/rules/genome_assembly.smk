@@ -80,9 +80,10 @@ rule fastk:
             -v \
             -t4 \
             -k31 \
-            -M64 \
+            -M16 \
             -T{threads} \
             {input} \
+            -P$(dirname {output.hist}) \
             -N$(dirname {output.hist})/$(basename {output.hist} .hist) > {log.out} 2> {log.err}"
 
 rule smudgeplot_hetmers:
