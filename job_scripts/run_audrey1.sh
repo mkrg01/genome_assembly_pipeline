@@ -2,8 +2,8 @@
 # SLURM on audrey1, a remote server at Fukushima Lab
 
 #SBATCH -J genome_assembly_pipeline
-#SBATCH -c 48 # Number of CPUs
-#SBATCH --mem-per-cpu=10G # Memory per CPU (max 480 GB on this cluster)
+#SBATCH -c 128 # Number of CPUs
+#SBATCH --mem-per-cpu=3.75G # Memory per CPU (max 480 GB on this cluster)
 #SBATCH -t 2976:00:00 # Maximum time in d-hh:mm:ss format.
 #SBATCH --output=genome_assembly_pipeline_%A_%a.out
 #SBATCH --error=genome_assembly_pipeline_%A_%a.err

@@ -4,7 +4,7 @@
 #$ -S /bin/bash
 #$ -cwd
 #$ -pe def_slot 32 # Number of CPUs
-#$ -l s_vmem=8G # Memory per CPU
+#$ -l s_vmem=16G # Memory per CPU
 #$ -l ljob # https://gc.hgc.jp/uge/uge-resource/
 
 echo "`date`: Starting"
