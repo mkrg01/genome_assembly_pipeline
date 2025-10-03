@@ -542,7 +542,8 @@ rule busco_genome_mode:
             --cpu {threads} \
             --lineage_dataset {params.lineage_dataset} \
             --download_path {input.database} \
-            --offline > {log.out} 2> {log.err}"
+            --offline \
+            --skip_bbtools > {log.out} 2> {log.err}"
 
 rule meryl:
     input:
