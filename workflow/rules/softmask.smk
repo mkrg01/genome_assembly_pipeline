@@ -37,6 +37,8 @@ rule repeatmodeler:
         flag_genomescope = "results/hifi_reads/genomescope2/{assembly_name}_linear_plot.png",
         flag_seqkit_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
         flag_seqkit_fcs = "results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
+        flag_seqkit_tsv_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
+        flag_seqkit_tsv_fcs = "results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
         flag_busco_hifiasm = "results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
         flag_busco_fcs = "results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
         flag_merqury_hifiasm = "results/hifiasm/merqury/{assembly_name}.merqury.qv",

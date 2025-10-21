@@ -12,4 +12,6 @@ rule all:
         f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/omark/{assembly_name}_omark"

@@ -165,6 +165,20 @@ rule seqkit_stats_proteins:
     shell:
         "seqkit stats {input} > {output} 2> {log}"
 
+rule seqkit_stats_proteins_tsv:
+    input:
+        "results/{gene}/{assembly_name}_aa.fa"
+    output:
+        "results/{gene}/seqkit/{assembly_name}_seqkit_stats.tsv"
+    log:
+        "logs/seqkit_stats_proteins_{gene}_{assembly_name}_tsv.err"
+    conda:
+        "../envs/seqkit.yml"
+    wildcard_constraints:
+        gene = "(isoforms|longest_cds)"
+    shell:
+        "seqkit stats --tabular {input} > {output} 2> {log}"
+
 rule busco_proteins_mode:
     input:
         aa = "results/{gene}/{assembly_name}_aa.fa",

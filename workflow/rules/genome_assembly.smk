@@ -499,6 +499,18 @@ rule seqkit_stats:
     shell:
         "seqkit stats --all {input} > {output} 2> {log}"
 
+rule seqkit_stats_tsv:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.tsv"
+    log:
+        "logs/seqkit_stats_{assembly}_{assembly_name}_tsv.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        "seqkit stats --all --tabular {input} > {output} 2> {log}"
+
 rule download_busco_database:
     output:
         directory("results/downloads/busco_downloads")
