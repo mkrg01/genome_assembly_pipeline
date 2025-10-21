@@ -740,6 +740,18 @@ rule ltr_retriever:
         ) > {log.out} 2> {log.err}
         """
 
+rule extract_long_contigs:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+    log:
+        err = "logs/extract_long_contigs_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        "seqkit seq --min-len 1000000 {input} > {output} 2> {log.err}"
+
 rule tidk_build:
     output:
         "results/downloads/tidk/tidk_database.csv"
@@ -761,7 +773,7 @@ rule tidk_build:
 
 rule tidk_find:
     input:
-        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa",
         database = "results/downloads/tidk/tidk_database.csv"
     output:
         "results/{assembly}/tidk/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
@@ -809,7 +821,7 @@ rule tidk_find_plot:
 
 rule tidk_explore:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
     output:
         "results/{assembly}/tidk/{assembly_name}_tidk_explore.tsv"
     log:
@@ -829,7 +841,7 @@ rule tidk_explore:
 
 rule tidk_search:
     input:
-        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
     output:
         "results/{assembly}/tidk/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
     log:
