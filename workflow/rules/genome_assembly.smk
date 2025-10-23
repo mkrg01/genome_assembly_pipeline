@@ -6,7 +6,8 @@ if len(hifi_samples) == 0:
 hifi_sample_ids = sorted({os.path.basename(f).replace(".hifi_reads.bam", "") for f in hifi_samples})
 
 wildcard_constraints:
-    assembly_name = config["assembly_name"]
+    assembly_name = config["assembly_name"],
+    organelle = "(mito|pltd)"
 
 rule bam2fastq:
     input:
@@ -231,7 +232,7 @@ rule hifiasm:
     shell:
         "hifiasm \
             {input} \
-            -o $(dirname {output.bp_p_ctg_gfa})/$(basename {output.bp_p_ctg_gfa} .bp.p_ctg.gfa) \
+            -o $(dirname {output.bp_p_ctg_gfa})/{wildcards.assembly_name} \
             -t {threads} > {log.out} 2> {log.err}"
 
 rule convert_gfa_to_fa:
@@ -245,6 +246,71 @@ rule convert_gfa_to_fa:
         "../envs/hifiasm.yml"
     shell:
         "awk -f workflow/scripts/convert_gfa_to_fa.awk {input} > {output} 2> {log}"
+
+rule download_oatkdb:
+    output:
+        f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam"
+    log:
+        out = "logs/download_oatkdb_{organelle}.out",
+        err = "logs/download_oatkdb_{organelle}.err"
+    conda:
+        "../envs/oatk.yml"
+    params:
+        url = f"https://github.com/c-zhou/OatkDB/blob/main/v20230921/{config['oatk_lineage']}_{{organelle}}.fam"
+    shell:
+        """
+        (
+            wget -O {output} {params.url}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule oatk:
+    input:
+        hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        **oatkdb_path()
+    output:
+        **oatk_output_path()
+    log:
+        out = "logs/oatk_{assembly_name}.out",
+        err = "logs/oatk_{assembly_name}.err"
+    params:
+        oatk_minimum_kmer_coverage = config["oatk_minimum_kmer_coverage"],
+        oatk_organelle = config["oatk_organelle"]
+    conda:
+        "../envs/oatk.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        """
+        (
+            if [ "{params.oatk_organelle}" = "mito" ]; then
+                oatk \
+                    -m {input.mito_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            elif [ "{params.oatk_organelle}" = "pltd" ]; then
+                oatk \
+                    -p {input.pltd_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
+                oatk \
+                    -m {input.mito_fam} \
+                    -p {input.pltd_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            else
+                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
+                exit 1
+            fi
+        ) > {log.out} 2> {log.err}
+        """
 
 rule fcs_get_code:
     output:

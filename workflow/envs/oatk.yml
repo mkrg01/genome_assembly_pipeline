@@ -1,0 +1,5 @@
+name: oatk
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::oatk=1.0
