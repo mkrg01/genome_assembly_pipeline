@@ -1,7 +1,7 @@
 assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
 oatk_lineage: "magnoliopsida" # Lineage of the Oatk HMM profile database to download. See: https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID
 oatk_organelle: "mito_and_pltd" # {"mito", "pltd", "mito_and_pltd"} - specify which organelle HMM profiles to include for Oatk. "mito_and_pltd" includes both mitochondrial and plastid profiles.
-oatk_minimum_kmer_coverage: 250 # Minimum kmer coverage for Oatk. Syncmers with coverages below the threshold will be excluded from the assembly graph. As an empirical instruction, this parameter can be set as 5-10 times the value of nuclear sequence coverage. See: https://github.com/c-zhou/oatk
+oatk_minimum_kmer_coverage: "250" # Minimum kmer coverage for Oatk. Syncmers with coverages below the threshold will be excluded from the assembly graph. As an empirical instruction, this parameter can be set as 5-10 times the value of nuclear sequence coverage. See: https://github.com/c-zhou/oatk
 fcs_gx_taxid: "122299" # NCBI Taxonomy ID for FCS-GX. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 tidk_clade: "Caryophyllales" # Clade to use for tidk (Telomere Identification Toolkit). See: https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find
