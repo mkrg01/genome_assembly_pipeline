@@ -33,7 +33,7 @@ Below are the available parameters:
 
 | Parameter               | Description                                                  | Example                                    |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
-| `assembly_name`         | Name used for output files | Dioncophyllum_thollonii |
+| `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
 | `oatk_organelle`        | Organelle to assemble. `{"mito", "pltd", "mito_and_pltd"}`  | `"mito_and_pltd"` |
 | `oatk_minimum_kmer_coverage`| Minimum kmer coverage used for Oatk. [Instructions](https://github.com/c-zhou/oatk)  | `"250"` |
