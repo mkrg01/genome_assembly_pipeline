@@ -249,7 +249,11 @@ rule convert_gfa_to_fa:
 
 rule download_oatkdb:
     output:
-        f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam"
+        fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam",
+        fam_h3f = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3f",
+        fam_h3i = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3i",
+        fam_h3m = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3m",
+        fam_h3p = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3p"
     log:
         out = "logs/download_oatkdb_{organelle}.out",
         err = "logs/download_oatkdb_{organelle}.err"
@@ -260,7 +264,11 @@ rule download_oatkdb:
     shell:
         """
         (
-            wget -O {output} {params.url}
+            wget -O {output.fam} {params.url}
+            wget -O {output.fam_h3f} {params.url}.h3f
+            wget -O {output.fam_h3i} {params.url}.h3i
+            wget -O {output.fam_h3m} {params.url}.h3m
+            wget -O {output.fam_h3p} {params.url}.h3p
         ) > {log.out} 2> {log.err}
         """
 
