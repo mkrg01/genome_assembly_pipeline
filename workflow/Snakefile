@@ -1,4 +1,4 @@
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.16"
+containerized: "docker://aurelia01/genome_assembly_pipeline:v0.2.17"
 configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
