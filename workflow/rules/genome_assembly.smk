@@ -256,7 +256,7 @@ rule download_oatkdb:
     conda:
         "../envs/oatk.yml"
     params:
-        url = f"https://github.com/c-zhou/OatkDB/blob/main/v20230921/{config['oatk_lineage']}_{{organelle}}.fam"
+        url = f"https://raw.githubusercontent.com/c-zhou/OatkDB/refs/heads/main/v20230921/{config['oatk_lineage']}_{{organelle}}.fam"
     shell:
         """
         (
