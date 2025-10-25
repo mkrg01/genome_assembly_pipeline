@@ -232,7 +232,7 @@ rule hifiasm:
     shell:
         "hifiasm \
             {input} \
-            -o $(dirname {output.bp_p_ctg_gfa})/{wildcards.assembly_name} \
+            -o $(dirname {output.bp_p_ctg_gfa})/{wildcards.assembly_name}.asm \
             -t {threads} > {log.out} 2> {log.err}"
 
 rule convert_gfa_to_fa:
