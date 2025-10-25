@@ -692,6 +692,7 @@ rule inspector:
             --read {input.reads} \
             --datatype hifi \
             --outpath {output} \
+            --min_contig_length 1 \
             --thread {threads} > {log.out} 2> {log.err}"
 
 rule extract_long_contigs:
