@@ -56,7 +56,7 @@ rule repeatmodeler:
     container:
         "docker://dfam/tetools:1.93"
     threads:
-        max(1, int(workflow.cores * 0.8))
+        max(1, int(workflow.cores))
     shell:
         """
         (
@@ -182,9 +182,7 @@ rule merge_repeat_datasets:
 rule repeatmasker:
     input:
         library = "results/repeatmasker/library/{assembly_name}_repeatmasker_lib.fa",
-        assembly = "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa",
-        flag_lai_1 = "results/hifiasm/lai/ltr_retriever/{assembly_name}.fa.out.LAI",
-        flag_lai_2 = "results/fcs/lai/ltr_retriever/{assembly_name}.fa.out.LAI"
+        assembly = "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
         "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
     log:

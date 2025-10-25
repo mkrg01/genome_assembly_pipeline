@@ -617,7 +617,7 @@ rule busco_genome_mode:
     conda:
         "../envs/busco.yml"
     threads:
-        max(1, int(workflow.cores * 0.8))
+        max(1, int(workflow.cores * 0.9))
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     shell:
@@ -642,7 +642,7 @@ rule meryl:
     conda:
         "../envs/merqury.yml"
     threads:
-        max(1, int(workflow.cores * 0.8))
+        max(1, int(workflow.cores * 0.9))
     shell:
         "meryl count \
             output {output} \
@@ -685,7 +685,7 @@ rule inspector:
     conda:
         "../envs/inspector.yml"
     threads:
-        max(1, int(workflow.cores * 0.8))
+        max(1, int(workflow.cores * 0.9))
     shell:
         "inspector.py \
             --contig {input.assembly} \
@@ -693,138 +693,6 @@ rule inspector:
             --datatype hifi \
             --outpath {output} \
             --thread {threads} > {log.out} 2> {log.err}"
-
-rule gt_suffixerator:
-    input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
-    output:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
-        des = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.des",
-        esq = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.esq",
-        lcp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.lcp",
-        llv = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.llv",
-        md5 = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.md5",
-        prj = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.prj",
-        sds = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.sds",
-        ssp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.ssp",
-        suf = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.suf"
-    log:
-        out = "logs/gt_suffixerator_{assembly}_{assembly_name}.out",
-        err = "logs/gt_suffixerator_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/lai.yml"
-    shell:
-        """
-        (
-            cp {input} {output.assembly}
-            gt suffixerator \
-                -db {output.assembly} \
-                -indexname $(dirname {output.des})/$(basename {output.des} .des) \
-                -tis \
-                -suf \
-                -lcp \
-                -des \
-                -ssp \
-                -sds \
-                -dna
-        ) > {log.out} 2> {log.err}
-        """
-
-rule gt_ltrharvest:
-    input:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
-        des = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.des",
-        esq = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.esq",
-        lcp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.lcp",
-        llv = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.llv",
-        md5 = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.md5",
-        prj = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.prj",
-        sds = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.sds",
-        ssp = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.ssp",
-        suf = "results/{assembly}/lai/gt_suffixerator/{assembly_name}_index.suf"
-    output:
-        "results/{assembly}/lai/gt_ltrharvest/{assembly_name}.fa.harvest.scn"
-    log:
-        err = "logs/gt_ltrharvest_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/lai.yml"
-    shell:
-        "gt ltrharvest \
-            -index $(dirname {input.des})/$(basename {input.des} .des) \
-            -minlenltr 100 \
-            -maxlenltr 7000 \
-            -mintsd 4 \
-            -maxtsd 6 \
-            -motif TGCA \
-            -motifmis 1 \
-            -similar 85 \
-            -vic 10 \
-            -seed 20 \
-            -seqids yes > {output} 2> {log.err}"
-
-rule ltr_finder_parallel:
-    input:
-        "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa"
-    output:
-        "results/{assembly}/lai/ltr_finder_parallel/{assembly_name}.fa.finder.combine.scn"
-    log:
-        out = "logs/ltr_finder_parallel_{assembly}_{assembly_name}.out",
-        err = "logs/ltr_finder_parallel_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/lai.yml"
-    threads:
-        max(1, int(workflow.cores * 0.1) - 1)
-    shell:
-        """
-        (
-            cd $(dirname {output})
-            LTR_FINDER_parallel \
-                -seq ../../../../{input} \
-                -threads {threads} \
-                -harvest_out \
-                -size 1000000 \
-                -time 300
-            cd ../../../../
-        ) > {log.out} 2> {log.err}
-        """
-
-rule merge_ltrharvest_and_ltrfinder:
-    input:
-        ltrharvest = "results/{assembly}/lai/gt_ltrharvest/{assembly_name}.fa.harvest.scn",
-        ltrfinder = "results/{assembly}/lai/ltr_finder_parallel/{assembly_name}.fa.finder.combine.scn"
-    output:
-        "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{assembly_name}.fa.rawLTR.scn"
-    log:
-        err = "logs/merge_ltrharvest_and_ltrfinder_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/lai.yml"
-    shell:
-        "cat {input.ltrharvest} {input.ltrfinder} > {output} 2> {log.err}"
-
-rule ltr_retriever:
-    input:
-        assembly = "results/{assembly}/lai/gt_suffixerator/{assembly_name}.fa",
-        inharvest = "results/{assembly}/lai/lib_ltrharvest_ltrfinder/{assembly_name}.fa.rawLTR.scn"
-    output:
-        "results/{assembly}/lai/ltr_retriever/{assembly_name}.fa.out.LAI"
-    log:
-        out = "logs/ltr_retriever_{assembly}_{assembly_name}.out",
-        err = "logs/ltr_retriever_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/lai.yml"
-    threads:
-        max(1, int(workflow.cores * 0.1) - 1)
-    shell:
-        """
-        (
-            cd $(dirname {output})
-            LTR_retriever \
-                -genome ../../../../{input.assembly} \
-                -inharvest ../../../../{input.inharvest} \
-                -threads {threads}
-            cd ../../../../
-        ) > {log.out} 2> {log.err}
-        """
 
 rule extract_long_contigs:
     input:
