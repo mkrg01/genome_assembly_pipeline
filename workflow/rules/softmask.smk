@@ -35,6 +35,8 @@ rule repeatmodeler:
         translation = "results/repeatmodeler/{assembly_name}.translation",
         flag_smudgeplot = "results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         flag_genomescope = "results/hifi_reads/genomescope2/{assembly_name}_linear_plot.png",
+        flag_contig_depth_hifiasm = "results/hifiasm/depth/{assembly_name}/contig_info.tsv",
+        flag_contig_depth_fcs = "results/fcs/depth/{assembly_name}/contig_info.tsv",
         flag_seqkit_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
         flag_seqkit_fcs = "results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
         flag_seqkit_tsv_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",

@@ -1,0 +1,7 @@
+name: pybase
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13.7
+  - pandas=2.2.3
+  - matplotlib=3.10.6
