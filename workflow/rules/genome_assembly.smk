@@ -273,6 +273,51 @@ rule oatk:
         ) > {log.out} 2> {log.err}
         """
 
+def concatemer_path():
+    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
+    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.pltd.fa"
+    all_organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa"
+    if config["oatk_organelle"] == "mito":
+        return {"mito": mito, "all_organelle": all_organelle}
+    elif config["oatk_organelle"] == "pltd":
+        return {"pltd": pltd, "all_organelle": all_organelle}
+    elif config["oatk_organelle"] == "mito_and_pltd":
+        return {"mito": mito, "pltd": pltd, "all_organelle": all_organelle}
+    else:
+        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+
+rule concatenate_organelle_genome:
+    input:
+        **oatk_output_path()
+    output:
+        **concatemer_path()
+    log:
+        out = "logs/concatenate_organelle_genome_{assembly_name}.out",
+        err = "logs/concatenate_organelle_genome_{assembly_name}.err"
+    params:
+        oatk_organelle = config["oatk_organelle"]
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            if [ "{params.oatk_organelle}" = "mito" ]; then
+                seqkit concat {input.mito} {input.mito} > {output.mito}
+                cp {output.mito} {output.all_organelle}
+            elif [ "{params.oatk_organelle}" = "pltd" ]; then
+                seqkit concat {input.pltd} {input.pltd} > {output.pltd}
+                cp {output.pltd} {output.all_organelle}
+            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
+                seqkit concat {input.mito} {input.mito} > {output.mito}
+                seqkit concat {input.pltd} {input.pltd} > {output.pltd}
+                cat {output.mito} {output.pltd} > {output.all_organelle}
+            else
+                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
+                exit 1
+            fi
+        ) > {log.out} 2> {log.err}
+        """
+
 rule hifiasm:
     input:
         "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
