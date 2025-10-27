@@ -273,51 +273,6 @@ rule oatk:
         ) > {log.out} 2> {log.err}
         """
 
-def concatemer_path():
-    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
-    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.pltd.fa"
-    all_organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa"
-    if config["oatk_organelle"] == "mito":
-        return {"mito": mito, "all_organelle": all_organelle}
-    elif config["oatk_organelle"] == "pltd":
-        return {"pltd": pltd, "all_organelle": all_organelle}
-    elif config["oatk_organelle"] == "mito_and_pltd":
-        return {"mito": mito, "pltd": pltd, "all_organelle": all_organelle}
-    else:
-        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
-
-rule concatenate_organelle_genome:
-    input:
-        **oatk_output_path()
-    output:
-        **concatemer_path()
-    log:
-        out = "logs/concatenate_organelle_genome_{assembly_name}.out",
-        err = "logs/concatenate_organelle_genome_{assembly_name}.err"
-    params:
-        oatk_organelle = config["oatk_organelle"]
-    conda:
-        "../envs/seqkit.yml"
-    shell:
-        """
-        (
-            if [ "{params.oatk_organelle}" = "mito" ]; then
-                seqkit concat {input.mito} {input.mito} > {output.mito}
-                cp {output.mito} {output.all_organelle}
-            elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                seqkit concat {input.pltd} {input.pltd} > {output.pltd}
-                cp {output.pltd} {output.all_organelle}
-            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                seqkit concat {input.mito} {input.mito} > {output.mito}
-                seqkit concat {input.pltd} {input.pltd} > {output.pltd}
-                cat {output.mito} {output.pltd} > {output.all_organelle}
-            else
-                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
-                exit 1
-            fi
-        ) > {log.out} 2> {log.err}
-        """
-
 rule hifiasm:
     input:
         "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
@@ -406,6 +361,76 @@ rule calculate_contig_depth:
             python3 workflow/scripts/show_contig_depth.py \
                 --inspector {input.inspector} \
                 --output $(dirname {output.contig_info})
+        ) > {log.out} 2> {log.err}
+        """
+
+def concatemer_path():
+    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
+    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.pltd.fa"
+    all_organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa"
+    if config["oatk_organelle"] == "mito":
+        return {"mito": mito, "all_organelle": all_organelle}
+    elif config["oatk_organelle"] == "pltd":
+        return {"pltd": pltd, "all_organelle": all_organelle}
+    elif config["oatk_organelle"] == "mito_and_pltd":
+        return {"mito": mito, "pltd": pltd, "all_organelle": all_organelle}
+    else:
+        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+
+rule concatenate_organelle_genome:
+    input:
+        **oatk_output_path()
+    output:
+        **concatemer_path()
+    log:
+        out = "logs/concatenate_organelle_genome_{assembly_name}.out",
+        err = "logs/concatenate_organelle_genome_{assembly_name}.err"
+    params:
+        oatk_organelle = config["oatk_organelle"]
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            if [ "{params.oatk_organelle}" = "mito" ]; then
+                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} > {output.mito}
+                cp {output.mito} {output.all_organelle}
+            elif [ "{params.oatk_organelle}" = "pltd" ]; then
+                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} > {output.pltd}
+                cp {output.pltd} {output.all_organelle}
+            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
+                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} > {output.mito}
+                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} > {output.pltd}
+                cat {output.mito} {output.pltd} > {output.all_organelle}
+            else
+                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
+                exit 1
+            fi
+        ) > {log.out} 2> {log.err}
+        """
+
+rule map_contig_to_organelle:
+    input:
+        organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa",
+        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/hifiasm/map_to_organelle/{assembly_name}_to_organelle.sam"
+    log:
+        out = "logs/map_contig_to_organelle_{assembly_name}.out",
+        err = "logs/map_contig_to_organelle_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        """
+        (
+            minimap2 \
+                -ax asm5 \
+                {input.organelle} \
+                {input.assembly} \
+                -t {threads} \
+                > {output}
         ) > {log.out} 2> {log.err}
         """
 
