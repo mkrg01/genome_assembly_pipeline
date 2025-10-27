@@ -426,9 +426,12 @@ rule map_contig_to_organelle:
         """
         (
             minimap2 \
-                -cx asm5 \
+                -c \
+                -x asm5 \
                 {input.organelle} \
                 {input.assembly} \
+                --secondary=no \
+                --paf-no-hit \
                 -t {threads} \
                 > {output}
         ) > {log.out} 2> {log.err}
