@@ -78,4 +78,4 @@ rule all:
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/omark/{assembly_name}_omark",
-        f"results/hifiasm/map_to_organelle/{assembly_name}_to_organelle.sam"
+        f"results/hifiasm/map_to_organelle/{assembly_name}.paf"

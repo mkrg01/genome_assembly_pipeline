@@ -414,7 +414,7 @@ rule map_contig_to_organelle:
         organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa",
         assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/hifiasm/map_to_organelle/{assembly_name}_to_organelle.sam"
+        "results/hifiasm/map_to_organelle/{assembly_name}.paf"
     log:
         out = "logs/map_contig_to_organelle_{assembly_name}.out",
         err = "logs/map_contig_to_organelle_{assembly_name}.err"
@@ -426,7 +426,7 @@ rule map_contig_to_organelle:
         """
         (
             minimap2 \
-                -ax asm5 \
+                -cx asm5 \
                 {input.organelle} \
                 {input.assembly} \
                 -t {threads} \
