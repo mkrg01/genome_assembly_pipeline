@@ -529,7 +529,7 @@ rule fcs_pull_image:
 rule fcs_adaptor_screen:
     input:
         run_fcsadaptor_sh = "results/downloads/fcs/run_fcsadaptor.sh",
-        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa",
         fcs_adaptor_sif = "results/downloads/fcs/fcs_adaptor_0.5.5.sif"
     output:
         assembly = "results/fcs/fcs_adaptor_screen/cleaned_sequences/{assembly_name}.asm.bp.p_ctg.fa",
@@ -570,7 +570,7 @@ rule fcs_adaptor_screen:
 rule fcs_adaptor_clean:
     input:
         fcs_py = "results/downloads/fcs/fcs.py",
-        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa",
         fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
