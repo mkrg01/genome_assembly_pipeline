@@ -414,7 +414,7 @@ rule map_contig_to_organelle:
         organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa",
         assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/hifiasm/map_to_organelle/{assembly_name}.paf"
+        "results/hifiasm/map_to_organelle/minimap2/{assembly_name}_to_organelle_concatemer.paf"
     log:
         out = "logs/map_contig_to_organelle_{assembly_name}.out",
         err = "logs/map_contig_to_organelle_{assembly_name}.err"
@@ -431,8 +431,56 @@ rule map_contig_to_organelle:
                 {input.organelle} \
                 {input.assembly} \
                 --secondary=no \
-                --paf-no-hit \
                 -t {threads} \
+                > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule detect_organelle_contigs:
+    input:
+        "results/hifiasm/map_to_organelle/minimap2/{assembly_name}_to_organelle_concatemer.paf"
+    output:
+        organelle_contigs = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt",
+        organelle_contig_info = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_info.tsv",
+        target_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_target.pdf",
+        length_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_length.pdf",
+        coverage_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_mapped_contig_coverage.pdf",
+        identity_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_mapped_alignment_identity.pdf"
+    log:
+        out = "logs/detect_organelle_contigs_{assembly_name}.out",
+        err = "logs/detect_organelle_contigs_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/detect_organelle_contigs.py \
+                --input {input} \
+                --outdir $(dirname {output.organelle_contigs}) \
+                --prefix {wildcards.assembly_name} \
+                --min_identity 0.95 \
+                --min_coverage 0.90 \
+        ) > {log.out} 2> {log.err}
+        """
+
+rule remove_organelle_contigs:
+    input:
+        organelle_contigs = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt",
+        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    log:
+        out = "logs/remove_organelle_contigs_{assembly_name}.out",
+        err = "logs/remove_organelle_contigs_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            seqkit grep \
+                --invert-match \
+                --pattern-file {input.organelle_contigs} \
+                {input.assembly} \
                 > {output}
         ) > {log.out} 2> {log.err}
         """
