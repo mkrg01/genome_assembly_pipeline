@@ -200,79 +200,6 @@ rule genomescope2:
         ) > {log.out} 2> {log.err}
         """
 
-rule download_oatkdb:
-    output:
-        fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam",
-        fam_h3f = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3f",
-        fam_h3i = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3i",
-        fam_h3m = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3m",
-        fam_h3p = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3p"
-    log:
-        out = "logs/download_oatkdb_{organelle}.out",
-        err = "logs/download_oatkdb_{organelle}.err"
-    conda:
-        "../envs/oatk.yml"
-    params:
-        url = f"https://raw.githubusercontent.com/c-zhou/OatkDB/refs/heads/main/v20230921/{config['oatk_lineage']}_{{organelle}}.fam"
-    shell:
-        """
-        (
-            wget -O {output.fam} {params.url}
-            wget -O {output.fam_h3f} {params.url}.h3f
-            wget -O {output.fam_h3i} {params.url}.h3i
-            wget -O {output.fam_h3m} {params.url}.h3m
-            wget -O {output.fam_h3p} {params.url}.h3p
-        ) > {log.out} 2> {log.err}
-        """
-
-rule oatk:
-    input:
-        hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
-        **oatkdb_path()
-    output:
-        **oatk_output_path()
-    log:
-        out = "logs/oatk_{assembly_name}.out",
-        err = "logs/oatk_{assembly_name}.err"
-    params:
-        oatk_minimum_kmer_coverage = config["oatk_minimum_kmer_coverage"],
-        oatk_organelle = config["oatk_organelle"]
-    conda:
-        "../envs/oatk.yml"
-    threads:
-        max(1, int(workflow.cores * 0.9))
-    shell:
-        """
-        (
-            if [ "{params.oatk_organelle}" = "mito" ]; then
-                oatk \
-                    -m {input.mito_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                oatk \
-                    -p {input.pltd_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                oatk \
-                    -m {input.mito_fam} \
-                    -p {input.pltd_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            else
-                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
-                exit 1
-            fi
-        ) > {log.out} 2> {log.err}
-        """
-
 rule hifiasm:
     input:
         "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
@@ -361,6 +288,79 @@ rule calculate_contig_depth:
             python3 workflow/scripts/show_contig_depth.py \
                 --inspector {input.inspector} \
                 --output $(dirname {output.contig_info})
+        ) > {log.out} 2> {log.err}
+        """
+
+rule download_oatkdb:
+    output:
+        fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam",
+        fam_h3f = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3f",
+        fam_h3i = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3i",
+        fam_h3m = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3m",
+        fam_h3p = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam.h3p"
+    log:
+        out = "logs/download_oatkdb_{organelle}.out",
+        err = "logs/download_oatkdb_{organelle}.err"
+    conda:
+        "../envs/oatk.yml"
+    params:
+        url = f"https://raw.githubusercontent.com/c-zhou/OatkDB/refs/heads/main/v20230921/{config['oatk_lineage']}_{{organelle}}.fam"
+    shell:
+        """
+        (
+            wget -O {output.fam} {params.url}
+            wget -O {output.fam_h3f} {params.url}.h3f
+            wget -O {output.fam_h3i} {params.url}.h3i
+            wget -O {output.fam_h3m} {params.url}.h3m
+            wget -O {output.fam_h3p} {params.url}.h3p
+        ) > {log.out} 2> {log.err}
+        """
+
+rule oatk:
+    input:
+        hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        **oatkdb_path()
+    output:
+        **oatk_output_path()
+    log:
+        out = "logs/oatk_{assembly_name}.out",
+        err = "logs/oatk_{assembly_name}.err"
+    params:
+        oatk_minimum_kmer_coverage = config["oatk_minimum_kmer_coverage"],
+        oatk_organelle = config["oatk_organelle"]
+    conda:
+        "../envs/oatk.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        """
+        (
+            if [ "{params.oatk_organelle}" = "mito" ]; then
+                oatk \
+                    -m {input.mito_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            elif [ "{params.oatk_organelle}" = "pltd" ]; then
+                oatk \
+                    -p {input.pltd_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
+                oatk \
+                    -m {input.mito_fam} \
+                    -p {input.pltd_fam} \
+                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
+                    -c {params.oatk_minimum_kmer_coverage} \
+                    -t {threads} \
+                    {input.hifi_reads}
+            else
+                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
+                exit 1
+            fi
         ) > {log.out} 2> {log.err}
         """
 
@@ -984,8 +984,10 @@ rule tidk_cleanup:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
         flag_tidk_find_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_find.svg",
+        flag_tidk_find_organelle_removal = "results/organelle_removal/tidk/{assembly_name}_tidk_find.svg",
         flag_tidk_find_fcs = "results/fcs/tidk/{assembly_name}_tidk_find.svg",
         flag_tidk_search_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_search.svg",
+        flag_tidk_search_organelle_removal = "results/organelle_removal/tidk/{assembly_name}_tidk_search.svg",
         flag_tidk_search_fcs = "results/fcs/tidk/{assembly_name}_tidk_search.svg"
     output:
         "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"

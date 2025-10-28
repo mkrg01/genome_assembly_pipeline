@@ -69,13 +69,84 @@ include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
 
-rule all:
-    input:
+# Step 1: Genome assembly
+def assembly_all_inputs(assembly_name):
+    return [
+        f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
+        f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
+        *oatk_output_real_path(assembly_name),
+        f"results/hifiasm/depth/{assembly_name}/contig_depth.pdf",
+        f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
+        f"results/hifiasm/merqury/{assembly_name}.merqury.qv",
+        f"results/hifiasm/tidk/{assembly_name}_tidk_find.svg",
+        f"results/hifiasm/tidk/{assembly_name}_tidk_explore.tsv",
+        f"results/hifiasm/tidk/{assembly_name}_tidk_search.svg"
+    ]
+
+# Step 2: Organelle removal
+def remove_organelle_all_inputs(assembly_name):
+    return assembly_all_inputs(assembly_name) + [
+        f"results/organelle_removal/depth/{assembly_name}/contig_depth.pdf",
+        f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/organelle_removal/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
+        f"results/organelle_removal/merqury/{assembly_name}.merqury.qv",
+        f"results/organelle_removal/tidk/{assembly_name}_tidk_find.svg",
+        f"results/organelle_removal/tidk/{assembly_name}_tidk_explore.tsv",
+        f"results/organelle_removal/tidk/{assembly_name}_tidk_search.svg"
+    ]
+
+# Step 3: Contamination removal by FCS
+def remove_contamination_all_inputs(assembly_name):
+    return remove_organelle_all_inputs(assembly_name) + [
+        f"results/fcs/depth/{assembly_name}/contig_depth.pdf",
+        f"results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
+        f"results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
+        f"results/fcs/merqury/{assembly_name}.merqury.qv",
+        f"results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
+    ]
+
+# Step 4: Soft-masking
+def softmask_all_inputs(assembly_name):
+    return remove_contamination_all_inputs(assembly_name) + [
+        f"results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+    ]
+
+# Step 5: Gene prediction
+def gene_prediction_all_inputs(assembly_name):
+    return softmask_all_inputs(assembly_name) + [
         f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/longest_cds/omark/{assembly_name}_omark",
-        f"results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        f"results/longest_cds/omark/{assembly_name}_omark"
+    ]
+
+rule all:
+    input:
+        *gene_prediction_all_inputs(assembly_name)
+
+rule assembly_all:
+    input:
+        *assembly_all_inputs(assembly_name)
+
+rule remove_organelle_all:
+    input:
+        *remove_organelle_all_inputs(assembly_name)
+
+rule remove_contamination_all:
+    input:
+        *remove_contamination_all_inputs(assembly_name)
+
+rule softmask_all:
+    input:
+        *softmask_all_inputs(assembly_name)
+
+rule gene_prediction_all:
+    input:
+        *gene_prediction_all_inputs(assembly_name)

@@ -32,22 +32,7 @@ rule repeatmodeler:
         nni = "results/repeatmodeler/{assembly_name}.nni",
         nog = "results/repeatmodeler/{assembly_name}.nog",
         nsq = "results/repeatmodeler/{assembly_name}.nsq",
-        translation = "results/repeatmodeler/{assembly_name}.translation",
-        flag_smudgeplot = "results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
-        flag_genomescope = "results/hifi_reads/genomescope2/{assembly_name}_linear_plot.png",
-        flag_contig_depth_hifiasm = "results/hifiasm/depth/{assembly_name}/contig_info.tsv",
-        flag_contig_depth_fcs = "results/fcs/depth/{assembly_name}/contig_info.tsv",
-        flag_seqkit_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
-        flag_seqkit_fcs = "results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
-        flag_seqkit_tsv_hifiasm = "results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
-        flag_seqkit_tsv_fcs = "results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
-        flag_busco_hifiasm = "results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
-        flag_busco_fcs = "results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
-        flag_merqury_hifiasm = "results/hifiasm/merqury/{assembly_name}.merqury.qv",
-        flag_merqury_fcs = "results/fcs/merqury/{assembly_name}.merqury.qv",
-        flag_inspector_hifiasm = "results/hifiasm/inspector/{assembly_name}",
-        flag_inspector_fcs = "results/fcs/inspector/{assembly_name}",
-        flag_tidk = "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
+        translation = "results/repeatmodeler/{assembly_name}.translation"
     output:
         consensus = "results/repeatmodeler/{assembly_name}-families.fa",
         seed = "results/repeatmodeler/{assembly_name}-families.stk",
@@ -73,8 +58,6 @@ rule repeatmodeler:
         """
 
 rule download_dfam_database:
-    input:
-        flag_gxdb = "results/downloads/fcs/.gxdb_checked"
     output:
         db = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz",
         md5 = f"results/downloads/dfam/dfam{config['dfam_version'].replace('.', '')}_full.{{partition}}.h5.gz.md5"
@@ -127,29 +110,9 @@ rule print_dfam_database_info:
             -i $(dirname {output}) \
             info > {output} 2> {log}"
 
-rule print_dfam_repeat_number:
-    input:
-        "results/repeatmasker/dfam/dfam_info.txt"
-    output:
-        f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
-    log:
-        "logs/print_dfam_repeat_number.err"
-    container:
-        "docker://dfam/tetools:1.93"
-    params:
-        lineage_name = config['dfam_lineage_name']
-    shell:
-        "famdb.py \
-            -i $(dirname {input}) \
-            lineage \
-            --format totals \
-            --ancestors \
-            --descendants \
-            {params.lineage_name} > {output} 2> {log}"
-
 rule export_dfam_repeat_fasta:
     input:
-        f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
+        "results/repeatmasker/dfam/dfam_info.txt"
     output:
         f"results/repeatmasker/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     log:

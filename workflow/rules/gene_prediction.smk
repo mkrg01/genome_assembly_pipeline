@@ -35,9 +35,6 @@ rule fastp_rnaseq_sample:
             --thread {threads} > {log.out} 2> {log.err}"
 
 rule download_orthodb_proteins:
-    input:
-        flag_dfam_1 = "results/repeatmasker/dfam/dfam_info.txt",
-        flag_dfam_2 = f"results/repeatmasker/dfam/dfam_repeat_number_{config['dfam_lineage_name']}.txt"
     output:
         f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     log:
@@ -207,8 +204,6 @@ rule busco_proteins_mode:
             --offline > {log.out} 2> {log.err}"
 
 rule download_omamer_database:
-    input:
-        flag_orthodb = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
         "results/downloads/omamer/LUCA.h5"
     log:
