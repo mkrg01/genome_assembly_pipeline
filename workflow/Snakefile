@@ -75,7 +75,6 @@ def assembly_all_inputs(assembly_name):
         f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
         *oatk_output_real_path(assembly_name),
-        f"results/hifiasm/depth/{assembly_name}/contig_depth.pdf",
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
@@ -88,7 +87,6 @@ def assembly_all_inputs(assembly_name):
 # Step 2: Organelle removal
 def remove_organelle_all_inputs(assembly_name):
     return assembly_all_inputs(assembly_name) + [
-        f"results/organelle_removal/depth/{assembly_name}/contig_depth.pdf",
         f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/organelle_removal/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
@@ -101,7 +99,6 @@ def remove_organelle_all_inputs(assembly_name):
 # Step 3: Contamination removal by FCS
 def remove_contamination_all_inputs(assembly_name):
     return remove_organelle_all_inputs(assembly_name) + [
-        f"results/fcs/depth/{assembly_name}/contig_depth.pdf",
         f"results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",

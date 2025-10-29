@@ -247,50 +247,6 @@ rule convert_gfa_to_fa:
     shell:
         "awk -f workflow/scripts/convert_gfa_to_fa.awk {input} > {output} 2> {log}"
 
-rule inspector:
-    input:
-        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
-        reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
-    output:
-        directory("results/{assembly}/inspector/{assembly_name}")
-    log:
-        out = "logs/inspector_{assembly}_{assembly_name}.out",
-        err = "logs/inspector_{assembly}_{assembly_name}.err"
-    conda:
-        "../envs/inspector.yml"
-    threads:
-        max(1, int(workflow.cores * 0.9))
-    shell:
-        "inspector.py \
-            --contig {input.assembly} \
-            --read {input.reads} \
-            --datatype hifi \
-            --outpath {output} \
-            --min_contig_length 1 \
-            --thread {threads} > {log.out} 2> {log.err}"
-
-rule calculate_contig_depth:
-     input:
-        inspector = "results/{assembly}/inspector/{assembly_name}"
-     output:
-        depth_plot_png = "results/{assembly}/depth/{assembly_name}/contig_depth.png",
-        depth_plot_pdf = "results/{assembly}/depth/{assembly_name}/contig_depth.pdf",
-        contig_info = "results/{assembly}/depth/{assembly_name}/contig_info.tsv",
-        average_depth = "results/{assembly}/depth/{assembly_name}/average_depth.txt"
-     log:
-        out = "logs/calculate_contig_depth_{assembly}_{assembly_name}.out",
-        err = "logs/calculate_contig_depth_{assembly}_{assembly_name}.err"
-     conda:
-        "../envs/pybase.yml"
-     shell:
-        """
-        (
-            python3 workflow/scripts/show_contig_depth.py \
-                --inspector {input.inspector} \
-                --output $(dirname {output.contig_info})
-        ) > {log.out} 2> {log.err}
-        """
-
 rule download_oatkdb:
     output:
         fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam",
