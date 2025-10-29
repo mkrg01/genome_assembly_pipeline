@@ -882,6 +882,29 @@ rule show_hifi_read_depth_per_contig:
         ) > {log.out} 2> {log.err}
         """
 
+rule show_hifi_read_depth_for_organelle_contigs:
+    input:
+        mapping_result = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
+        contig_names = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt"
+    output:
+        depth_plot = "results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_depth.pdf",
+        contig_info = "results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_info.tsv"
+    log:
+        out = "logs/show_hifi_read_depth_for_organelle_contigs_{assembly_name}.out",
+        err = "logs/show_hifi_read_depth_for_organelle_contigs_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/show_depth_per_contig.py \
+                --mapping_tsv {input.mapping_result} \
+                --contig_names {input.contig_names} \
+                --outdir $(dirname {output.depth_plot}) \
+                --prefix {wildcards.assembly_name}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule extract_long_contigs:
     input:
         "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"

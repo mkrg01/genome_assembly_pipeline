@@ -1,4 +1,4 @@
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.3.2"
+# containerized: "docker://aurelia01/genome_assembly_pipeline:v0.3.2"
 configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
@@ -95,7 +95,8 @@ def remove_organelle_all_inputs(assembly_name):
         f"results/organelle_removal/depth/{assembly_name}_contig_depth.pdf",
         f"results/organelle_removal/tidk/{assembly_name}_tidk_find.svg",
         f"results/organelle_removal/tidk/{assembly_name}_tidk_explore.tsv",
-        f"results/organelle_removal/tidk/{assembly_name}_tidk_search.svg"
+        f"results/organelle_removal/tidk/{assembly_name}_tidk_search.svg",
+        f"results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_depth.pdf"
     ]
 
 # Step 3: Contamination removal by FCS
