@@ -865,8 +865,7 @@ rule show_hifi_read_depth_per_contig:
         contig_names = "results/{assembly}/seqkit/{assembly_name}_contig_names.txt"
     output:
         depth_plot = "results/{assembly}/depth/{assembly_name}_contig_depth.pdf",
-        contig_info = "results/{assembly}/depth/{assembly_name}_contig_info.tsv",
-        average_depth = "results/{assembly}/depth/{assembly_name}_average_depth.txt"
+        contig_info = "results/{assembly}/depth/{assembly_name}_contig_info.tsv"
     log:
         out = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.out",
         err = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.err"

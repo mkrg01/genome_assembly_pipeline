@@ -20,12 +20,9 @@ args.outdir.mkdir(parents=True, exist_ok=True)
 
 contig_df.to_csv(args.outdir / f"{args.prefix}_contig_info.tsv", sep="\t", index=False)
 
-rough_average_depth = sum(contig_df["meandepth"] * contig_df["length"]) / sum(contig_df["length"])
-with open(args.outdir / f"{args.prefix}_average_depth.txt", "w") as f:
-    f.write(f"{rough_average_depth}\n")
-
 fig, ax = plt.subplots()
 ax.scatter(contig_df["length"], contig_df["meandepth"], alpha=0.5, color='black')
+rough_average_depth = sum(contig_df["meandepth"] * contig_df["length"]) / sum(contig_df["length"])
 ax.axhline(rough_average_depth, color='red', linestyle='dashed', linewidth=1, label=f'Average depth: {rough_average_depth:.0f}')
 ax.legend()
 ax.set_xscale("log")
