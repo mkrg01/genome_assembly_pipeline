@@ -247,6 +247,54 @@ rule convert_gfa_to_fa:
     shell:
         "awk -f workflow/scripts/convert_gfa_to_fa.awk {input} > {output} 2> {log}"
 
+rule map_hifi_reads_to_assembly:
+    input:
+        hifi_read = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        bam = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam",
+        bai = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam.bai"
+    log:
+        out = "logs/map_hifi_reads_to_assembly_{assembly_name}.out",
+        err = "logs/map_hifi_reads_to_assembly_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    threads:
+        max(1, int(workflow.cores * 0.9))
+    shell:
+        """
+        (
+            minimap2 \
+                -a \
+                -x map-hifi \
+                {input.assembly} \
+                {input.hifi_read} \
+                -t {threads} \
+            | samtools sort \
+                -m 32G \
+                -@ {threads} \
+                -o {output.bam}
+            samtools index {output.bam}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule get_hifi_read_mapping_summary:
+    input:
+        "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam"
+    output:
+        "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv"
+    log:
+        out = "logs/get_hifi_read_mapping_summary_{assembly_name}.out",
+        err = "logs/get_hifi_read_mapping_summary_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    shell:
+        """
+        (
+            samtools coverage {input} --output {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule download_oatkdb:
     output:
         fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_{{organelle}}.fam",
@@ -791,6 +839,47 @@ rule merqury:
                 ../../../{input.assembly} \
                 $(basename {output} .qv)
             cd ../../..
+        ) > {log.out} 2> {log.err}
+        """
+
+rule export_contig_names:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/seqkit/{assembly_name}_contig_names.txt"
+    log:
+        out = "logs/export_contig_names_{assembly}_{assembly_name}.out",
+        err = "logs/export_contig_names_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            seqkit seq --name {input} > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule show_hifi_read_depth_per_contig:
+    input:
+        mapping_result = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
+        contig_names = "results/{assembly}/seqkit/{assembly_name}_contig_names.txt"
+    output:
+        depth_plot = "results/{assembly}/depth/{assembly_name}_contig_depth.pdf",
+        contig_info = "results/{assembly}/depth/{assembly_name}_contig_info.tsv",
+        average_depth = "results/{assembly}/depth/{assembly_name}_average_depth.txt"
+    log:
+        out = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.out",
+        err = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/show_depth_per_contig.py \
+                --mapping_tsv {input.mapping_result} \
+                --contig_names {input.contig_names} \
+                --outdir $(dirname {output.depth_plot}) \
+                --prefix {wildcards.assembly_name}
         ) > {log.out} 2> {log.err}
         """
 
