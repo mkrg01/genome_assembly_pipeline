@@ -23,7 +23,6 @@ Clone this repository to your local machine:
 
 ```
 git clone https://github.com/mkrg01/genome_assembly_pipeline.git
-
 cd genome_assembly_pipeline
 ```
 
@@ -37,9 +36,20 @@ Run the workflow from the repository root directory. Replace `/path/to/repo` wit
 
 ```
 cd /path/to/repo
-
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 all
 ```
+
+> [!NOTE]
+> You can run the pipeline in a stepwise manner. Replace `all` with one of the command below.
+> 
+> 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
+> 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
+> 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
+> 4. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
+> 5. `gene_prediction_all`: Runs rules up to gene prediction and related metrics (equivalent to `all`).
+> 
+> You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
+
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.
 
