@@ -39,7 +39,7 @@ cd /path/to/repo
 snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 all
 ```
 
-> [!NOTE]
+> [!TIP]
 > You can run the pipeline in a stepwise manner. Replace `all` with one of the command below.
 > 
 > 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
