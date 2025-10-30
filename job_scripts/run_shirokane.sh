@@ -20,6 +20,6 @@ conda activate snakemake
 echo "Snakemake version: `snakemake --version`"
 
 # Run Snakemake workflow
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores ${NSLOTS}
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores ${NSLOTS} all
 
 echo "`date`: Ending"
