@@ -188,7 +188,7 @@ rule busco_proteins_mode:
     conda:
         "../envs/busco.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     wildcard_constraints:
@@ -228,7 +228,7 @@ rule omamer_search:
     conda:
         "../envs/omamer.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "omamer search \
             --db {input.database} \

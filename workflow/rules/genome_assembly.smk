@@ -75,7 +75,7 @@ rule fastk:
     conda:
         "../envs/smudgeplot.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         """
         (
@@ -104,7 +104,7 @@ rule smudgeplot_hetmers:
     conda:
         "../envs/smudgeplot.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "smudgeplot.py hetmers \
             -L 12 \
@@ -139,7 +139,7 @@ rule jellyfish_count:
     conda:
         "../envs/jellyfish.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "jellyfish count \
             --mer-len 21 \
@@ -160,7 +160,7 @@ rule jellyfish_histo:
     conda:
         "../envs/jellyfish.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "jellyfish histo \
             {input} \
@@ -228,7 +228,7 @@ rule hifiasm:
     conda:
         "../envs/hifiasm.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "hifiasm \
             {input} \
@@ -260,7 +260,7 @@ rule map_hifi_reads_to_assembly:
     conda:
         "../envs/minimap2.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         """
         (
@@ -271,7 +271,7 @@ rule map_hifi_reads_to_assembly:
                 {input.hifi_read} \
                 -t {threads} \
             | samtools sort \
-                -m 32G \
+                -m 2G \
                 -@ {threads} \
                 -o {output.bam}
             samtools index {output.bam}
@@ -335,7 +335,7 @@ rule oatk:
     conda:
         "../envs/oatk.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         """
         (
@@ -425,7 +425,7 @@ rule map_contig_to_organelle:
     conda:
         "../envs/minimap2.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         """
         (
@@ -786,7 +786,7 @@ rule busco_genome_mode:
     conda:
         "../envs/busco.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     shell:
@@ -811,7 +811,7 @@ rule meryl:
     conda:
         "../envs/merqury.yml"
     threads:
-        max(1, int(workflow.cores * 0.9))
+        max(1, int(workflow.cores * 0.95))
     shell:
         "meryl count \
             output {output} \
