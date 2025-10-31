@@ -443,16 +443,16 @@ rule seqkit_stats_organelle:
         """
         (
             if [ "{params.oatk_organelle}" = "mito" ]; then
-                seqkit stats {input.mito_ctg_fasta} > {output.mito_txt}
-                seqkit stats --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
+                seqkit stats --all {input.mito_ctg_fasta} > {output.mito_txt}
+                seqkit stats --all --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
             elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                seqkit stats {input.pltd_ctg_fasta} > {output.pltd_txt}
-                seqkit stats --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
+                seqkit stats --all {input.pltd_ctg_fasta} > {output.pltd_txt}
+                seqkit stats --all --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
             elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                seqkit stats {input.mito_ctg_fasta} > {output.mito_txt}
-                seqkit stats --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
-                seqkit stats {input.pltd_ctg_fasta} > {output.pltd_txt}
-                seqkit stats --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
+                seqkit stats --all {input.mito_ctg_fasta} > {output.mito_txt}
+                seqkit stats --all --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
+                seqkit stats --all {input.pltd_ctg_fasta} > {output.pltd_txt}
+                seqkit stats --all --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
             else
                 echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
                 exit 1
