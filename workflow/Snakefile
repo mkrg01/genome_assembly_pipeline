@@ -3,67 +3,22 @@ configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
 
-def oatkdb_path():
-    mito_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_mito.fam"
-    pltd_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_pltd.fam"
+def seqkit_stats_organelle_path():
+    mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"
+    mito_tsv = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.tsv"
+    pltd_txt = "results/oatk/seqkit/{assembly_name}_pltd_seqkit_stats.txt"
+    pltd_tsv = "results/oatk/seqkit/{assembly_name}_pltd_seqkit_stats.tsv"
     if config["oatk_organelle"] == "mito":
-        return {"mito_fam": mito_fam}
+        return {"mito_txt": mito_txt, "mito_tsv": mito_tsv}
     elif config["oatk_organelle"] == "pltd":
-        return {"pltd_fam": pltd_fam}
+        return {"pltd_txt": pltd_txt, "pltd_tsv": pltd_tsv}
     elif config["oatk_organelle"] == "mito_and_pltd":
-        return {"mito_fam": mito_fam, "pltd_fam": pltd_fam}
+        return {"mito_txt": mito_txt, "mito_tsv": mito_tsv, "pltd_txt": pltd_txt, "pltd_tsv": pltd_tsv}
     else:
         raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
 
-def oatk_output_path():
-    utg_final_gfa = "results/oatk/oatk/{assembly_name}.utg.final.gfa"
-    annot_mito_txt = "results/oatk/oatk/{assembly_name}.annot_mito.txt"
-    annot_pltd_txt = "results/oatk/oatk/{assembly_name}.annot_pltd.txt"
-    mito_gfa = "results/oatk/oatk/{assembly_name}.mito.gfa"
-    mito_bed = "results/oatk/oatk/{assembly_name}.mito.bed"
-    mito_ctg_fasta = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta"
-    mito_ctg_bed = "results/oatk/oatk/{assembly_name}.mito.ctg.bed"
-    pltd_gfa = "results/oatk/oatk/{assembly_name}.pltd.gfa"
-    pltd_bed = "results/oatk/oatk/{assembly_name}.pltd.bed"
-    pltd_ctg_fasta = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta"
-    pltd_ctg_bed = "results/oatk/oatk/{assembly_name}.pltd.ctg.bed"
-    if config["oatk_organelle"] == "mito":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_mito_txt": annot_mito_txt,
-            "mito_gfa": mito_gfa,
-            "mito_bed": mito_bed,
-            "mito_ctg_fasta": mito_ctg_fasta,
-            "mito_ctg_bed": mito_ctg_bed
-        }
-    elif config["oatk_organelle"] == "pltd":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_pltd_txt": annot_pltd_txt,
-            "pltd_gfa": pltd_gfa,
-            "pltd_bed": pltd_bed,
-            "pltd_ctg_fasta": pltd_ctg_fasta,
-            "pltd_ctg_bed": pltd_ctg_bed
-        }
-    elif config["oatk_organelle"] == "mito_and_pltd":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_mito_txt": annot_mito_txt,
-            "annot_pltd_txt": annot_pltd_txt,
-            "mito_gfa": mito_gfa,
-            "mito_bed": mito_bed,
-            "mito_ctg_fasta": mito_ctg_fasta,
-            "mito_ctg_bed": mito_ctg_bed,
-            "pltd_gfa": pltd_gfa,
-            "pltd_bed": pltd_bed,
-            "pltd_ctg_fasta": pltd_ctg_fasta,
-            "pltd_ctg_bed": pltd_ctg_bed
-        }
-    else:
-        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
-
-def oatk_output_real_path(assembly_name):
-    return [v.format(assembly_name=assembly_name) for v in oatk_output_path().values()]
+def seqkit_stats_organelle_real_path(assembly_name):
+    return [v.format(assembly_name=assembly_name) for v in seqkit_stats_organelle_path().values()]
 
 include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
@@ -74,7 +29,7 @@ def assembly_all_inputs(assembly_name):
     return [
         f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
-        *oatk_output_real_path(assembly_name),
+        *seqkit_stats_organelle_real_path(assembly_name),
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/hifiasm/gc_content/{assembly_name}_gc_content.pdf",
         f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",

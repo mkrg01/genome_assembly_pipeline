@@ -320,6 +320,65 @@ rule download_oatkdb:
         ) > {log.out} 2> {log.err}
         """
 
+def oatkdb_path():
+    mito_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_mito.fam"
+    pltd_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_pltd.fam"
+    if config["oatk_organelle"] == "mito":
+        return {"mito_fam": mito_fam}
+    elif config["oatk_organelle"] == "pltd":
+        return {"pltd_fam": pltd_fam}
+    elif config["oatk_organelle"] == "mito_and_pltd":
+        return {"mito_fam": mito_fam, "pltd_fam": pltd_fam}
+    else:
+        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+
+def oatk_output_path():
+    utg_final_gfa = "results/oatk/oatk/{assembly_name}.utg.final.gfa"
+    annot_mito_txt = "results/oatk/oatk/{assembly_name}.annot_mito.txt"
+    annot_pltd_txt = "results/oatk/oatk/{assembly_name}.annot_pltd.txt"
+    mito_gfa = "results/oatk/oatk/{assembly_name}.mito.gfa"
+    mito_bed = "results/oatk/oatk/{assembly_name}.mito.bed"
+    mito_ctg_fasta = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta"
+    mito_ctg_bed = "results/oatk/oatk/{assembly_name}.mito.ctg.bed"
+    pltd_gfa = "results/oatk/oatk/{assembly_name}.pltd.gfa"
+    pltd_bed = "results/oatk/oatk/{assembly_name}.pltd.bed"
+    pltd_ctg_fasta = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta"
+    pltd_ctg_bed = "results/oatk/oatk/{assembly_name}.pltd.ctg.bed"
+    if config["oatk_organelle"] == "mito":
+        return {
+            "utg_final_gfa": utg_final_gfa,
+            "annot_mito_txt": annot_mito_txt,
+            "mito_gfa": mito_gfa,
+            "mito_bed": mito_bed,
+            "mito_ctg_fasta": mito_ctg_fasta,
+            "mito_ctg_bed": mito_ctg_bed
+        }
+    elif config["oatk_organelle"] == "pltd":
+        return {
+            "utg_final_gfa": utg_final_gfa,
+            "annot_pltd_txt": annot_pltd_txt,
+            "pltd_gfa": pltd_gfa,
+            "pltd_bed": pltd_bed,
+            "pltd_ctg_fasta": pltd_ctg_fasta,
+            "pltd_ctg_bed": pltd_ctg_bed
+        }
+    elif config["oatk_organelle"] == "mito_and_pltd":
+        return {
+            "utg_final_gfa": utg_final_gfa,
+            "annot_mito_txt": annot_mito_txt,
+            "annot_pltd_txt": annot_pltd_txt,
+            "mito_gfa": mito_gfa,
+            "mito_bed": mito_bed,
+            "mito_ctg_fasta": mito_ctg_fasta,
+            "mito_ctg_bed": mito_ctg_bed,
+            "pltd_gfa": pltd_gfa,
+            "pltd_bed": pltd_bed,
+            "pltd_ctg_fasta": pltd_ctg_fasta,
+            "pltd_ctg_bed": pltd_ctg_bed
+        }
+    else:
+        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+
 rule oatk:
     input:
         hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
@@ -361,6 +420,39 @@ rule oatk:
                     -c {params.oatk_minimum_kmer_coverage} \
                     -t {threads} \
                     {input.hifi_reads}
+            else
+                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
+                exit 1
+            fi
+        ) > {log.out} 2> {log.err}
+        """
+
+rule seqkit_stats_organelle:
+    input:
+        **oatk_output_path()
+    output:
+        **seqkit_stats_organelle_path()
+    log:
+        out = "logs/seqkit_stats_organelle_{assembly_name}.out",
+        err = "logs/seqkit_stats_organelle_{assembly_name}.err"
+    params:
+        oatk_organelle = config["oatk_organelle"]
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            if [ "{params.oatk_organelle}" = "mito" ]; then
+                seqkit stats {input.mito_ctg_fasta} > {output.mito_txt}
+                seqkit stats --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
+            elif [ "{params.oatk_organelle}" = "pltd" ]; then
+                seqkit stats {input.pltd_ctg_fasta} > {output.pltd_txt}
+                seqkit stats --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
+            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
+                seqkit stats {input.mito_ctg_fasta} > {output.mito_txt}
+                seqkit stats --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
+                seqkit stats {input.pltd_ctg_fasta} > {output.pltd_txt}
+                seqkit stats --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
             else
                 echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
                 exit 1
