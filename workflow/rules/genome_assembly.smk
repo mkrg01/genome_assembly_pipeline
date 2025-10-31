@@ -758,6 +758,42 @@ rule seqkit_stats_tsv:
     shell:
         "seqkit stats --all --tabular {input} > {output} 2> {log}"
 
+rule calculate_gc_content_per_contig:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/gc_content/{assembly_name}_gc_content.tsv"
+    log:
+        out = "logs/calculate_gc_content_per_contig_{assembly}_{assembly_name}.out",
+        err = "logs/calculate_gc_content_per_contig_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            seqkit fx2tab --name --length --gc {input} > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule show_gc_content_per_contig:
+    input:
+        "results/{assembly}/gc_content/{assembly_name}_gc_content.tsv"
+    output:
+        "results/{assembly}/gc_content/{assembly_name}_gc_content.pdf"
+    log:
+        out = "logs/show_gc_content_per_contig_{assembly}_{assembly_name}.out",
+        err = "logs/show_gc_content_per_contig_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/show_gc_content_per_contig.py \
+                --input {input} \
+                --output {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule download_busco_database:
     output:
         directory("results/downloads/busco_downloads")

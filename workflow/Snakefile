@@ -77,6 +77,7 @@ def assembly_all_inputs(assembly_name):
         *oatk_output_real_path(assembly_name),
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/hifiasm/gc_content/{assembly_name}_gc_content.pdf",
         f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
         f"results/hifiasm/merqury/{assembly_name}.merqury.qv",
         f"results/hifiasm/depth/{assembly_name}_contig_depth.pdf",
@@ -90,6 +91,7 @@ def remove_organelle_all_inputs(assembly_name):
     return assembly_all_inputs(assembly_name) + [
         f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/organelle_removal/gc_content/{assembly_name}_gc_content.pdf",
         f"results/organelle_removal/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
         f"results/organelle_removal/merqury/{assembly_name}.merqury.qv",
         f"results/organelle_removal/depth/{assembly_name}_contig_depth.pdf",
@@ -104,6 +106,7 @@ def remove_contamination_all_inputs(assembly_name):
     return remove_organelle_all_inputs(assembly_name) + [
         f"results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
+        f"results/fcs/gc_content/{assembly_name}_gc_content.pdf",
         f"results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
         f"results/fcs/merqury/{assembly_name}.merqury.qv",
         f"results/fcs/depth/{assembly_name}_contig_depth.pdf",
