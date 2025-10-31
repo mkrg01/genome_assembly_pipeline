@@ -858,7 +858,7 @@ rule calculate_gc_content_per_contig:
     shell:
         """
         (
-            seqkit fx2tab --name --length --gc {input} > {output}
+            seqkit fx2tab --name --length --gc --header-line {input} > {output}
         ) > {log.out} 2> {log.err}
         """
 
