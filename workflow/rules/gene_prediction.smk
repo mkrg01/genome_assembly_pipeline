@@ -152,29 +152,22 @@ rule seqkit_stats_proteins:
     input:
         "results/{gene}/{assembly_name}_aa.fa"
     output:
-        "results/{gene}/seqkit/{assembly_name}_seqkit_stats.txt"
+        txt = "results/{gene}/seqkit/{assembly_name}_seqkit_stats.txt",
+        tsv = "results/{gene}/seqkit/{assembly_name}_seqkit_stats.tsv"
     log:
-        "logs/seqkit_stats_proteins_{gene}_{assembly_name}.err"
+        out = "logs/seqkit_stats_proteins_{gene}_{assembly_name}.out",
+        err = "logs/seqkit_stats_proteins_{gene}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     wildcard_constraints:
         gene = "(isoforms|longest_cds)"
     shell:
-        "seqkit stats {input} > {output} 2> {log}"
-
-rule seqkit_stats_proteins_tsv:
-    input:
-        "results/{gene}/{assembly_name}_aa.fa"
-    output:
-        "results/{gene}/seqkit/{assembly_name}_seqkit_stats.tsv"
-    log:
-        "logs/seqkit_stats_proteins_{gene}_{assembly_name}_tsv.err"
-    conda:
-        "../envs/seqkit.yml"
-    wildcard_constraints:
-        gene = "(isoforms|longest_cds)"
-    shell:
-        "seqkit stats --tabular {input} > {output} 2> {log}"
+        """
+        (
+            seqkit stats --all {input} > {output.txt}
+            seqkit stats --all --tabular {input} > {output.tsv}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule busco_proteins_mode:
     input:

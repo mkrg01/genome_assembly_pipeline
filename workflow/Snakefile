@@ -75,7 +75,6 @@ def assembly_all_inputs(assembly_name):
         f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
         *oatk_output_real_path(assembly_name),
-        f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/hifiasm/gc_content/{assembly_name}_gc_content.pdf",
         f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
@@ -89,7 +88,6 @@ def assembly_all_inputs(assembly_name):
 # Step 2: Organelle removal
 def remove_organelle_all_inputs(assembly_name):
     return assembly_all_inputs(assembly_name) + [
-        f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/organelle_removal/gc_content/{assembly_name}_gc_content.pdf",
         f"results/organelle_removal/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
@@ -104,7 +102,6 @@ def remove_organelle_all_inputs(assembly_name):
 # Step 3: Contamination removal by FCS
 def remove_contamination_all_inputs(assembly_name):
     return remove_organelle_all_inputs(assembly_name) + [
-        f"results/fcs/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/fcs/gc_content/{assembly_name}_gc_content.pdf",
         f"results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
@@ -124,8 +121,6 @@ def gene_prediction_all_inputs(assembly_name):
     return softmask_all_inputs(assembly_name) + [
         f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
-        f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.txt",
-        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.txt",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/omark/{assembly_name}_omark"

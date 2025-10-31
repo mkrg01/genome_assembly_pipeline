@@ -738,25 +738,20 @@ rule seqkit_stats:
     input:
         "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.txt"
+        txt = "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.txt",
+        tsv = "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.tsv"
     log:
-        "logs/seqkit_stats_{assembly}_{assembly_name}.err"
+        out = "logs/seqkit_stats_{assembly}_{assembly_name}.out",
+        err = "logs/seqkit_stats_{assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
-        "seqkit stats --all {input} > {output} 2> {log}"
-
-rule seqkit_stats_tsv:
-    input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
-    output:
-        "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.tsv"
-    log:
-        "logs/seqkit_stats_{assembly}_{assembly_name}_tsv.err"
-    conda:
-        "../envs/seqkit.yml"
-    shell:
-        "seqkit stats --all --tabular {input} > {output} 2> {log}"
+        """
+        (
+            seqkit stats --all {input} > {output.txt}
+            seqkit stats --all --tabular {input} > {output.tsv}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule calculate_gc_content_per_contig:
     input:
