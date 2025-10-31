@@ -397,14 +397,18 @@ rule concatenate_organelle_genome:
         """
         (
             if [ "{params.oatk_organelle}" = "mito" ]; then
-                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} > {output.mito}
+                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} | \
+                    seqkit replace --pattern ^ --replacement mito_ > {output.mito}
                 cp {output.mito} {output.all_organelle}
             elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} > {output.pltd}
+                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} | \
+                    seqkit replace --pattern ^ --replacement pltd_ > {output.pltd}
                 cp {output.pltd} {output.all_organelle}
             elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} > {output.mito}
-                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} > {output.pltd}
+                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} | \
+                    seqkit replace --pattern ^ --replacement mito_ > {output.mito}
+                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} | \
+                    seqkit replace --pattern ^ --replacement pltd_ > {output.pltd}
                 cat {output.mito} {output.pltd} > {output.all_organelle}
             else
                 echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
