@@ -1,6 +1,6 @@
 FROM condaforge/miniforge3:latest
 LABEL io.github.snakemake.containerized="true"
-LABEL io.github.snakemake.conda_env_hash="3169782e7b123142bd0588894edacf0544d5396cdb8b96efe5b395a11d497186"
+LABEL io.github.snakemake.conda_env_hash="d5b462389048c5a1d83a944eac76d08fc8bccca40a96a99e27580fa656946d96"
 
 # Step 2: Retrieve conda environments
 
@@ -28,15 +28,16 @@ COPY workflow/envs/busco.yml /conda-envs/6a29b1058e04ecf1abe493d36682b23f/enviro
 
 # Conda environment:
 #   source: workflow/envs/cdskit.yml
-#   prefix: /conda-envs/e508d70ff7615bb9d0dce44e5a9aa7b8
+#   prefix: /conda-envs/d7adf9253af4fcb07d233989937fd02c
 #   name: cdskit
 #   channels:
 #     - conda-forge
 #   dependencies:
 #     - bioconda::cdskit=0.14.4
 #     - bioconda::seqkit=2.10.0
-RUN mkdir -p /conda-envs/e508d70ff7615bb9d0dce44e5a9aa7b8
-COPY workflow/envs/cdskit.yml /conda-envs/e508d70ff7615bb9d0dce44e5a9aa7b8/environment.yaml
+#     - conda-forge::python=3.13.9
+RUN mkdir -p /conda-envs/d7adf9253af4fcb07d233989937fd02c
+COPY workflow/envs/cdskit.yml /conda-envs/d7adf9253af4fcb07d233989937fd02c/environment.yaml
 
 # Conda environment:
 #   source: workflow/envs/fastp.yml
@@ -212,7 +213,7 @@ COPY workflow/envs/tidk.yml /conda-envs/2e2d95d2893efc5ad203d140f0a56688/environ
 
 RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --file /conda-envs/a7401219cb36035d7c6438fc301a8525/environment.yaml && \
     conda env create --prefix /conda-envs/6a29b1058e04ecf1abe493d36682b23f --file /conda-envs/6a29b1058e04ecf1abe493d36682b23f/environment.yaml && \
-    conda env create --prefix /conda-envs/e508d70ff7615bb9d0dce44e5a9aa7b8 --file /conda-envs/e508d70ff7615bb9d0dce44e5a9aa7b8/environment.yaml && \
+    conda env create --prefix /conda-envs/d7adf9253af4fcb07d233989937fd02c --file /conda-envs/d7adf9253af4fcb07d233989937fd02c/environment.yaml && \
     conda env create --prefix /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac --file /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac/environment.yaml && \
     conda env create --prefix /conda-envs/3b2cd99f0beba959d7ba47922f256189 --file /conda-envs/3b2cd99f0beba959d7ba47922f256189/environment.yaml && \
     conda env create --prefix /conda-envs/519414a323ee447d07e07ff75a64ca53 --file /conda-envs/519414a323ee447d07e07ff75a64ca53/environment.yaml && \
