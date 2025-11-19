@@ -395,37 +395,8 @@ rule oatk:
         "../envs/oatk.yml"
     threads:
         max(1, int(workflow.cores * 0.95))
-    shell:
-        """
-        (
-            if [ "{params.oatk_organelle}" = "mito" ]; then
-                oatk \
-                    -m {input.mito_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                oatk \
-                    -p {input.pltd_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                oatk \
-                    -m {input.mito_fam} \
-                    -p {input.pltd_fam} \
-                    -o $(dirname {output.utg_final_gfa})/{wildcards.assembly_name} \
-                    -c {params.oatk_minimum_kmer_coverage} \
-                    -t {threads} \
-                    {input.hifi_reads}
-            else
-                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
-                exit 1
-            fi
-        ) > {log.out} 2> {log.err}
-        """
+    script:
+        "../scripts/oatk.py"
 
 rule seqkit_stats_organelle:
     input:
@@ -439,26 +410,8 @@ rule seqkit_stats_organelle:
         oatk_organelle = config["oatk_organelle"]
     conda:
         "../envs/seqkit.yml"
-    shell:
-        """
-        (
-            if [ "{params.oatk_organelle}" = "mito" ]; then
-                seqkit stats --all {input.mito_ctg_fasta} > {output.mito_txt}
-                seqkit stats --all --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
-            elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                seqkit stats --all {input.pltd_ctg_fasta} > {output.pltd_txt}
-                seqkit stats --all --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
-            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                seqkit stats --all {input.mito_ctg_fasta} > {output.mito_txt}
-                seqkit stats --all --tabular {input.mito_ctg_fasta} > {output.mito_tsv}
-                seqkit stats --all {input.pltd_ctg_fasta} > {output.pltd_txt}
-                seqkit stats --all --tabular {input.pltd_ctg_fasta} > {output.pltd_tsv}
-            else
-                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
-                exit 1
-            fi
-        ) > {log.out} 2> {log.err}
-        """
+    script:
+        "../scripts/seqkit_stats_organelle.py"
 
 def concatemer_path():
     mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
@@ -485,29 +438,8 @@ rule concatenate_organelle_genome:
         oatk_organelle = config["oatk_organelle"]
     conda:
         "../envs/seqkit.yml"
-    shell:
-        """
-        (
-            if [ "{params.oatk_organelle}" = "mito" ]; then
-                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} | \
-                    seqkit replace --pattern ^ --replacement mito_ > {output.mito}
-                cp {output.mito} {output.all_organelle}
-            elif [ "{params.oatk_organelle}" = "pltd" ]; then
-                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} | \
-                    seqkit replace --pattern ^ --replacement pltd_ > {output.pltd}
-                cp {output.pltd} {output.all_organelle}
-            elif [ "{params.oatk_organelle}" = "mito_and_pltd" ]; then
-                seqkit concat {input.mito_ctg_fasta} {input.mito_ctg_fasta} | \
-                    seqkit replace --pattern ^ --replacement mito_ > {output.mito}
-                seqkit concat {input.pltd_ctg_fasta} {input.pltd_ctg_fasta} | \
-                    seqkit replace --pattern ^ --replacement pltd_ > {output.pltd}
-                cat {output.mito} {output.pltd} > {output.all_organelle}
-            else
-                echo "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'."
-                exit 1
-            fi
-        ) > {log.out} 2> {log.err}
-        """
+    script:
+        "../scripts/concatenate_organelle_genome.py"
 
 rule map_contig_to_organelle:
     input:
