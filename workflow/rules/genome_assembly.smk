@@ -777,6 +777,42 @@ rule seqkit_stats:
         ) > {log.out} 2> {log.err}
         """
 
+rule calculate_contig_lengths:
+    input:
+        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+    output:
+        "results/{assembly}/length/{assembly_name}_length.tsv"
+    log:
+        out = "logs/calculate_contig_lengths_{assembly}_{assembly_name}.out",
+        err = "logs/calculate_contig_lengths_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    shell:
+        """
+        (
+            seqkit fx2tab --name --length --header-line {input} > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule show_contig_lengths:
+    input:
+        "results/{assembly}/length/{assembly_name}_length.tsv"
+    output:
+        "results/{assembly}/length/{assembly_name}_length.pdf"
+    log:
+        out = "logs/show_contig_lengths_{assembly}_{assembly_name}.out",
+        err = "logs/show_contig_lengths_{assembly}_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/show_contig_lengths.py \
+                --input {input} \
+                --output {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule calculate_gc_content_per_contig:
     input:
         "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
