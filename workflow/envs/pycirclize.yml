@@ -1,0 +1,5 @@
+name: pycirclize
+channels:
+  - conda-forge
+dependencies:
+  - conda-forge::pycirclize=1.10.1

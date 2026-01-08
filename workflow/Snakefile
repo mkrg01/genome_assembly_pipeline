@@ -23,6 +23,7 @@ def seqkit_stats_organelle_real_path(assembly_name):
 include: "rules/genome_assembly.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
+include: "rules/circos_plot.smk"
 
 # Step 1: Genome assembly
 def assembly_all_inputs(assembly_name):
@@ -84,9 +85,15 @@ def gene_prediction_all_inputs(assembly_name):
         f"results/longest_cds/omark/{assembly_name}_omark"
     ]
 
+# Step 6: Circos plot
+def circos_plot_all_inputs(assembly_name):
+    return gene_prediction_all_inputs(assembly_name) + [
+        f"results/circos_plot/{assembly_name}_circos_plot.pdf"
+    ]
+
 rule all:
     input:
-        *gene_prediction_all_inputs(assembly_name)
+        *circos_plot_all_inputs(assembly_name)
 
 rule assembly_all:
     input:
@@ -107,3 +114,7 @@ rule softmask_all:
 rule gene_prediction_all:
     input:
         *gene_prediction_all_inputs(assembly_name)
+
+rule circos_plot_all:
+    input:
+        *circos_plot_all_inputs(assembly_name)

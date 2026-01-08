@@ -149,7 +149,8 @@ rule repeatmasker:
         library = "results/repeatmasker/library/{assembly_name}_repeatmasker_lib.fa",
         assembly = "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
     output:
-        "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+        masked = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
+        out_xm = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.out.xm"
     log:
         out = "logs/repeatmasker_{assembly_name}.out",
         err = "logs/repeatmasker_{assembly_name}.err"
@@ -160,16 +161,17 @@ rule repeatmasker:
     shell:
         """
         (
-            cd $(dirname {output})
+            cd $(dirname {output.masked})
             RepeatMasker \
                 -engine rmblast \
                 -parallel $(( {threads} / 4)) \
                 -lib ../../{input.library} \
-                -dir ../../$(dirname {output}) \
+                -dir ../../$(dirname {output.masked}) \
                 -xsmall \
-                --gff \
+                -gff \
+                -xm \
                 ../../{input.assembly}
             cd ../../
-            mv .RepeatMaskerCache $(dirname {output})/
+            mv .RepeatMaskerCache $(dirname {output.masked})/
         ) > {log.out} 2> {log.err}
         """

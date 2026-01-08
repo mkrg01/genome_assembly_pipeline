@@ -46,7 +46,8 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
 > 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
 > 4. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
-> 5. `gene_prediction_all`: Runs rules up to gene prediction and related metrics (equivalent to `all`).
+> 5. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
+> 6. `circos_plot_all`: Runs rules up to the Circos plot (equivalent to `all`).
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 
