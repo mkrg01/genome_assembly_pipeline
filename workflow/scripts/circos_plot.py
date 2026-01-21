@@ -55,7 +55,7 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, gap_nam
         track.fill_between(x, y, color=track_cfg["color"])
         if idx == 0:
             track.xticks_by_interval(interval=5_000_000, outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
-            track.xticks_by_interval(interval=10_000_000, outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
+            track.xticks_by_interval(interval=10_000_000, outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
 
 contig_df = pd.read_csv(snakemake.input.contig, sep="\t", header=None, names=["contig", "length"])
 
