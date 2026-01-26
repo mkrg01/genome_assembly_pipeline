@@ -1010,7 +1010,13 @@ rule extract_long_contigs:
     conda:
         "../envs/seqkit.yml"
     shell:
-        "seqkit seq --min-len 1000000 {input} > {output} 2> {log.err}"
+        """
+        (
+            seqkit seq --min-len 1000000 {input} \
+            | seqkit sort --by-length --reverse \
+            > {output}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule tidk_build:
     output:
