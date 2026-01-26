@@ -1006,6 +1006,7 @@ rule extract_long_contigs:
     output:
         "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
     log:
+        out = "logs/extract_long_contigs_{assembly}_{assembly_name}.out",
         err = "logs/extract_long_contigs_{assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
