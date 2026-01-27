@@ -16,4 +16,5 @@ include: "rules/circos_plot.smk"
 
 rule all:
     input:
-        expand("results/circos_plot/{assembly_name}_circos_plot.pdf", assembly_name=[config["assembly_name"]])
+        expand("results/circos_plot/{assembly_name}_circos_plot.pdf", assembly_name=[config["assembly_name"]]),
+        expand("results/circos_plot/{assembly_name}_linear_plot.pdf", assembly_name=[config["assembly_name"]])

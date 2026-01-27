@@ -178,3 +178,16 @@ rule circos_plot:
         "../envs/pycirclize.yml"
     script:
         "../scripts/circos_plot.py"
+
+rule linear_plot:
+    input:
+        **circos_plot_input_path()
+    output:
+        "results/circos_plot/{assembly_name}_linear_plot.pdf"
+    log:
+        out = "logs/linear_plot_{assembly_name}.out",
+        err = "logs/linear_plot_{assembly_name}.err"
+    conda:
+        "../envs/pycirclize.yml"
+    script:
+        "../scripts/linear_plot.py"

@@ -88,7 +88,8 @@ def gene_prediction_all_inputs(assembly_name):
 # Step 6: Circos plot
 def circos_plot_all_inputs(assembly_name):
     return gene_prediction_all_inputs(assembly_name) + [
-        f"results/circos_plot/{assembly_name}_circos_plot.pdf"
+        f"results/circos_plot/{assembly_name}_circos_plot.pdf",
+        f"results/circos_plot/{assembly_name}_linear_plot.pdf"
     ]
 
 rule all:
