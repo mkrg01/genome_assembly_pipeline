@@ -17,12 +17,14 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 | -------------------------- | ---------------------------- | ------------------------------------------ |
 | PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
 | Index for HiFi reads  | `*.hifi_reads.bam.pbi` | `SAMPLE1.hifi_reads.bam.pbi`                    |
+| Ultra-long ONT reads (optional) | Any path (specify in config) | `raw_data/ont_reads.fastq.gz`              |
 | Paired-end RNA-seq (R1)    | `*_1.fastq.gz`        | `RNASEQ1_1.fastq.gz`                       |
 | Paired-end RNA-seq (R2)    | `*_2.fastq.gz`        | `RNASEQ1_2.fastq.gz`                       |
 
 **Notes:**
 
 - The pipeline will automatically detect and process multiple BacBio HiFi and RNA-seq samples, if present.
+- Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
 
 ---
 
@@ -34,6 +36,7 @@ Below are the available parameters:
 | Parameter               | Description                                                  | Example                                    |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
 | `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
+| `ont_reads`             | Optional: Path to ultra-long ONT reads. Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
 | `oatk_organelle`        | Organelle to assemble. `{"mito", "pltd", "mito_and_pltd"}`  | `"mito_and_pltd"` |
 | `oatk_minimum_kmer_coverage`| Minimum kmer coverage used for Oatk. [Instructions](https://github.com/c-zhou/oatk)  | `"250"` |

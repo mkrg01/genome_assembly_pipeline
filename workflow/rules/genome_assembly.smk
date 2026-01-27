@@ -5,6 +5,10 @@ if len(hifi_samples) == 0:
     raise RuntimeError("No HiFi read files matching 'raw_data/*.hifi_reads.bam' were found. Please check the input directory.")
 hifi_sample_ids = sorted({os.path.basename(f).replace(".hifi_reads.bam", "") for f in hifi_samples})
 
+ont_reads = config.get("ont_reads", None)
+if ont_reads and not os.path.exists(ont_reads):
+    raise RuntimeError(f"ONT reads file specified in config ('{ont_reads}') does not exist.")
+
 wildcard_constraints:
     assembly_name = config["assembly_name"],
     organelle = "(mito|pltd)"
@@ -62,6 +66,28 @@ rule merge_or_copy_hifi_reads:
         "../envs/fastplong.yml"
     shell:
         "cat {input} > {output} 2> {log.err}"
+
+rule fastplong_ont:
+    input:
+        lambda wildcards: config.get("ont_reads", "")
+    output:
+        reads = "results/ont_reads/fastplong/{assembly_name}_ont_reads_curated.fastq.gz",
+        report_html = "results/ont_reads/fastplong/{assembly_name}_ont_report.html",
+        report_json = "results/ont_reads/fastplong/{assembly_name}_ont_report.json"
+    log:
+        out = "logs/fastplong_ont_{assembly_name}.out",
+        err = "logs/fastplong_ont_{assembly_name}.err"
+    conda:
+        "../envs/fastplong.yml"
+    threads:
+        max(1, int(workflow.cores * 0.3))
+    shell:
+        "fastplong \
+            --in {input} \
+            --out {output.reads} \
+            --html {output.report_html} \
+            --json {output.report_json} \
+            --thread {threads} > {log.out} 2> {log.err}"
 
 rule fastk:
     input:
@@ -200,9 +226,15 @@ rule genomescope2:
         ) > {log.out} 2> {log.err}
         """
 
+def hifiasm_input(wildcards):
+    inputs = {"hifi": "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz".format(assembly_name=wildcards.assembly_name)}
+    if config.get("ont_reads", None):
+        inputs["ont"] = "results/ont_reads/fastplong/{assembly_name}_ont_reads_curated.fastq.gz".format(assembly_name=wildcards.assembly_name)
+    return inputs
+
 rule hifiasm:
     input:
-        "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
+        unpack(hifiasm_input)
     output:
         bp_hap1_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
         bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.lowQ.bed",
@@ -229,9 +261,12 @@ rule hifiasm:
         "../envs/hifiasm.yml"
     threads:
         max(1, int(workflow.cores * 0.95))
+    params:
+        ont_option = lambda wildcards, input: f"--ul {input.ont}" if "ont" in input.keys() else ""
     shell:
         "hifiasm \
-            {input} \
+            {input.hifi} \
+            {params.ont_option} \
             -o $(dirname {output.bp_p_ctg_gfa})/{wildcards.assembly_name}.asm \
             -t {threads} > {log.out} 2> {log.err}"
 

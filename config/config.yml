@@ -1,4 +1,5 @@
 assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
+ont_reads: null # Optional: Path to ultra-long ONT reads (e.g., "raw_data/ont_reads.fastq.gz"). If null, hifiasm will run without ONT integration. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration
 oatk_lineage: "magnoliopsida" # Lineage of the Oatk HMM profile database to download. See: https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID
 oatk_organelle: "mito_and_pltd" # {"mito", "pltd", "mito_and_pltd"} - specify which organelle HMM profiles to include for Oatk. "mito_and_pltd" includes both mitochondrial and plastid profiles.
 oatk_minimum_kmer_coverage: "250" # Minimum kmer coverage for Oatk. Syncmers with coverages below the threshold will be excluded from the assembly graph. As an empirical instruction, this parameter can be set as 5-10 times the value of nuclear sequence coverage. See: https://github.com/c-zhou/oatk
