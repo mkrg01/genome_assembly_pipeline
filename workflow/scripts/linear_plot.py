@@ -5,16 +5,20 @@ import matplotlib.pyplot as plt
 def load_coverage_df(input_file):
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(input_file, sep="\t", header=None, names=cols)
-    return df[["contig", "start", "end", "coverage"]]
+    global window_size_global
+    window_size_global = df["window_size"].iloc[0]
+    return df[["contig", "start", "end", "n_feature"]].rename(columns={"n_feature": "count"})
 
 def load_tidk_df():
     df = pd.read_csv(snakemake.input.tidk, sep="\t")
     df = df.rename(columns={"id": "contig"})
     window_size = df["window"][0]
+    global window_size_global
+    window_size_global = window_size
     df["end"] = df["window"]
     df["start"] = (df["end"] - 1) // window_size * window_size
-    df["coverage"] = (df["forward_repeat_number"] + df["reverse_repeat_number"]) / window_size
-    return df[["contig", "start", "end", "coverage"]]
+    df["count"] = df["forward_repeat_number"] + df["reverse_repeat_number"]
+    return df[["contig", "start", "end", "count"]]
 
 def load_track_df(track_cfg):
     track_id = track_cfg["id"]
@@ -25,6 +29,9 @@ def load_track_df(track_cfg):
     if track_id == "tidk":
         return load_tidk_df()
     raise ValueError(f"Unsupported track id: {track_id}")
+
+# Initialize global window size variable
+window_size_global = 10000  # Default value
 
 # Load contig information
 contig_df = pd.read_csv(snakemake.input.contig, sep="\t", header=None, names=["contig", "length"])
@@ -50,12 +57,23 @@ fig_height = max(10, n_tracks * 1.5)
 fig_width = max(4 * n_contigs, 20)
 fig, axes = plt.subplots(n_tracks, n_contigs, figsize=(fig_width, fig_height), squeeze=False)
 
+# Calculate x-axis ticks for each contig (to be shared across tracks)
+from matplotlib.ticker import MaxNLocator
+contig_x_ticks = {}
+for contig in contigs:
+    contig_len = contig_lengths[contig]
+    locator = MaxNLocator(nbins=5, integer=True)
+    ticks = locator.tick_values(0, contig_len)
+    # Filter to keep only ticks within the range
+    ticks = [tick for tick in ticks if 0 <= tick <= contig_len]
+    contig_x_ticks[contig] = ticks
+
 # Plot each track and each contig
 for row_idx, track_cfg in enumerate(circos_tracks):
     track_id = track_cfg["id"]
     
     # Find y-axis max across all contigs for this track
-    all_y_for_track = track_data[track_id]["df"]["coverage"].to_numpy()
+    all_y_for_track = track_data[track_id]["df"]["count"].to_numpy()
     if len(all_y_for_track) > 0:
         y_max_global = max(all_y_for_track) * 1.1
     else:
@@ -70,13 +88,16 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         contig_data = contig_data[contig_data["contig"] == contig].copy()
         
         if not contig_data.empty:
-            # Plot the coverage as filled area with local contig coordinates
+            # Plot the count as filled area with local contig coordinates
             x = ((contig_data["start"] + contig_data["end"]) / 2).to_numpy()
-            y = contig_data["coverage"].to_numpy()
+            y = contig_data["count"].to_numpy()
             ax.fill_between(x, y, color=track_cfg["color"], alpha=0.7)
         
         # Set x-axis limits to actual contig length
         ax.set_xlim(0, contig_len)
+        
+        # Set x-axis ticks to use shared tick positions for this contig
+        ax.set_xticks(contig_x_ticks[contig])
         
         # Use global y-max for all contigs to enable comparison
         ax.set_ylim(0, y_max_global)
@@ -94,8 +115,14 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         
         # Y-axis label on the left side
         if col_idx == 0:
-            ax.set_ylabel(track_cfg["label"], rotation=0, ha='right', va='center', fontsize=10, 
-                         color=track_cfg["color"], fontweight='bold')
+            window_kb = window_size_global / 1000
+            y_label = f"Count per\n{int(window_kb)}-kb window"
+            ax.set_ylabel(y_label, rotation=90, ha='center', va='center', fontsize=8, labelpad=15)
+            
+            # Add track label to the left of the y-axis label
+            ax.text(-0.22, 0.5, track_cfg["label"], transform=ax.transAxes, 
+                   fontsize=9, fontweight='bold', color=track_cfg["color"],
+                   ha='center', va='center', rotation=90)
         else:
             ax.set_ylabel("")
         
@@ -105,7 +132,10 @@ for row_idx, track_cfg in enumerate(circos_tracks):
             from matplotlib.ticker import FuncFormatter
             def format_mb(x, pos):
                 mb = x / 1_000_000
-                return f"{int(mb)}" if mb == int(mb) else f"{mb:.2f}"
+                if mb == int(mb):
+                    return f"{int(mb)}"
+                else:
+                    return f"{mb:.1f}"
             ax.xaxis.set_major_formatter(FuncFormatter(format_mb))
             ax.tick_params(axis='x', labelsize=7)
             ax.set_xlabel("Position (Mb)", fontsize=8)
@@ -113,8 +143,8 @@ for row_idx, track_cfg in enumerate(circos_tracks):
             ax.set_xlabel("")
             ax.set_xticklabels([])
         
-        # Y-axis formatting - hide labels and ticks
-        ax.set_yticks([])
+        # Y-axis formatting
+        ax.tick_params(axis='y', labelsize=7)
         
         # Remove spines for cleaner look
         ax.spines['top'].set_visible(False)

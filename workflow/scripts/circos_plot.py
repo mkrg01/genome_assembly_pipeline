@@ -7,12 +7,12 @@ from collections import OrderedDict
 def load_gene_coverage_df():
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(snakemake.input.gene, sep="\t", header=None, names=cols)
-    return df[["contig", "start", "end", "coverage"]]
+    return df[["contig", "start", "end", "n_feature"]].rename(columns={"n_feature": "count"})
 
 def load_repeat_coverage_df(repeat_class):
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(snakemake.input[repeat_class], sep="\t", header=None, names=cols)
-    return df[["contig", "start", "end", "coverage"]]
+    return df[["contig", "start", "end", "n_feature"]].rename(columns={"n_feature": "count"})
 
 def load_tidk_df():
     df = pd.read_csv(snakemake.input.tidk, sep="\t")
@@ -20,8 +20,8 @@ def load_tidk_df():
     window_size = df["window"][0]
     df["end"] = df["window"]
     df["start"] = (df["end"] - 1) // window_size * window_size
-    df["coverage"] = (df["forward_repeat_number"] + df["reverse_repeat_number"]) / window_size
-    return df[["contig", "start", "end", "coverage"]]
+    df["count"] = df["forward_repeat_number"] + df["reverse_repeat_number"]
+    return df[["contig", "start", "end", "count"]]
 
 def load_track_df(track_cfg):
     track_id = track_cfg["id"]
@@ -39,8 +39,16 @@ def track_height(idx, n_tracks, outer_r=95, inner_r=10):
     r1 = r2 - height * 0.9
     return r1, r2
 
-def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, gap_name="__gap__"):
+def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_global=None, gap_name="__gap__"):
     r1, r2 = track_height(idx, n_tracks)
+    
+    if y_max_global is None:
+        all_y_for_track = coverage_df["count"].to_numpy()
+        if len(all_y_for_track) > 0:
+            y_max_global = max(all_y_for_track) * 1.1
+        else:
+            y_max_global = 1
+    
     for sector in circos.sectors:
         track = sector.add_track((r1, r2))
         if sector.name == gap_name:
@@ -51,8 +59,8 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, gap_nam
         track.grid()
         coverage_contig_df = coverage_df[coverage_df["contig"] == sector.name]
         x = ((coverage_contig_df["start"] + coverage_contig_df["end"]) / 2).to_numpy()
-        y = coverage_contig_df["coverage"].to_numpy()
-        track.fill_between(x, y, color=track_cfg["color"], linewidth=0.1, alpha=0.7)
+        y = coverage_contig_df["count"].to_numpy()
+        track.fill_between(x, y, color=track_cfg["color"], linewidth=0.1, alpha=0.7, vmin=0, vmax=y_max_global)
         if idx == 0:
             track.xticks_by_interval(interval=5_000_000, outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
             track.xticks_by_interval(interval=10_000_000, outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
@@ -76,9 +84,19 @@ for sector in circos.sectors:
 
 circos_tracks = [track for track in snakemake.config["circos_plot"]]
 n_tracks = len(circos_tracks)
+
+track_y_max = {}
+for track_cfg in circos_tracks:
+    coverage_df = load_track_df(track_cfg)
+    all_y_for_track = coverage_df["count"].to_numpy()
+    if len(all_y_for_track) > 0:
+        track_y_max[track_cfg["id"]] = max(all_y_for_track) * 1.1
+    else:
+        track_y_max[track_cfg["id"]] = 1
+
 for idx, track_cfg in enumerate(circos_tracks):
     coverage_df = load_track_df(track_cfg)
-    add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, gap_name=gap_name)
+    add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_global=track_y_max[track_cfg["id"]], gap_name=gap_name)
 
 fig = circos.plotfig()
 legend_handles = [Line2D([], [], linestyle="none") for _ in circos_tracks]
