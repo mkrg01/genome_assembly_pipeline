@@ -52,7 +52,7 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, gap_nam
         coverage_contig_df = coverage_df[coverage_df["contig"] == sector.name]
         x = ((coverage_contig_df["start"] + coverage_contig_df["end"]) / 2).to_numpy()
         y = coverage_contig_df["coverage"].to_numpy()
-        track.fill_between(x, y, color=track_cfg["color"])
+        track.fill_between(x, y, color=track_cfg["color"], linewidth=0.1, alpha=0.7)
         if idx == 0:
             track.xticks_by_interval(interval=5_000_000, outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
             track.xticks_by_interval(interval=10_000_000, outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
