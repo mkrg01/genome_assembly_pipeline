@@ -26,7 +26,7 @@ rule extract_long_contigs:
         out = "logs/extract_long_contigs_fcs_{assembly_name}.out",
         err = "logs/extract_long_contigs_fcs_{assembly_name}.err"
     conda:
-        "../envs/seqkit.yml"
+        "envs/seqkit.yml"
     params:
         min_long_contig_length = config["min_long_contig_length"]
     shell:
