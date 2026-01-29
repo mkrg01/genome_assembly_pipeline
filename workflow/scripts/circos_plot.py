@@ -62,8 +62,8 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_g
         y = coverage_contig_df["count"].to_numpy()
         track.fill_between(x, y, color=track_cfg["color"], linewidth=0.1, alpha=0.7, vmin=0, vmax=y_max_global)
         if idx == 0:
-            track.xticks_by_interval(interval=5_000_000, outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
-            track.xticks_by_interval(interval=10_000_000, outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
+            track.xticks_by_interval(interval=snakemake.config["circos_plot_x_minor_tick_interval"], outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
+            track.xticks_by_interval(interval=snakemake.config["circos_plot_x_major_tick_interval"], outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
 
 contig_df = pd.read_csv(snakemake.input.contig, sep="\t", header=None, names=["contig", "length"])
 
@@ -82,7 +82,7 @@ for sector in circos.sectors:
         continue
     sector.text(sector.name, size=8, orientation="vertical")
 
-circos_tracks = [track for track in snakemake.config["circos_plot"]]
+circos_tracks = [track for track in snakemake.config["circos_plot_tracks"]]
 n_tracks = len(circos_tracks)
 
 track_y_max = {}

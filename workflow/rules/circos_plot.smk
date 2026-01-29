@@ -1,5 +1,5 @@
-circos_ids = [track["id"] for track in config["circos_plot"]]
-circos_id2tracks = {track["id"]: track for track in config["circos_plot"]}
+circos_ids = [track["id"] for track in config["circos_plot_tracks"]]
+circos_id2tracks = {track["id"]: track for track in config["circos_plot_tracks"]}
 repeat_classes = [circos_id for circos_id in circos_ids if circos_id in ["LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite"]]
 
 wildcard_constraints:

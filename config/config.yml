@@ -13,7 +13,8 @@ dfam_lineage_name: "Viridiplantae" # Name of the Dfam lineage to use.
 orthodb_version: "12" # Version of OrthoDB to download (used by Braker3). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
 orthodb_lineage: "Viridiplantae" # OrthoDB lineage dataset to use. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
 orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587" # MD5 checksum of the OrthoDB database. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
-circos_plot: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite", "tidk"} - configurations for circos plots
+min_long_contig_length: 1_000_000 # Minimum contig length to be considered a "long contig" for visualization (e.g., Circos plots).
+circos_plot_tracks: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite", "tidk"} - configurations for circos plots
   - {id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}
   - {id: "LTR", label: "LTR", color: "#E39C37", window_size: 500_000}
   - {id: "LINE", label: "LINE", color: "#C44E52", window_size: 500_000}
@@ -21,3 +22,5 @@ circos_plot: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon
   - {id: "DNA_transposon", label: "DNA transposon", color: "#8172B3", window_size: 500_000}
   - {id: "satellite", label: "Satellite DNA", color: "#2F2F2F", window_size: 500_000}
   - {id: "tidk", label: "Telomeric repeat", color: "#DD8452", window_size: 10_000} # The default window size for tidk is 10,000 bp. (https://github.com/tolkit/telomeric-identifier)
+circos_plot_x_major_tick_interval: 10_000_000 # Major tick interval (in bp) for the x-axis in Circos plots.
+circos_plot_x_minor_tick_interval: 5_000_000 # Minor tick interval (in bp) for the x-axis in Circos plots.

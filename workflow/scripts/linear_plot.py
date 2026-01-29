@@ -39,7 +39,7 @@ contigs = contig_df["contig"].tolist()
 contig_lengths = dict(zip(contig_df["contig"], contig_df["length"]))
 
 # Load track data
-circos_tracks = [track for track in snakemake.config["circos_plot"]]
+circos_tracks = [track for track in snakemake.config["circos_plot_tracks"]]
 n_tracks = len(circos_tracks)
 
 track_data = {}
@@ -115,8 +115,14 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         
         # Y-axis label on the left side
         if col_idx == 0:
-            window_kb = window_size_global / 1000
-            y_label = f"Count per\n{int(window_kb)}-kb window"
+            if window_size_global >= 1_000_000 and window_size_global % 1_000_000 == 0:
+                window_mb = window_size_global // 1_000_000
+                y_label = f"Count per\n{int(window_mb)}-Mb window"
+            elif window_size_global >= 1000 and window_size_global % 1000 == 0:
+                window_kb = window_size_global // 1000
+                y_label = f"Count per\n{int(window_kb)}-kb window"
+            else:
+                y_label = f"Count per\n{int(window_size_global)}-bp window"
             ax.set_ylabel(y_label, rotation=90, ha='center', va='center', fontsize=8, labelpad=15)
             
             # Add track label to the left of the y-axis label

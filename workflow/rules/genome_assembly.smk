@@ -1037,7 +1037,8 @@ rule show_hifi_read_depth_for_organelle_contigs:
 
 rule extract_long_contigs:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        config_stamp = "config/config.yml"
     output:
         "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
     log:
@@ -1045,10 +1046,12 @@ rule extract_long_contigs:
         err = "logs/extract_long_contigs_{assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
+    params:
+        min_long_contig_length = config["min_long_contig_length"]
     shell:
         """
         (
-            seqkit seq --min-len 1000000 {input} \
+            seqkit seq --min-len {params.min_long_contig_length} {input.assembly} \
             | seqkit sort --by-length --reverse \
             > {output}
         ) > {log.out} 2> {log.err}
