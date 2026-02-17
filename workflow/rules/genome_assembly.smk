@@ -839,12 +839,15 @@ rule show_contig_lengths:
         err = "logs/show_contig_lengths_{assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
+    params:
+        min_long_contig_length = config["min_long_contig_length"]
     shell:
         """
         (
             python3 workflow/scripts/show_contig_lengths.py \
                 --input {input} \
-                --output {output}
+                --output {output} \
+                --min_long_contig_length {params.min_long_contig_length}
         ) > {log.out} 2> {log.err}
         """
 

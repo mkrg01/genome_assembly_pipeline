@@ -7,20 +7,22 @@ import numpy as np
 parser = argparse.ArgumentParser(description="Plot contig lengths.")
 parser.add_argument("--input", type=Path, required=True, help="")
 parser.add_argument("--output", type=Path, required=True, help="")
+parser.add_argument("--min_long_contig_length", type=int, default=1_000_000, help="")
 args = parser.parse_args()
 
 contig_df = pd.read_csv(args.input, sep="\t")
+min_long_contig_length = args.min_long_contig_length
 
-# Summarise contigs with less than 1Mbp length, renaming contig names to "<1Mbp (n contigs)"
-short_contigs = contig_df[contig_df["length"] < 1_000_000]
+# Summarise contigs below the threshold from config and group them into one bar.
+short_contigs = contig_df[contig_df["length"] < min_long_contig_length]
 n_short_contigs = short_contigs.shape[0]
 if n_short_contigs > 0:
     short_contig_summary = pd.DataFrame({
-        "#name": [f"<1Mbp ({n_short_contigs} contigs)"],
+        "#name": [f"<{min_long_contig_length:,} bp ({n_short_contigs} contigs)"],
         "length": [short_contigs["length"].sum()]
     })
     contig_df = pd.concat([
-        contig_df[contig_df["length"] >= 1_000_000],
+        contig_df[contig_df["length"] >= min_long_contig_length],
         short_contig_summary
     ], ignore_index=True)
 
