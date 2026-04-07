@@ -1,6 +1,6 @@
 FROM condaforge/miniforge3:latest
 LABEL io.github.snakemake.containerized="true"
-LABEL io.github.snakemake.conda_env_hash="3da85b550b2d4e1512bc5b3b2a75ec11d414273bb737d15853961db8ca1f9882"
+LABEL io.github.snakemake.conda_env_hash="e8986f3031e5046bcb2168bb68b5e09294612dec1d4d817bba909733a5a3a9ba"
 
 # Step 2: Retrieve conda environments
 
@@ -25,6 +25,18 @@ COPY workflow/envs/bam2fastq.yml /conda-envs/a7401219cb36035d7c6438fc301a8525/en
 #     - bioconda::bedtools=2.31.1
 RUN mkdir -p /conda-envs/358865313c58e8136880640ff9d908f5
 COPY workflow/envs/bedtools.yml /conda-envs/358865313c58e8136880640ff9d908f5/environment.yaml
+
+# Conda environment:
+#   source: workflow/envs/biopython.yml
+#   prefix: /conda-envs/37b3ccc12edcc0bf82d37daa9e6dca92
+#   name: biopython
+#   channels:
+#     - conda-forge
+#   dependencies:
+#     - python=3.13.7
+#     - biopython=1.87
+RUN mkdir -p /conda-envs/37b3ccc12edcc0bf82d37daa9e6dca92
+COPY workflow/envs/biopython.yml /conda-envs/37b3ccc12edcc0bf82d37daa9e6dca92/environment.yaml
 
 # Conda environment:
 #   source: workflow/envs/busco.yml
@@ -235,6 +247,7 @@ COPY workflow/envs/tidk.yml /conda-envs/2e2d95d2893efc5ad203d140f0a56688/environ
 
 RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --file /conda-envs/a7401219cb36035d7c6438fc301a8525/environment.yaml && \
     conda env create --prefix /conda-envs/358865313c58e8136880640ff9d908f5 --file /conda-envs/358865313c58e8136880640ff9d908f5/environment.yaml && \
+    conda env create --prefix /conda-envs/37b3ccc12edcc0bf82d37daa9e6dca92 --file /conda-envs/37b3ccc12edcc0bf82d37daa9e6dca92/environment.yaml && \
     conda env create --prefix /conda-envs/6a29b1058e04ecf1abe493d36682b23f --file /conda-envs/6a29b1058e04ecf1abe493d36682b23f/environment.yaml && \
     conda env create --prefix /conda-envs/d7adf9253af4fcb07d233989937fd02c --file /conda-envs/d7adf9253af4fcb07d233989937fd02c/environment.yaml && \
     conda env create --prefix /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac --file /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac/environment.yaml && \

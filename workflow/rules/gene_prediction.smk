@@ -121,13 +121,32 @@ rule copy_isoforms:
         ) > {log.out} 2> {log.err}
         """
 
+rule extract_mrna:
+    input:
+        gff3 = "results/braker3/{assembly_name}/braker.gff3",
+        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+    output:
+        "results/isoforms/{assembly_name}_mrna.fa"
+    log:
+        out = "logs/extract_mrna_{assembly_name}.out",
+        err = "logs/extract_mrna_{assembly_name}.err"
+    conda:
+        "../envs/biopython.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/extract_mrna.py \
+                --gff3 {input.gff3} \
+                --fasta {input.assembly} \
+                --output {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule extract_longest_cds:
     input:
-        cds = "results/braker3/{assembly_name}/braker.codingseq",
-        aa = "results/braker3/{assembly_name}/braker.aa"
+        "results/braker3/{assembly_name}/braker.codingseq"
     output:
-        cds = "results/longest_cds/{assembly_name}_cds.fa",
-        aa = "results/longest_cds/{assembly_name}_aa.fa"
+        "results/longest_cds/{assembly_name}_cds.fa"
     log:
         out = "logs/extract_longest_cds_{assembly_name}.out",
         err = "logs/extract_longest_cds_{assembly_name}.err"
@@ -138,13 +157,72 @@ rule extract_longest_cds:
     shell:
         """
         (
-            seqkit seq --threads {threads} {input.cds} \
+            seqkit seq --threads {threads} {input} \
             | cdskit aggregate --expression "t.*" \
-            | seqkit seq --threads {threads} --out-file {output.cds}
+            | seqkit seq --threads {threads} --out-file {output}
+        ) > {log.out} 2> {log.err}
+        """
 
-            seqkit seq --threads {threads} {input.aa} \
-            | cdskit aggregate --expression "t.*" \
-            | seqkit seq --threads {threads} --out-file {output.aa}
+rule extract_longest_cds_aa:
+    input:
+        cds = "results/longest_cds/{assembly_name}_cds.fa",
+        aa = "results/isoforms/{assembly_name}_aa.fa"
+    output:
+        "results/longest_cds/{assembly_name}_aa.fa"
+    log:
+        out = "logs/extract_longest_cds_aa_{assembly_name}.out",
+        err = "logs/extract_longest_cds_aa_{assembly_name}.err"
+    conda:
+        "../envs/cdskit.yml"
+    threads:
+        4
+    shell:
+        """
+        (
+            cdskit intersection --seqfile {input.cds} --seqfile2 {input.aa} --outfile {input.cds}.aa.tmp --outfile2 {output}
+            rm {input.cds}.aa.tmp
+        ) > {log.out} 2> {log.err}
+        """
+
+rule extract_longest_cds_mrna:
+    input:
+        cds = "results/longest_cds/{assembly_name}_cds.fa",
+        mrna = "results/isoforms/{assembly_name}_mrna.fa"
+    output:
+        "results/longest_cds/{assembly_name}_mrna.fa"
+    log:
+        out = "logs/extract_longest_cds_mrna_{assembly_name}.out",
+        err = "logs/extract_longest_cds_mrna_{assembly_name}.err"
+    conda:
+        "../envs/cdskit.yml"
+    threads:
+        4
+    shell:
+        """
+        (
+            cdskit intersection --seqfile {input.cds} --seqfile2 {input.mrna} --outfile {input.cds}.mrna.tmp --outfile2 {output}
+            rm {input.cds}.mrna.tmp
+        ) > {log.out} 2> {log.err}
+        """
+
+rule filter_longest_cds_gff3:
+    input:
+        fasta = "results/longest_cds/{assembly_name}_cds.fa",
+        gff3 = "results/braker3/{assembly_name}/braker.gff3"
+    output:
+        "results/longest_cds/{assembly_name}.gff3"
+    log:
+        out = "logs/filter_longest_cds_gff3_{assembly_name}.out",
+        err = "logs/filter_longest_cds_gff3_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/filter_gff_by_fasta_ids.py \
+                --fasta {input.fasta} \
+                --gff3 {input.gff3} \
+                --output {output}
         ) > {log.out} 2> {log.err}
         """
 
