@@ -36,6 +36,7 @@ Below are the available parameters:
 | Parameter               | Description                                                  | Example                                    |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
 | `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
+| `assembly_version`         | Version used for output files | `"v1.0"` |
 | `ont_reads`             | Optional: Path to ultra-long ONT reads. Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
 | `oatk_organelle`        | Organelle to assemble. `{"mito", "pltd", "mito_and_pltd"}`  | `"mito_and_pltd"` |

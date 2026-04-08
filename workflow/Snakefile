@@ -2,6 +2,7 @@ containerized: "docker://aurelia01/genome_assembly_pipeline:v0.5.3"
 configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
+assembly_version = config["assembly_version"]
 
 def seqkit_stats_organelle_path():
     mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"
@@ -76,27 +77,32 @@ def softmask_all_inputs(assembly_name):
     ]
 
 # Step 5: Gene prediction
-def gene_prediction_all_inputs(assembly_name):
+def gene_prediction_all_inputs(assembly_name, assembly_version):
     return softmask_all_inputs(assembly_name) + [
         f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
         f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/omark/{assembly_name}_omark",
-        f"results/longest_cds/{assembly_name}.gff3",
-        f"results/longest_cds/{assembly_name}_transcript.fa"
+        f"results/longest_cds/{assembly_name}_transcript.fa",
+        f"results/submission/{assembly_name}_{assembly_version}_genome.fa.gz",
+        f"results/submission/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
+        f"results/submission/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
+        f"results/submission/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
+        f"results/submission/{assembly_name}_{assembly_version}_representative.gff3.gz",
+        f"results/submission/{assembly_name}_{assembly_version}_README.md"
     ]
 
 # Step 6: Circos plot
-def circos_plot_all_inputs(assembly_name):
-    return gene_prediction_all_inputs(assembly_name) + [
+def circos_plot_all_inputs(assembly_name, assembly_version):
+    return gene_prediction_all_inputs(assembly_name, assembly_version) + [
         f"results/circos_plot/{assembly_name}_circos_plot.pdf",
         f"results/circos_plot/{assembly_name}_linear_plot.pdf"
     ]
 
 rule all:
     input:
-        *circos_plot_all_inputs(assembly_name)
+        *circos_plot_all_inputs(assembly_name, assembly_version)
 
 rule assembly_all:
     input:
@@ -116,8 +122,8 @@ rule softmask_all:
 
 rule gene_prediction_all:
     input:
-        *gene_prediction_all_inputs(assembly_name)
+        *gene_prediction_all_inputs(assembly_name, assembly_version)
 
 rule circos_plot_all:
     input:
-        *circos_plot_all_inputs(assembly_name)
+        *circos_plot_all_inputs(assembly_name, assembly_version)

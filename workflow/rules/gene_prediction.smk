@@ -323,3 +323,53 @@ rule omark:
             --file {input.omamer_search} \
             --database {input.database} \
             --outputFolder {output} > {log.out} 2> {log.err}"
+
+rule format_for_submission:
+    input:
+        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
+        isoform_cds = "results/isoforms/{assembly_name}_cds.fa",
+        isoform_gff3 = "results/braker3/{assembly_name}/braker.gff3",
+        longest_cds = "results/longest_cds/{assembly_name}_cds.fa",
+        longest_gff3 = "results/longest_cds/{assembly_name}.gff3"
+    output:
+        assembly = f"results/submission/{{assembly_name}}_{config['assembly_version']}_genome.fa.gz",
+        isoform_cds = f"results/submission/{{assembly_name}}_{config['assembly_version']}_isoforms.cds.fa.gz",
+        isoform_gff3 = f"results/submission/{{assembly_name}}_{config['assembly_version']}_isoforms.gff3.gz",
+        longest_cds = f"results/submission/{{assembly_name}}_{config['assembly_version']}_representative.cds.fa.gz",
+        longest_gff3 = f"results/submission/{{assembly_name}}_{config['assembly_version']}_representative.gff3.gz",
+        readme = f"results/submission/{{assembly_name}}_{config['assembly_version']}_README.md"
+    log:
+        out = "logs/format_for_submission_{assembly_name}.out",
+        err = "logs/format_for_submission_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            gzip -c {input.assembly} > {output.assembly}
+            python3 workflow/scripts/rename_submission_gene_models.py \
+                --species-name "{wildcards.assembly_name}" \
+                --isoform-cds {input.isoform_cds} \
+                --isoform-gff3 {input.isoform_gff3} \
+                --longest-cds {input.longest_cds} \
+                --longest-gff3 {input.longest_gff3} \
+                --output-isoform-cds {output.isoform_cds} \
+                --output-isoform-gff3 {output.isoform_gff3} \
+                --output-longest-cds {output.longest_cds} \
+                --output-longest-gff3 {output.longest_gff3}
+            python3 workflow/scripts/write_submission_readme.py \
+                --assembly-name "{wildcards.assembly_name}" \
+                --assembly-version "{config[assembly_version]}" \
+                --input-assembly {input.assembly} \
+                --input-isoform-cds {input.isoform_cds} \
+                --input-isoform-gff3 {input.isoform_gff3} \
+                --input-longest-cds {input.longest_cds} \
+                --input-longest-gff3 {input.longest_gff3} \
+                --output-assembly {output.assembly} \
+                --output-isoform-cds {output.isoform_cds} \
+                --output-isoform-gff3 {output.isoform_gff3} \
+                --output-longest-cds {output.longest_cds} \
+                --output-longest-gff3 {output.longest_gff3} \
+                --output-readme {output.readme}
+        ) > {log.out} 2> {log.err}
+        """
