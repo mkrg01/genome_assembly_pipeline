@@ -121,24 +121,24 @@ rule copy_isoforms:
         ) > {log.out} 2> {log.err}
         """
 
-rule extract_mrna:
+rule extract_transcript:
     input:
         gff3 = "results/braker3/{assembly_name}/braker.gff3",
         assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
     output:
-        "results/isoforms/{assembly_name}_mrna.fa"
+        "results/isoforms/{assembly_name}_transcript.fa"
     log:
-        out = "logs/extract_mrna_{assembly_name}.out",
-        err = "logs/extract_mrna_{assembly_name}.err"
+        out = "logs/extract_transcript_{assembly_name}.out",
+        err = "logs/extract_transcript_{assembly_name}.err"
     conda:
-        "../envs/biopython.yml"
+        "../envs/gffread.yml"
     shell:
         """
         (
-            python3 workflow/scripts/extract_mrna.py \
-                --gff3 {input.gff3} \
-                --fasta {input.assembly} \
-                --output {output}
+            gffread \
+                {input.gff3} \
+                -g {input.assembly} \
+                -w {output}
         ) > {log.out} 2> {log.err}
         """
 
@@ -184,15 +184,15 @@ rule extract_longest_cds_aa:
         ) > {log.out} 2> {log.err}
         """
 
-rule extract_longest_cds_mrna:
+rule extract_longest_cds_transcript:
     input:
         cds = "results/longest_cds/{assembly_name}_cds.fa",
-        mrna = "results/isoforms/{assembly_name}_mrna.fa"
+        transcript = "results/isoforms/{assembly_name}_transcript.fa"
     output:
-        "results/longest_cds/{assembly_name}_mrna.fa"
+        "results/longest_cds/{assembly_name}_transcript.fa"
     log:
-        out = "logs/extract_longest_cds_mrna_{assembly_name}.out",
-        err = "logs/extract_longest_cds_mrna_{assembly_name}.err"
+        out = "logs/extract_longest_cds_transcript_{assembly_name}.out",
+        err = "logs/extract_longest_cds_transcript_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     threads:
@@ -200,8 +200,8 @@ rule extract_longest_cds_mrna:
     shell:
         """
         (
-            cdskit intersection --seqfile {input.cds} --seqfile2 {input.mrna} --outfile {input.cds}.mrna.tmp --outfile2 {output}
-            rm {input.cds}.mrna.tmp
+            cdskit intersection --seqfile {input.cds} --seqfile2 {input.transcript} --outfile {input.cds}.tmp --outfile2 {output}
+            rm {input.cds}.tmp
         ) > {log.out} 2> {log.err}
         """
 

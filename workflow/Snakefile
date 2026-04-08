@@ -84,7 +84,7 @@ def gene_prediction_all_inputs(assembly_name):
         f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
         f"results/longest_cds/omark/{assembly_name}_omark",
         f"results/longest_cds/{assembly_name}.gff3",
-        f"results/longest_cds/{assembly_name}_mrna.fa"
+        f"results/longest_cds/{assembly_name}_transcript.fa"
     ]
 
 # Step 6: Circos plot
