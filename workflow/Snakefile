@@ -7,6 +7,20 @@ configfile: "config/config.yml"
 assembly_name = config["assembly_name"]
 assembly_version = config["assembly_version"]
 
+RAW_FASTQ_SUFFIXES = (
+    ".fastq.gz",
+    ".fq.gz",
+    ".fastq",
+    ".fq",
+)
+
+
+def make_pattern_suffix_pairs(pattern_template, suffix_template, suffixes):
+    return [
+        (pattern_template.format(suffix=suffix), suffix_template.format(suffix=suffix))
+        for suffix in suffixes
+    ]
+
 
 def discover_sample_ids(pattern_suffix_pairs):
     sample_ids = set()
@@ -24,6 +38,21 @@ def require_sample_ids(sample_ids, description, search_paths):
     raise RuntimeError(
         f"No {description} were found. Looked for inputs or intermediates in: {', '.join(search_paths)}"
     )
+
+
+def resolve_unique_existing_path(candidate_paths, description):
+    existing_paths = sorted(path for path in candidate_paths if os.path.exists(path))
+    if len(existing_paths) == 1:
+        return existing_paths[0]
+    if len(existing_paths) > 1:
+        raise RuntimeError(
+            f"Multiple {description} files were found: {', '.join(existing_paths)}. "
+            "Please keep only one matching input file."
+        )
+    raise RuntimeError(
+        f"No {description} file was found. Looked for: {', '.join(candidate_paths)}"
+    )
+
 
 def seqkit_stats_organelle_path():
     mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"

@@ -17,13 +17,15 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 | -------------------------- | ---------------------------- | ------------------------------------------ |
 | PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
 | Index for HiFi reads  | `*.hifi_reads.bam.pbi` | `SAMPLE1.hifi_reads.bam.pbi`                    |
-| Ultra-long ONT reads (optional) | Any path (specify in config) | `raw_data/ont_reads.fastq.gz`              |
-| Paired-end RNA-seq (R1)    | `*_1.fastq.gz`        | `RNASEQ1_1.fastq.gz`                       |
-| Paired-end RNA-seq (R2)    | `*_2.fastq.gz`        | `RNASEQ1_2.fastq.gz`                       |
+| Ultra-long ONT reads (optional) | Any FASTQ path in config (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/ont_reads.fastq.gz`              |
+| Paired-end RNA-seq (R1)    | `*_1.fastq.gz`, `*_1.fq.gz`, `*_1.fastq`, or `*_1.fq`        | `RNASEQ1_1.fastq.gz`                       |
+| Paired-end RNA-seq (R2)    | `*_2.fastq.gz`, `*_2.fq.gz`, `*_2.fastq`, or `*_2.fq`        | `RNASEQ1_2.fastq.gz`                       |
 
 **Notes:**
 
 - The pipeline will automatically detect and process multiple BacBio HiFi and RNA-seq samples, if present.
+- RNA-seq raw FASTQ inputs can be gzipped or plain text. The pipeline normalizes them during preprocessing, so downstream rules keep using the same internal filenames.
+- Keep only one raw RNA-seq file per sample and read pair. For example, do not place both `SAMPLE_1.fastq.gz` and `SAMPLE_1.fq` in `raw_data/`.
 - Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
 
 ---
@@ -37,7 +39,7 @@ Below are the available parameters:
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
 | `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
 | `assembly_version`         | Version used for output files | `"v1.0"` |
-| `ont_reads`             | Optional: Path to ultra-long ONT reads. Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
+| `ont_reads`             | Optional: Path to ultra-long ONT reads in FASTQ format (`.fastq.gz`, `.fq.gz`, `.fastq`, or `.fq`). Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
 | `oatk_organelle`        | Organelle to assemble. `{"mito", "pltd", "mito_and_pltd"}`  | `"mito_and_pltd"` |
 | `oatk_minimum_kmer_coverage`| Minimum kmer coverage used for Oatk. [Instructions](https://github.com/c-zhou/oatk)  | `"250"` |

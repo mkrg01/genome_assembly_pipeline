@@ -1,8 +1,22 @@
 import os
+
+rnaseq_raw_pattern_suffix_pairs = make_pattern_suffix_pairs(
+    "raw_data/*_1{suffix}",
+    "_1{suffix}",
+    RAW_FASTQ_SUFFIXES,
+)
+rnaseq_fastp_search_path = "results/rnaseq_reads/fastp/*_1.fastq"
 rnaseq_sample_ids = discover_sample_ids([
-    ("raw_data/*_1.fastq.gz", "_1.fastq.gz"),
-    ("results/rnaseq_reads/fastp/*_1.fastq", "_1.fastq"),
+    *rnaseq_raw_pattern_suffix_pairs,
+    (rnaseq_fastp_search_path, "_1.fastq"),
 ])
+
+
+def rnaseq_raw_input_path(rnaseq_sample_id, pair):
+    return resolve_unique_existing_path(
+        [f"raw_data/{rnaseq_sample_id}_{pair}{suffix}" for suffix in RAW_FASTQ_SUFFIXES],
+        f"RNA-Seq read pair {pair} for sample '{rnaseq_sample_id}'",
+    )
 
 
 def braker3_rnaseq_inputs(_wildcards):
@@ -10,8 +24,8 @@ def braker3_rnaseq_inputs(_wildcards):
         rnaseq_sample_ids,
         "RNA-Seq samples",
         [
-            "raw_data/*_1.fastq.gz",
-            "results/rnaseq_reads/fastp/*_1.fastq",
+            *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
+            rnaseq_fastp_search_path,
         ],
     )
     return expand(
@@ -25,8 +39,8 @@ wildcard_constraints:
 
 rule fastp_rnaseq_sample:
     input:
-        rnaseq_1 = "raw_data/{rnaseq_sample_id}_1.fastq.gz",
-        rnaseq_2 = "raw_data/{rnaseq_sample_id}_2.fastq.gz"
+        rnaseq_1 = lambda wildcards: rnaseq_raw_input_path(wildcards.rnaseq_sample_id, 1),
+        rnaseq_2 = lambda wildcards: rnaseq_raw_input_path(wildcards.rnaseq_sample_id, 2)
     output:
         rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
         rnaseq_2 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_2.fastq",
