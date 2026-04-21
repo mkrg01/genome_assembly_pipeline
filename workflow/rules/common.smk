@@ -123,6 +123,16 @@ def normalize_optional_path_list(config_key, values):
     return normalized_values
 
 
+def normalize_bool_config(config_key, value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    raise ValueError(
+        f"'{config_key}' in config.yml must be a YAML boolean (true or false)."
+    )
+
+
 selected_assemblies = validate_choice_list(
     "selected_assemblies",
     config.get("selected_assemblies", ["primary"]),
@@ -159,6 +169,10 @@ if hic_reads_r1 is not None and len(hic_reads_r1) != len(hic_reads_r2):
     )
 
 hic_reads_enabled = hic_reads_r1 is not None
+hifiasm_dual_scaf = normalize_bool_config(
+    "hifiasm_dual_scaf",
+    config.get("hifiasm_dual_scaf", False),
+)
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]

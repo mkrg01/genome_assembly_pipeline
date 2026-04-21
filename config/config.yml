@@ -2,6 +2,7 @@ assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
 assembly_version: "v1.0" # Version of the assembly. Used for naming output files.
 selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
 submission_assemblies: ["primary"] # One or more assemblies to prepare for submission. Must be a subset of `selected_assemblies`.
+hifiasm_dual_scaf: false # Optional: Enable hifiasm self-scaffolding by adding `--dual-scaf`. This can improve contiguity for diploid haplotype-resolved assemblies.
 ont_reads: null # Optional: Path to ultra-long ONT reads in FASTQ format (e.g., "raw_data/ont_reads.fastq.gz", "raw_data/ont_reads.fq.gz", "raw_data/ont_reads.fastq", or "raw_data/ont_reads.fq"). If null, hifiasm will run without ONT integration. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration
 hic_reads_r1: null # Optional: Hi-C read 1 FASTQ path(s) for hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps. Use a YAML list such as ["raw_data/hic_R1.fastq.gz"] or set to null to disable. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#hi-c-integration
 hic_reads_r2: null # Optional: Hi-C read 2 FASTQ path(s) matching `hic_reads_r1` in length and order for hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps. Use a YAML list or set to null to disable.

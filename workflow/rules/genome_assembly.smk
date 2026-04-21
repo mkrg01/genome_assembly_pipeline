@@ -282,10 +282,12 @@ rule hifiasm:
     threads:
         max(1, int(workflow.cores * 0.95))
     params:
+        dual_scaf_option = "--dual-scaf" if hifiasm_dual_scaf else "",
         ont_option = lambda wildcards, input: f"--ul {input.ont}" if "ont" in input.keys() else "",
         hic_option = lambda wildcards, input: hifiasm_hic_option(input)
     shell:
         "hifiasm \
+            {params.dual_scaf_option} \
             {params.ont_option} \
             {params.hic_option} \
             -o $(dirname {output.primary_gfa})/{wildcards.assembly_name}.asm \

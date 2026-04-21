@@ -31,7 +31,7 @@ cd genome_assembly_pipeline
 ### 2. Prepare Input Files and Configure Settings
 
 See [`config/README.md`](https://github.com/mkrg01/genome_assembly_pipeline/blob/main/config/README.md) for details on preparing input files and adjusting configuration parameters.
-In particular, set `selected_assemblies` and `submission_assemblies` in `config/config.yml` to choose which of `primary`, `hap1`, and `hap2` should run through the downstream workflow, and set `hic_reads_r1` / `hic_reads_r2` if you want to enable hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps.
+In particular, set `selected_assemblies` and `submission_assemblies` in `config/config.yml` to choose which of `primary`, `hap1`, and `hap2` should run through the downstream workflow, set `hifiasm_dual_scaf: true` if you want to enable hifiasm self-scaffolding for suitable diploid assemblies, and set `hic_reads_r1` / `hic_reads_r2` if you want to enable hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps.
 
 ### 3. Execute the Workflow
 
