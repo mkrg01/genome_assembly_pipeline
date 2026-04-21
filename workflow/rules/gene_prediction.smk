@@ -1,9 +1,24 @@
 import os
-import glob
-rnaseq_samples = glob.glob("raw_data/*_1.fastq.gz")
-if not rnaseq_samples:
-    raise RuntimeError("No RNA-Seq files matching 'raw_data/*_1.fastq.gz' were found. Please check the input directory.")
-rnaseq_sample_ids = sorted({os.path.basename(f).replace("_1.fastq.gz", "") for f in rnaseq_samples})
+rnaseq_sample_ids = discover_sample_ids([
+    ("raw_data/*_1.fastq.gz", "_1.fastq.gz"),
+    ("results/rnaseq_reads/fastp/*_1.fastq", "_1.fastq"),
+])
+
+
+def braker3_rnaseq_inputs(_wildcards):
+    sample_ids = require_sample_ids(
+        rnaseq_sample_ids,
+        "RNA-Seq samples",
+        [
+            "raw_data/*_1.fastq.gz",
+            "results/rnaseq_reads/fastp/*_1.fastq",
+        ],
+    )
+    return expand(
+        "results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq",
+        rnaseq_sample_id=sample_ids,
+        pair=[1, 2],
+    )
 
 wildcard_constraints:
     assembly_name = config["assembly_name"]
@@ -66,7 +81,7 @@ rule download_orthodb_proteins:
 rule braker3:
     input:
         assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
-        rnaseq = expand("results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq", rnaseq_sample_id=rnaseq_sample_ids, pair=[1, 2]),
+        rnaseq = braker3_rnaseq_inputs,
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
         gff3 = "results/braker3/{assembly_name}/braker.gff3",

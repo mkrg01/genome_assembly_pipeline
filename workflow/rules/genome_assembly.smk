@@ -1,13 +1,32 @@
 import os
-import glob
-hifi_samples = glob.glob("raw_data/*.hifi_reads.bam")
-if len(hifi_samples) == 0:
-    raise RuntimeError("No HiFi read files matching 'raw_data/*.hifi_reads.bam' were found. Please check the input directory.")
-hifi_sample_ids = sorted({os.path.basename(f).replace(".hifi_reads.bam", "") for f in hifi_samples})
+hifi_sample_ids = discover_sample_ids([
+    ("raw_data/*.hifi_reads.bam", ".hifi_reads.bam"),
+    ("results/hifi_reads/fastplong/*_hifi_reads_curated.fastq.gz", "_hifi_reads_curated.fastq.gz"),
+])
 
-ont_reads = config.get("ont_reads", None)
-if ont_reads and not os.path.exists(ont_reads):
-    raise RuntimeError(f"ONT reads file specified in config ('{ont_reads}') does not exist.")
+
+def hifi_fastplong_reads(_wildcards):
+    sample_ids = require_sample_ids(
+        hifi_sample_ids,
+        "HiFi read samples",
+        [
+            "raw_data/*.hifi_reads.bam",
+            "results/hifi_reads/fastplong/*_hifi_reads_curated.fastq.gz",
+        ],
+    )
+    return expand(
+        "results/hifi_reads/fastplong/{hifi_sample_id}_hifi_reads_curated.fastq.gz",
+        hifi_sample_id=sample_ids,
+    )
+
+
+def ont_reads_input():
+    ont_reads = config.get("ont_reads", None)
+    if ont_reads:
+        return ont_reads
+    raise RuntimeError(
+        "ONT reads were requested, but 'ont_reads' is not set in config.yml and no ONT preprocessing target was provided."
+    )
 
 wildcard_constraints:
     assembly_name = config["assembly_name"],
@@ -56,7 +75,7 @@ rule fastplong:
 
 rule merge_or_copy_hifi_reads:
     input:
-        expand("results/hifi_reads/fastplong/{hifi_sample_id}_hifi_reads_curated.fastq.gz", hifi_sample_id=hifi_sample_ids)
+        hifi_fastplong_reads
     output:
         "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
     log:
@@ -69,7 +88,7 @@ rule merge_or_copy_hifi_reads:
 
 rule fastplong_ont:
     input:
-        lambda wildcards: config.get("ont_reads", "")
+        lambda wildcards: ont_reads_input()
     output:
         reads = "results/ont_reads/fastplong/{assembly_name}_ont_reads_curated.fastq.gz",
         report_html = "results/ont_reads/fastplong/{assembly_name}_ont_report.html",

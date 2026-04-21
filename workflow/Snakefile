@@ -1,8 +1,29 @@
+import glob
+import os
+
 containerized: "docker://aurelia01/genome_assembly_pipeline:v0.5.4"
 configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
 assembly_version = config["assembly_version"]
+
+
+def discover_sample_ids(pattern_suffix_pairs):
+    sample_ids = set()
+    for pattern, suffix in pattern_suffix_pairs:
+        for path in glob.glob(pattern):
+            basename = os.path.basename(path)
+            if basename.endswith(suffix):
+                sample_ids.add(basename[:-len(suffix)])
+    return sorted(sample_ids)
+
+
+def require_sample_ids(sample_ids, description, search_paths):
+    if sample_ids:
+        return sample_ids
+    raise RuntimeError(
+        f"No {description} were found. Looked for inputs or intermediates in: {', '.join(search_paths)}"
+    )
 
 def seqkit_stats_organelle_path():
     mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"
