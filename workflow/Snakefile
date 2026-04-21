@@ -1,7 +1,7 @@
 import glob
 import os
 
-containerized: "docker://aurelia01/genome_assembly_pipeline:v0.5.5"
+containerized: "docker://aurelia01/genome_assembly_pipeline:v0.5.6"
 configfile: "config/config.yml"
 
 assembly_name = config["assembly_name"]
