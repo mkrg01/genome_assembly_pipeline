@@ -9,7 +9,7 @@ This document explains:
 
 ## 1. Input Files (`raw_data/`)
 
-The pipeline requires **both PacBio HiFi reads** and **paired-end RNA-seq reads**.
+The pipeline requires **PacBio HiFi reads**. **Paired-end RNA-seq reads** are required when running targets that include gene prediction (`gene_prediction_all`, `circos_plot_all`, or `all`).
 
 Place your raw sequencing files in the `raw_data` directory with the following naming conventions:
 
@@ -25,7 +25,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 
 **Notes:**
 
-- The pipeline will automatically detect and process multiple BacBio HiFi and RNA-seq samples, if present.
+- The pipeline will automatically detect and process multiple PacBio HiFi and RNA-seq samples, if present.
 - RNA-seq raw FASTQ inputs can be gzipped or plain text. The pipeline normalizes them during preprocessing, so downstream rules keep using the same internal filenames.
 - Keep only one raw RNA-seq file per sample and read pair. For example, do not place both `SAMPLE_1.fastq.gz` and `SAMPLE_1.fq` in `raw_data/`.
 - Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
