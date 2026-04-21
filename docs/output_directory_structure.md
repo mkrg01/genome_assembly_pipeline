@@ -10,8 +10,10 @@ The exact set of directories depends on the target you run and on the configurat
 | --- | --- |
 | `{selected_assembly}` | One of the assemblies listed in `selected_assemblies` in `config/config.yml`: `primary`, `hap1`, or `hap2`. |
 | `{assembly_name}` | The value of `assembly_name` in `config/config.yml`. |
+| `{organelle}` | One of the organelle types selected by `oatk_organelle`: `mito` or `pltd`. |
 
 - `results/submission/{selected_assembly}/` is created only for assemblies listed in `submission_assemblies`.
+- `results/submission/organelle/` depends on `oatk_organelle` and is populated from Oatk outputs.
 - `results/ont_reads/` is created only when `ont_reads` is set.
 - `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
 - Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mito`, `pltd`, or `mito_and_pltd`).
@@ -264,10 +266,12 @@ RNA-seq preprocessing outputs.
 
 ## `results/submission/`
 
-Submission-ready files produced for assemblies listed in `submission_assemblies`.
+Submission-ready files produced for assemblies listed in `submission_assemblies`, plus organelle submission assets staged from Oatk outputs.
 
 - `{selected_assembly}/`
   Gzipped genome FASTA, isoform CDS/GFF3 files, representative CDS/GFF3 files, and a generated README for submission.
+- `organelle/{organelle}/`
+  Organelle-specific submission files derived from the corresponding Oatk outputs. Each organelle subdirectory contains a gzipped genome FASTA, a gzipped Oatk annotation text file, and a generated README describing file provenance.
 
 ## `results/yahs/`
 

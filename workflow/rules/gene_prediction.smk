@@ -385,3 +385,49 @@ rule format_for_submission:
                 --output-readme {output.readme}
         ) > {log.out} 2> {log.err}
         """
+
+
+if configured_oatk_organelles():
+    rule format_organelle_for_submission:
+        input:
+            genome = lambda wildcards: organelle_submission_input_paths(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )["genome"],
+            annotation = lambda wildcards: organelle_submission_input_paths(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )["annotation"]
+        output:
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_genome.fa.gz",
+            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_annotation.txt.gz",
+            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
+        log:
+            out = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.out",
+            err = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "|".join(configured_oatk_organelles())
+        params:
+            assembly_version = config["assembly_version"]
+        shell:
+            """
+            (
+                python3 workflow/scripts/copy_submission_file_to_gzip.py \
+                    --input {input.genome} \
+                    --output {output.genome}
+                python3 workflow/scripts/copy_submission_file_to_gzip.py \
+                    --input {input.annotation} \
+                    --output {output.annotation}
+                python3 workflow/scripts/write_organelle_submission_readme.py \
+                    --organelle {wildcards.organelle} \
+                    --assembly-name "{wildcards.assembly_name}" \
+                    --assembly-version "{params.assembly_version}" \
+                    --input-genome {input.genome} \
+                    --input-annotation {input.annotation} \
+                    --output-genome {output.genome} \
+                    --output-annotation {output.annotation} \
+                    --output-readme {output.readme}
+            ) > {log.out} 2> {log.err}
+            """

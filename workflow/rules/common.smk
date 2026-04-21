@@ -369,7 +369,45 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
                 assembly_version=assembly_version,
             )
         )
+    inputs.extend(organelle_submission_output_paths(assembly_name, assembly_version))
     return inputs
+
+
+def configured_oatk_organelles():
+    if config["oatk_organelle"] == "mito":
+        return ["mito"]
+    if config["oatk_organelle"] == "pltd":
+        return ["pltd"]
+    if config["oatk_organelle"] == "mito_and_pltd":
+        return ["mito", "pltd"]
+    raise ValueError(
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
+        "'pltd', or 'mito_and_pltd'."
+    )
+
+
+def organelle_submission_input_paths(assembly_name, organelle):
+    return {
+        "genome": f"results/oatk/oatk/{assembly_name}.{organelle}.ctg.fasta",
+        "annotation": f"results/oatk/oatk/{assembly_name}.annot_{organelle}.txt",
+    }
+
+
+def organelle_submission_output_paths(assembly_name, assembly_version):
+    outputs = []
+    for organelle in configured_oatk_organelles():
+        prefix = (
+            f"results/submission/organelle/{organelle}/"
+            f"{assembly_name}_{assembly_version}_{organelle}"
+        )
+        outputs.extend(
+            [
+                f"{prefix}_genome.fa.gz",
+                f"{prefix}_annotation.txt.gz",
+                f"{prefix}_README.md",
+            ]
+        )
+    return outputs
 
 
 def circos_plot_all_inputs(assembly_name, assembly_version):
