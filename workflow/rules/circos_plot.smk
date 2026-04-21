@@ -9,7 +9,7 @@ wildcard_constraints:
 
 rule calculate_long_contig_lengths:
     input:
-        "results/fcs/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+        f"results/{downstream_assembly_name}/assembly_long_contigs/{{selected_assembly}}/{{assembly_name}}.fa"
     output:
         "results/circos_plot/{selected_assembly}/{assembly_name}_long_contig_length.tsv"
     log:
@@ -133,7 +133,7 @@ rule calculate_repeat_coverage_per_window:
 
 rule tidk_search_for_circos_plot:
     input:
-        "results/fcs/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+        f"results/{downstream_assembly_name}/assembly_long_contigs/{{selected_assembly}}/{{assembly_name}}.fa"
     output:
         "results/circos_plot/tidk_repeat/{selected_assembly}/{assembly_name}_windows_tidk.tsv"
     log:

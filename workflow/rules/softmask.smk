@@ -4,7 +4,10 @@ wildcard_constraints:
 
 rule build_repeatmodeler_database:
     input:
-        "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+        lambda wildcards: downstream_assembly_path(
+            wildcards.assembly_name,
+            wildcards.selected_assembly,
+        )
     output:
         nhr = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nhr",
         nin = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nin",
@@ -148,7 +151,10 @@ rule merge_repeat_datasets:
 rule repeatmasker:
     input:
         library = "results/repeatmasker/library/{selected_assembly}/{assembly_name}_repeatmasker_lib.fa",
-        assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+        assembly = lambda wildcards: downstream_assembly_path(
+            wildcards.assembly_name,
+            wildcards.selected_assembly,
+        )
     output:
         masked = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         out_xm = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.out.xm"

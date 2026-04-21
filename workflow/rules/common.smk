@@ -1,5 +1,6 @@
 import glob
 import os
+import shlex
 
 RAW_FASTQ_SUFFIXES = (
     ".fastq.gz",
@@ -54,10 +55,17 @@ VALID_SELECTED_ASSEMBLIES = (
     "hap2",
 )
 
-HIFIASM_GFA_PATHS = {
-    "primary": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
-    "hap1": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
-    "hap2": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.gfa",
+HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS = {
+    "default": {
+        "primary": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
+        "hap1": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
+        "hap2": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.gfa",
+    },
+    "hic": {
+        "primary": "results/hifiasm/hifiasm/{assembly_name}.asm.hic.p_ctg.gfa",
+        "hap1": "results/hifiasm/hifiasm/{assembly_name}.asm.hic.hap1.p_ctg.gfa",
+        "hap2": "results/hifiasm/hifiasm/{assembly_name}.asm.hic.hap2.p_ctg.gfa",
+    },
 }
 
 
@@ -91,6 +99,30 @@ def validate_choice_list(config_key, values, allowed_values):
     return normalized_values
 
 
+def normalize_optional_path_list(config_key, values):
+    if values is None:
+        return None
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, list):
+        raise ValueError(
+            f"'{config_key}' in config.yml must be null, a string path, or a YAML list "
+            "containing one or more string paths."
+        )
+    if not values:
+        raise ValueError(f"'{config_key}' in config.yml must not be an empty list.")
+
+    normalized_values = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(
+                f"'{config_key}' in config.yml must contain only non-empty string paths, "
+                f"but found: {value!r}"
+            )
+        normalized_values.append(value)
+    return normalized_values
+
+
 selected_assemblies = validate_choice_list(
     "selected_assemblies",
     config.get("selected_assemblies", ["primary"]),
@@ -109,6 +141,29 @@ if not set(submission_assemblies).issubset(selected_assemblies):
 selected_assembly_pattern = "|".join(selected_assemblies)
 submission_assembly_pattern = "|".join(submission_assemblies)
 
+hic_reads_r1 = normalize_optional_path_list(
+    "hic_reads_r1",
+    config.get("hic_reads_r1", None),
+)
+hic_reads_r2 = normalize_optional_path_list(
+    "hic_reads_r2",
+    config.get("hic_reads_r2", None),
+)
+if (hic_reads_r1 is None) != (hic_reads_r2 is None):
+    raise ValueError(
+        "'hic_reads_r1' and 'hic_reads_r2' in config.yml must either both be set or both be null."
+    )
+if hic_reads_r1 is not None and len(hic_reads_r1) != len(hic_reads_r2):
+    raise ValueError(
+        "'hic_reads_r1' and 'hic_reads_r2' in config.yml must contain the same number of files."
+    )
+
+hic_reads_enabled = hic_reads_r1 is not None
+hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
+    "hic" if hic_reads_enabled else "default"
+]
+downstream_assembly_name = "yahs" if hic_reads_enabled else "fcs"
+
 
 def expand_selected_assembly_paths(pattern, assembly_name, assemblies=None, **extra_wildcards):
     return expand(
@@ -120,7 +175,42 @@ def expand_selected_assembly_paths(pattern, assembly_name, assemblies=None, **ex
 
 
 def hifiasm_selected_assembly_gfa_path(assembly_name, selected_assembly):
-    return HIFIASM_GFA_PATHS[selected_assembly].format(assembly_name=assembly_name)
+    return hifiasm_selected_assembly_gfa_paths[selected_assembly].format(
+        assembly_name=assembly_name
+    )
+
+
+def hifiasm_output_path():
+    return {
+        f"{selected_assembly}_gfa": path
+        for selected_assembly, path in hifiasm_selected_assembly_gfa_paths.items()
+    }
+
+
+def shell_quote_paths(paths):
+    return " ".join(shlex.quote(str(path)) for path in paths)
+
+
+def hic_reads_input(pair):
+    if not hic_reads_enabled:
+        raise RuntimeError(
+            "Hi-C reads were requested, but 'hic_reads_r1' and 'hic_reads_r2' are not set in config.yml."
+        )
+    if pair == 1:
+        return hic_reads_r1
+    if pair == 2:
+        return hic_reads_r2
+    raise ValueError(f"Invalid Hi-C read pair: {pair}. Must be 1 or 2.")
+
+
+def merged_hic_reads_path(assembly_name, pair):
+    return f"results/hic_reads/merged/{assembly_name}_hic_R{pair}.fastq.gz"
+
+
+def downstream_assembly_path(assembly_name, selected_assembly):
+    return (
+        f"results/{downstream_assembly_name}/assembly/{selected_assembly}/{assembly_name}.fa"
+    )
 
 
 def seqkit_stats_organelle_path():
@@ -208,8 +298,28 @@ def remove_contamination_all_inputs(assembly_name):
     return inputs
 
 
+def scaffold_all_inputs(assembly_name):
+    inputs = remove_contamination_all_inputs(assembly_name)
+    if not hic_reads_enabled:
+        return inputs
+
+    inputs.extend(
+        [
+            merged_hic_reads_path(assembly_name, 1),
+            merged_hic_reads_path(assembly_name, 2),
+        ]
+    )
+    for pattern in (
+        "results/yahs/assembly/{selected_assembly}/{assembly_name}.fa",
+        "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
+        "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    return inputs
+
+
 def softmask_all_inputs(assembly_name):
-    return remove_contamination_all_inputs(assembly_name) + expand_selected_assembly_paths(
+    return scaffold_all_inputs(assembly_name) + expand_selected_assembly_paths(
         "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         assembly_name,
     )
@@ -291,7 +401,16 @@ def hifiasm_input(wildcards):
                 assembly_name=wildcards.assembly_name
             )
         )
+    if hic_reads_enabled:
+        inputs["hic_r1"] = merged_hic_reads_path(wildcards.assembly_name, 1)
+        inputs["hic_r2"] = merged_hic_reads_path(wildcards.assembly_name, 2)
     return inputs
+
+
+def hifiasm_hic_option(input):
+    if "hic_r1" not in input.keys():
+        return ""
+    return f"--h1 {input.hic_r1} --h2 {input.hic_r2}"
 
 
 def oatkdb_path():

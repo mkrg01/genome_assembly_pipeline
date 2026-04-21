@@ -3,6 +3,7 @@
 # Required input files (expected paths):
 # 1. Genome assembly:
 #    results/fcs/assembly/{selected_assembly}/{assembly_name}.fa
+#    or, if Hi-C reads are configured, results/yahs/assembly/{selected_assembly}/{assembly_name}.fa
 # 2. Gene annotation (GFF3):
 #    results/braker3/{selected_assembly}/{assembly_name}/braker.gff3
 # 3. RepeatMasker output (.out.xm) [optional]:
@@ -19,10 +20,10 @@ include: "rules/circos_plot.smk"
 
 rule extract_long_contigs:
     input:
-        assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa",
+        assembly = f"results/{downstream_assembly_name}/assembly/{{selected_assembly}}/{{assembly_name}}.fa",
         config_stamp = "config/config.yml"
     output:
-        "results/fcs/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+        f"results/{downstream_assembly_name}/assembly_long_contigs/{{selected_assembly}}/{{assembly_name}}.fa"
     log:
         out = "logs/extract_long_contigs_fcs_{selected_assembly}_{assembly_name}.out",
         err = "logs/extract_long_contigs_fcs_{selected_assembly}_{assembly_name}.err"

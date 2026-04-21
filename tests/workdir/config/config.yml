@@ -3,6 +3,9 @@ assembly_version: "v0.0.0"
 selected_assemblies: ["primary"]
 submission_assemblies: ["primary"]
 ont_reads: null
+hic_reads_r1: null
+hic_reads_r2: null
+yahs_restriction_enzymes: null
 oatk_lineage: "magnoliopsida"
 oatk_organelle: "mito_and_pltd"
 oatk_minimum_kmer_coverage: "250"

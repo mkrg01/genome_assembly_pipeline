@@ -26,6 +26,10 @@ rule remove_contamination_all:
     input:
         *remove_contamination_all_inputs(assembly_name)
 
+rule scaffold_all:
+    input:
+        *scaffold_all_inputs(assembly_name)
+
 rule softmask_all:
     input:
         *softmask_all_inputs(assembly_name)

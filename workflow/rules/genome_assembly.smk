@@ -84,6 +84,54 @@ rule fastplong_ont:
             --json {output.report_json} \
             --thread {threads} > {log.out} 2> {log.err}"
 
+rule merge_hic_reads_r1:
+    input:
+        lambda wildcards: hic_reads_input(1)
+    output:
+        "results/hic_reads/merged/{assembly_name}_hic_R1.fastq.gz"
+    log:
+        out = "logs/merge_hic_reads_r1_{assembly_name}.out",
+        err = "logs/merge_hic_reads_r1_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    params:
+        reads = lambda wildcards, input: shell_quote_paths(input)
+    shell:
+        """
+        (
+            for read_file in {params.reads}; do
+                case "$read_file" in
+                    *.gz) gzip -dc "$read_file" ;;
+                    *) cat "$read_file" ;;
+                esac
+            done | gzip -c > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule merge_hic_reads_r2:
+    input:
+        lambda wildcards: hic_reads_input(2)
+    output:
+        "results/hic_reads/merged/{assembly_name}_hic_R2.fastq.gz"
+    log:
+        out = "logs/merge_hic_reads_r2_{assembly_name}.out",
+        err = "logs/merge_hic_reads_r2_{assembly_name}.err"
+    conda:
+        "../envs/seqkit.yml"
+    params:
+        reads = lambda wildcards, input: shell_quote_paths(input)
+    shell:
+        """
+        (
+            for read_file in {params.reads}; do
+                case "$read_file" in
+                    *.gz) gzip -dc "$read_file" ;;
+                    *) cat "$read_file" ;;
+                esac
+            done | gzip -c > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule fastk:
     input:
         "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
@@ -225,24 +273,7 @@ rule hifiasm:
     input:
         unpack(hifiasm_input)
     output:
-        bp_hap1_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
-        bp_hap1_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.lowQ.bed",
-        bp_hap1_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.noseq.gfa",
-        bp_hap2_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.gfa",
-        bp_hap2_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.lowQ.bed",
-        bp_hap2_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.noseq.gfa",
-        bp_p_ctg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
-        bp_p_ctg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.lowQ.bed",
-        bp_p_ctg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.noseq.gfa",
-        bp_p_utg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.gfa",
-        bp_p_utg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.lowQ.bed",
-        bp_p_utg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_utg.noseq.gfa",
-        bp_r_utg_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.gfa",
-        bp_r_utg_lowQ_bed = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.lowQ.bed",
-        bp_r_utg_noseq_gfa = "results/hifiasm/hifiasm/{assembly_name}.asm.bp.r_utg.noseq.gfa",
-        ec_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ec.bin",
-        ovlp_reverse_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ovlp.reverse.bin",
-        ovlp_source_bin = "results/hifiasm/hifiasm/{assembly_name}.asm.ovlp.source.bin"
+        **hifiasm_output_path()
     log:
         out = "logs/hifiasm_{assembly_name}.out",
         err = "logs/hifiasm_{assembly_name}.err"
@@ -251,13 +282,15 @@ rule hifiasm:
     threads:
         max(1, int(workflow.cores * 0.95))
     params:
-        ont_option = lambda wildcards, input: f"--ul {input.ont}" if "ont" in input.keys() else ""
+        ont_option = lambda wildcards, input: f"--ul {input.ont}" if "ont" in input.keys() else "",
+        hic_option = lambda wildcards, input: hifiasm_hic_option(input)
     shell:
         "hifiasm \
-            {input.hifi} \
             {params.ont_option} \
-            -o $(dirname {output.bp_p_ctg_gfa})/{wildcards.assembly_name}.asm \
-            -t {threads} > {log.out} 2> {log.err}"
+            {params.hic_option} \
+            -o $(dirname {output.primary_gfa})/{wildcards.assembly_name}.asm \
+            -t {threads} \
+            {input.hifi} > {log.out} 2> {log.err}"
 
 rule convert_gfa_to_fa:
     input:
@@ -724,6 +757,147 @@ rule copy_fcs_gx_clean:
         "../envs/fcs.yml"
     shell:
         "cp {input} {output} > {log.out} 2> {log.err}"
+
+rule prepare_yahs_input_assembly:
+    input:
+        "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+    output:
+        assembly = "results/yahs/input/{selected_assembly}/{assembly_name}.fa",
+        fai = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.fai"
+    log:
+        out = "logs/prepare_yahs_input_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/prepare_yahs_input_assembly_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/yahs.yml"
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output.assembly})
+            cp {input} {output.assembly}
+            samtools faidx {output.assembly}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule bwa_mem2_index_for_yahs:
+    input:
+        "results/yahs/input/{selected_assembly}/{assembly_name}.fa"
+    output:
+        prefix = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.0123",
+        amb = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.amb",
+        ann = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.ann",
+        bwt = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.bwt.2bit.64",
+        pac = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.pac"
+    log:
+        out = "logs/bwa_mem2_index_for_yahs_{selected_assembly}_{assembly_name}.out",
+        err = "logs/bwa_mem2_index_for_yahs_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/yahs.yml"
+    shell:
+        """
+        (
+            bwa-mem2 index {input}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule map_hic_reads_to_assembly:
+    input:
+        assembly = "results/yahs/input/{selected_assembly}/{assembly_name}.fa",
+        fai = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.fai",
+        prefix = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.0123",
+        amb = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.amb",
+        ann = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.ann",
+        bwt = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.bwt.2bit.64",
+        pac = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.pac",
+        r1 = "results/hic_reads/merged/{assembly_name}_hic_R1.fastq.gz",
+        r2 = "results/hic_reads/merged/{assembly_name}_hic_R2.fastq.gz"
+    output:
+        bam = "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam",
+        bai = "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam.bai"
+    log:
+        out = "logs/map_hic_reads_to_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/map_hic_reads_to_assembly_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/yahs.yml"
+    threads:
+        max(1, int(workflow.cores * 0.95))
+    shell:
+        """
+        (
+            output_dir=$(dirname {output.bam})
+            mkdir -p "$output_dir"
+            name_bam="$output_dir/{wildcards.assembly_name}.name_sorted.bam"
+            fixmate_bam="$output_dir/{wildcards.assembly_name}.fixmate.bam"
+            coord_bam="$output_dir/{wildcards.assembly_name}.coord_sorted.bam"
+            bwa-mem2 mem \
+                -5SP \
+                -t {threads} \
+                {input.assembly} \
+                {input.r1} \
+                {input.r2} \
+            | samtools view \
+                -bh \
+                -F 2316 \
+                - \
+            | samtools sort \
+                -n \
+                -m 2G \
+                -@ {threads} \
+                -o "$name_bam"
+            samtools fixmate \
+                -m \
+                "$name_bam" \
+                "$fixmate_bam"
+            samtools sort \
+                -m 2G \
+                -@ {threads} \
+                -o "$coord_bam" \
+                "$fixmate_bam"
+            samtools markdup \
+                -@ {threads} \
+                -r \
+                "$coord_bam" \
+                {output.bam}
+            samtools index {output.bam}
+            rm -f "$name_bam" "$fixmate_bam" "$coord_bam"
+        ) > {log.out} 2> {log.err}
+        """
+
+rule yahs:
+    input:
+        assembly = "results/yahs/input/{selected_assembly}/{assembly_name}.fa",
+        fai = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.fai",
+        bam = "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam"
+    output:
+        assembly = "results/yahs/assembly/{selected_assembly}/{assembly_name}.fa",
+        agp = "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
+        bin = "results/yahs/bin/{selected_assembly}/{assembly_name}.bin"
+    log:
+        out = "logs/yahs_{selected_assembly}_{assembly_name}.out",
+        err = "logs/yahs_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/yahs.yml"
+    params:
+        enzyme_option = (
+            lambda wildcards: f"-e {config['yahs_restriction_enzymes']}"
+            if config.get("yahs_restriction_enzymes", None)
+            else ""
+        )
+    shell:
+        """
+        (
+            run_dir=results/yahs/run/{wildcards.selected_assembly}/{wildcards.assembly_name}
+            prefix="$run_dir/{wildcards.assembly_name}"
+            mkdir -p "$run_dir" $(dirname {output.assembly}) $(dirname {output.agp}) $(dirname {output.bin})
+            yahs \
+                {params.enzyme_option} \
+                -o "$prefix" \
+                {input.assembly} \
+                {input.bam}
+            cp "${{prefix}}.bin" {output.bin}
+            cp "${{prefix}}_scaffolds_final.agp" {output.agp}
+            cp "${{prefix}}_scaffolds_final.fa" {output.assembly}
+        ) > {log.out} 2> {log.err}
+        """
 
 rule seqkit_stats:
     input:
