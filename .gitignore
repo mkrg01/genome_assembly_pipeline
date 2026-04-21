@@ -13,3 +13,7 @@
 
 # Container image
 *.sif
+
+# Test and Python caches
+/tests/workdir/.snakemake/
+**/__pycache__/

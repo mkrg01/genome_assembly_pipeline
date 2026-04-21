@@ -1,0 +1,27 @@
+assembly_name: "Testus_example"
+assembly_version: "v0.0.0"
+ont_reads: null
+oatk_lineage: "magnoliopsida"
+oatk_organelle: "mito_and_pltd"
+oatk_minimum_kmer_coverage: "250"
+fcs_gx_taxid: "122299"
+busco_lineage_dataset: "embryophyta_odb12"
+tidk_clade: "Caryophyllales"
+tidk_telomeric_repeat_unit: "AAACCCT"
+dfam_version: "3.9"
+dfam_partitions: "0,5,6"
+dfam_lineage_name: "Viridiplantae"
+orthodb_version: "12"
+orthodb_lineage: "Viridiplantae"
+orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587"
+min_long_contig_length: 1000000
+circos_plot_tracks:
+  - {id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500000}
+  - {id: "LTR", label: "LTR", color: "#E39C37", window_size: 500000}
+  - {id: "LINE", label: "LINE", color: "#C44E52", window_size: 500000}
+  - {id: "SINE", label: "SINE", color: "#937860", window_size: 500000}
+  - {id: "DNA_transposon", label: "DNA transposon", color: "#8172B3", window_size: 500000}
+  - {id: "satellite", label: "Satellite DNA", color: "#2F2F2F", window_size: 500000}
+  - {id: "tidk", label: "Telomeric repeat", color: "#DD8452", window_size: 10000}
+circos_plot_x_major_tick_interval: 10000000
+circos_plot_x_minor_tick_interval: 5000000
