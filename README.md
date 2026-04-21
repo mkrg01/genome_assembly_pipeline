@@ -6,7 +6,7 @@ This is an integrated pipeline for eukaryotic genome assembly and gene annotatio
 It currently supports PacBio HiFi reads and RNA-seq reads as core inputs, both of which are required.
 Optional integration of ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads is also supported. If Hi-C reads are configured, the pipeline additionally performs YaHS scaffolding for the assemblies listed in `selected_assemblies`.
 Downstream analysis can be run for any combination of the hifiasm `primary`, `hap1`, and `hap2` assemblies via `selected_assemblies`, and submission packages can be generated for a configurable subset via `submission_assemblies`.
-See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results) for details on the expected outputs.
+See [this page](docs/output_directory_structure.md) for details on the expected outputs.
 
 ## Requirements
 
@@ -61,4 +61,4 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > [!NOTE]
 > All rules except those with FCS wrapper scripts (`fcs.py`, `run_fcsadaptor.sh`) run in containers. These wrapper scripts internally call the main FCS functions, which are executed inside containers.
 
-The output will be generated in the [`results` directory](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results).
+The output will be generated in the [`results` directory](docs/output_directory_structure.md).
