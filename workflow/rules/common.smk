@@ -313,6 +313,9 @@ def scaffold_all_inputs(assembly_name):
         "results/yahs/assembly/{selected_assembly}/{assembly_name}.fa",
         "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
         "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam",
+        "results/juicebox/{selected_assembly}/{assembly_name}.hic",
+        "results/juicebox/{selected_assembly}/{assembly_name}.assembly",
+        "results/juicebox/{selected_assembly}/{assembly_name}.liftover.agp",
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     return inputs

@@ -4,7 +4,7 @@
 
 This is an integrated pipeline for eukaryotic genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads as core inputs, both of which are required.
-Optional integration of ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads is also supported. If Hi-C reads are configured, the pipeline additionally performs YaHS scaffolding for the assemblies listed in `selected_assemblies`.
+Optional integration of ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads is also supported. If Hi-C reads are configured, the pipeline additionally performs YaHS scaffolding and prepares Juicebox-ready contact maps for the assemblies listed in `selected_assemblies`.
 Downstream analysis can be run for any combination of the hifiasm `primary`, `hap1`, and `hap2` assemblies via `selected_assemblies`, and submission packages can be generated for a configurable subset via `submission_assemblies`.
 See [this page](docs/output_directory_structure.md) for details on the expected outputs.
 
@@ -31,7 +31,7 @@ cd genome_assembly_pipeline
 ### 2. Prepare Input Files and Configure Settings
 
 See [`config/README.md`](https://github.com/mkrg01/genome_assembly_pipeline/blob/main/config/README.md) for details on preparing input files and adjusting configuration parameters.
-In particular, set `selected_assemblies` and `submission_assemblies` in `config/config.yml` to choose which of `primary`, `hap1`, and `hap2` should run through the downstream workflow, and set `hic_reads_r1` / `hic_reads_r2` if you want to enable hifiasm Hi-C phasing plus YaHS scaffolding.
+In particular, set `selected_assemblies` and `submission_assemblies` in `config/config.yml` to choose which of `primary`, `hap1`, and `hap2` should run through the downstream workflow, and set `hic_reads_r1` / `hic_reads_r2` if you want to enable hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps.
 
 ### 3. Execute the Workflow
 
@@ -48,7 +48,7 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
 > 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
 > 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
-> 4. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding when Hi-C reads are configured. Without Hi-C reads, this is effectively the same as `remove_contamination_all`.
+> 4. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding and Juicebox-ready contact maps when Hi-C reads are configured. Without Hi-C reads, this is effectively the same as `remove_contamination_all`.
 > 5. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
 > 6. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
 > 7. `circos_plot_all`: Runs rules up to the Circos plot (equivalent to `all`).

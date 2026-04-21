@@ -1,0 +1,7 @@
+name: juicebox
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::yahs=1.2.2
+  - bioconda::juicertools=2.20.00
+  - openjdk

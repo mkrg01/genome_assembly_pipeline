@@ -899,6 +899,90 @@ rule yahs:
         ) > {log.out} 2> {log.err}
         """
 
+rule prepare_juicebox_jbat:
+    input:
+        bin = "results/yahs/bin/{selected_assembly}/{assembly_name}.bin",
+        agp = "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
+        fai = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.fai"
+    output:
+        txt = "results/juicebox/{selected_assembly}/{assembly_name}.txt",
+        liftover_agp = "results/juicebox/{selected_assembly}/{assembly_name}.liftover.agp",
+        assembly = "results/juicebox/{selected_assembly}/{assembly_name}.assembly",
+        assembly_agp = "results/juicebox/{selected_assembly}/{assembly_name}.assembly.agp",
+        juicer_pre_log = "results/juicebox/{selected_assembly}/{assembly_name}.juicer_pre.log"
+    log:
+        out = "logs/prepare_juicebox_jbat_{selected_assembly}_{assembly_name}.out",
+        err = "logs/prepare_juicebox_jbat_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/juicebox.yml"
+    shell:
+        """
+        (
+            output_dir=$(dirname {output.txt})
+            prefix="$output_dir/{wildcards.assembly_name}"
+            mkdir -p "$output_dir"
+            juicer pre \
+                -a \
+                -o "$prefix" \
+                {input.bin} \
+                {input.agp} \
+                {input.fai} \
+                > {output.juicer_pre_log} 2>&1
+        ) > {log.out} 2> {log.err}
+        """
+
+rule extract_juicebox_chrom_sizes:
+    input:
+        "results/juicebox/{selected_assembly}/{assembly_name}.juicer_pre.log"
+    output:
+        "results/juicebox/{selected_assembly}/{assembly_name}.chrom.sizes"
+    log:
+        out = "logs/extract_juicebox_chrom_sizes_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_juicebox_chrom_sizes_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/juicebox.yml"
+    shell:
+        """
+        (
+            awk '$1=="PRE_C_SIZE"{{print $2"\\t"$3}}' {input} > {output}
+            test -s {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule build_juicebox_hic:
+    input:
+        txt = "results/juicebox/{selected_assembly}/{assembly_name}.txt",
+        chrom_sizes = "results/juicebox/{selected_assembly}/{assembly_name}.chrom.sizes"
+    output:
+        "results/juicebox/{selected_assembly}/{assembly_name}.hic"
+    log:
+        out = "logs/build_juicebox_hic_{selected_assembly}_{assembly_name}.out",
+        err = "logs/build_juicebox_hic_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/juicebox.yml"
+    shell:
+        """
+        (
+            hic_part={output}.part
+            if command -v juicer_tools >/dev/null 2>&1; then
+                juicer_tools pre {input.txt} "$hic_part" {input.chrom_sizes}
+            elif command -v juicertools >/dev/null 2>&1; then
+                juicertools pre {input.txt} "$hic_part" {input.chrom_sizes}
+            else
+                juicer_tools_jar=""
+                if [ -n "${{CONDA_PREFIX:-}}" ]; then
+                    juicer_tools_jar=$(find "$CONDA_PREFIX" -maxdepth 4 -type f \\( -name 'juicer_tools*.jar' -o -name 'juicertools*.jar' \\) | head -n 1)
+                fi
+                if [ -z "$juicer_tools_jar" ]; then
+                    echo "Could not locate a juicer_tools executable or jar in the active conda environment." >&2
+                    exit 1
+                fi
+                java -jar "$juicer_tools_jar" pre {input.txt} "$hic_part" {input.chrom_sizes}
+            fi
+            mv "$hic_part" {output}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule seqkit_stats:
     input:
         "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"

@@ -13,7 +13,7 @@ The exact set of directories depends on the target you run and on the configurat
 
 - `results/submission/{selected_assembly}/` is created only for assemblies listed in `submission_assemblies`.
 - `results/ont_reads/` is created only when `ont_reads` is set.
-- `results/hic_reads/` and `results/yahs/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
+- `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
 - Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mito`, `pltd`, or `mito_and_pltd`).
 - Track-specific subdirectories in `results/circos_plot/` depend on `circos_plot_tracks`.
 
@@ -170,6 +170,14 @@ Sequence sets copied from BRAKER3 predictions, plus their summary metrics.
   BUSCO results for the predicted protein set.
 - `seqkit/{selected_assembly}/`
   SeqKit statistics for the predicted protein set.
+
+## `results/juicebox/`
+
+Created only when Hi-C reads are configured.
+
+- `{selected_assembly}/`
+  Juicebox-ready files generated from the YaHS scaffolding outputs, including the Hi-C contact map (`*.hic`), assembly annotation file (`*.assembly`), liftover AGP (`*.liftover.agp`), helper AGP (`*.assembly.agp`), link table (`*.txt`), chromosome-size file (`*.chrom.sizes`), and the `juicer pre` log (`*.juicer_pre.log`).
+  If the total scaffolded assembly size exceeds 2 Gb, the `*.juicer_pre.log` file also records the Juicebox scale factor that should be set in `Assembly > Set Scale`.
 
 ## `results/longest_cds/`
 
