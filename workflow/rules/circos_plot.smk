@@ -4,16 +4,17 @@ repeat_classes = [circos_id for circos_id in circos_ids if circos_id in ["LTR", 
 
 wildcard_constraints:
     assembly_name = config["assembly_name"],
+    selected_assembly = selected_assembly_pattern,
     repeat_class = "|".join(["LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite"])
 
 rule calculate_long_contig_lengths:
     input:
-        "results/fcs/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/circos_plot/{assembly_name}_long_contig_length.tsv"
+        "results/circos_plot/{selected_assembly}/{assembly_name}_long_contig_length.tsv"
     log:
-        out = "logs/calculate_long_contig_lengths_{assembly_name}.out",
-        err = "logs/calculate_long_contig_lengths_{assembly_name}.err"
+        out = "logs/calculate_long_contig_lengths_{selected_assembly}_{assembly_name}.out",
+        err = "logs/calculate_long_contig_lengths_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -25,12 +26,12 @@ rule calculate_long_contig_lengths:
 
 rule make_gene_bed:
     input:
-        "results/braker3/{assembly_name}/braker.gff3"
+        "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3"
     output:
-        "results/circos_plot/gene/{assembly_name}_gene.bed"
+        "results/circos_plot/gene/{selected_assembly}/{assembly_name}_gene.bed"
     log:
-        out = "logs/make_gene_bed_{assembly_name}.out",
-        err = "logs/make_gene_bed_{assembly_name}.err"
+        out = "logs/make_gene_bed_{selected_assembly}_{assembly_name}.out",
+        err = "logs/make_gene_bed_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/bedtools.yml"
     shell:
@@ -44,14 +45,14 @@ rule make_gene_bed:
 
 rule calculate_gene_coverage_per_window:
     input:
-        gene_bed = "results/circos_plot/gene/{assembly_name}_gene.bed",
-        long_contigs = "results/circos_plot/{assembly_name}_long_contig_length.tsv"
+        gene_bed = "results/circos_plot/gene/{selected_assembly}/{assembly_name}_gene.bed",
+        long_contigs = "results/circos_plot/{selected_assembly}/{assembly_name}_long_contig_length.tsv"
     output:
-        windows = "results/circos_plot/gene/{assembly_name}_windows.bed",
-        windows_gene_coverage = "results/circos_plot/gene/{assembly_name}_windows_gene_coverage.bed"
+        windows = "results/circos_plot/gene/{selected_assembly}/{assembly_name}_windows.bed",
+        windows_gene_coverage = "results/circos_plot/gene/{selected_assembly}/{assembly_name}_windows_gene_coverage.bed"
     log:
-        out = "logs/calculate_gene_coverage_per_window_{assembly_name}.out",
-        err = "logs/calculate_gene_coverage_per_window_{assembly_name}.err"
+        out = "logs/calculate_gene_coverage_per_window_{selected_assembly}_{assembly_name}.out",
+        err = "logs/calculate_gene_coverage_per_window_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/bedtools.yml"
     params:
@@ -73,12 +74,12 @@ rule calculate_gene_coverage_per_window:
 
 rule make_repeat_bed:
     input:
-        "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.out.xm"
+        "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.out.xm"
     output:
-        "results/circos_plot/repeatmasker_repeat/{assembly_name}_repeat_all.bed"
+        "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{assembly_name}_repeat_all.bed"
     log:
-        out = "logs/make_repeat_bed_{assembly_name}.out",
-        err = "logs/make_repeat_bed_{assembly_name}.err"
+        out = "logs/make_repeat_bed_{selected_assembly}_{assembly_name}.out",
+        err = "logs/make_repeat_bed_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/bedtools.yml"
     shell:
@@ -90,12 +91,12 @@ rule make_repeat_bed:
 
 rule make_repeat_bed_per_class:
     input:
-        "results/circos_plot/repeatmasker_repeat/{assembly_name}_repeat_all.bed"
+        "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{assembly_name}_repeat_all.bed"
     output:
-        "results/circos_plot/repeatmasker_repeat/{repeat_class}/{assembly_name}_repeat.bed"
+        "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{repeat_class}/{assembly_name}_repeat.bed"
     log:
-        out = "logs/make_repeat_bed_per_class_{assembly_name}_{repeat_class}.out",
-        err = "logs/make_repeat_bed_per_class_{assembly_name}_{repeat_class}.err"
+        out = "logs/make_repeat_bed_per_class_{selected_assembly}_{assembly_name}_{repeat_class}.out",
+        err = "logs/make_repeat_bed_per_class_{selected_assembly}_{assembly_name}_{repeat_class}.err"
     conda:
         "../envs/pybase.yml"
     script:
@@ -103,14 +104,14 @@ rule make_repeat_bed_per_class:
 
 rule calculate_repeat_coverage_per_window:
     input:
-        repeat_bed = "results/circos_plot/repeatmasker_repeat/{repeat_class}/{assembly_name}_repeat.bed",
-        long_contigs = "results/circos_plot/{assembly_name}_long_contig_length.tsv"
+        repeat_bed = "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{repeat_class}/{assembly_name}_repeat.bed",
+        long_contigs = "results/circos_plot/{selected_assembly}/{assembly_name}_long_contig_length.tsv"
     output:
-        windows = "results/circos_plot/repeatmasker_repeat/{repeat_class}/{assembly_name}_windows.bed",
-        windows_repeat_coverage = "results/circos_plot/repeatmasker_repeat/{repeat_class}/{assembly_name}_windows_repeat_coverage.bed"
+        windows = "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{repeat_class}/{assembly_name}_windows.bed",
+        windows_repeat_coverage = "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{repeat_class}/{assembly_name}_windows_repeat_coverage.bed"
     log:
-        out = "logs/calculate_repeat_coverage_per_window_{assembly_name}_{repeat_class}.out",
-        err = "logs/calculate_repeat_coverage_per_window_{assembly_name}_{repeat_class}.err"
+        out = "logs/calculate_repeat_coverage_per_window_{selected_assembly}_{assembly_name}_{repeat_class}.out",
+        err = "logs/calculate_repeat_coverage_per_window_{selected_assembly}_{assembly_name}_{repeat_class}.err"
     conda:
         "../envs/bedtools.yml"
     params:
@@ -132,12 +133,12 @@ rule calculate_repeat_coverage_per_window:
 
 rule tidk_search_for_circos_plot:
     input:
-        "results/fcs/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/circos_plot/tidk_repeat/{assembly_name}_windows_tidk.tsv"
+        "results/circos_plot/tidk_repeat/{selected_assembly}/{assembly_name}_windows_tidk.tsv"
     log:
-        out = "logs/tidk_search_for_circos_plot_{assembly_name}.out",
-        err = "logs/tidk_search_for_circos_plot_{assembly_name}.err"
+        out = "logs/tidk_search_for_circos_plot_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_search_for_circos_plot_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     params:
@@ -157,12 +158,12 @@ rule tidk_search_for_circos_plot:
         """
 rule circos_plot:
     input:
-        **circos_plot_input_path()
+        unpack(circos_plot_input_path)
     output:
-        "results/circos_plot/{assembly_name}_circos_plot.pdf"
+        "results/circos_plot/{selected_assembly}/{assembly_name}_circos_plot.pdf"
     log:
-        out = "logs/circos_plot_{assembly_name}.out",
-        err = "logs/circos_plot_{assembly_name}.err"
+        out = "logs/circos_plot_{selected_assembly}_{assembly_name}.out",
+        err = "logs/circos_plot_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pycirclize.yml"
     script:
@@ -170,12 +171,12 @@ rule circos_plot:
 
 rule linear_plot:
     input:
-        **circos_plot_input_path()
+        unpack(circos_plot_input_path)
     output:
-        "results/circos_plot/{assembly_name}_linear_plot.pdf"
+        "results/circos_plot/{selected_assembly}/{assembly_name}_linear_plot.pdf"
     log:
-        out = "logs/linear_plot_{assembly_name}.out",
-        err = "logs/linear_plot_{assembly_name}.err"
+        out = "logs/linear_plot_{selected_assembly}_{assembly_name}.out",
+        err = "logs/linear_plot_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pycirclize.yml"
     script:

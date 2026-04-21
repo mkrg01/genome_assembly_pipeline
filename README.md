@@ -5,6 +5,7 @@
 This is an integrated pipeline for eukaryotic genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads as core inputs, both of which are required.
 Optional integration of ultra-long Oxford Nanopore (ONT) reads is also supported.
+Downstream analysis can be run for any combination of the hifiasm `primary`, `hap1`, and `hap2` assemblies via `selected_assemblies`, and submission packages can be generated for a configurable subset via `submission_assemblies`.
 See [this page](https://github.com/mkrg01/genome_assembly_pipeline/wiki/Directory-structure-in-results) for details on the expected outputs.
 
 ## Requirements
@@ -30,6 +31,7 @@ cd genome_assembly_pipeline
 ### 2. Prepare Input Files and Configure Settings
 
 See [`config/README.md`](https://github.com/mkrg01/genome_assembly_pipeline/blob/main/config/README.md) for details on preparing input files and adjusting configuration parameters.
+In particular, set `selected_assemblies` and `submission_assemblies` in `config/config.yml` to choose which of `primary`, `hap1`, and `hap2` should run through the downstream workflow.
 
 ### 3. Execute the Workflow
 

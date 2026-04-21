@@ -48,6 +48,81 @@ def resolve_unique_existing_path(candidate_paths, description):
     )
 
 
+VALID_SELECTED_ASSEMBLIES = (
+    "primary",
+    "hap1",
+    "hap2",
+)
+
+HIFIASM_GFA_PATHS = {
+    "primary": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
+    "hap1": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap1.p_ctg.gfa",
+    "hap2": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.hap2.p_ctg.gfa",
+}
+
+
+def validate_choice_list(config_key, values, allowed_values):
+    if not isinstance(values, list):
+        raise ValueError(
+            f"'{config_key}' in config.yml must be a YAML list containing one or more values "
+            f"from: {', '.join(allowed_values)}"
+        )
+    if not values:
+        raise ValueError(f"'{config_key}' in config.yml must contain at least one value.")
+
+    normalized_values = []
+    seen = set()
+    for value in values:
+        if not isinstance(value, str):
+            raise ValueError(
+                f"'{config_key}' in config.yml must contain only strings, but found: {value!r}"
+            )
+        if value not in allowed_values:
+            raise ValueError(
+                f"Invalid value '{value}' for '{config_key}' in config.yml. Must be one of: "
+                f"{', '.join(allowed_values)}"
+            )
+        if value in seen:
+            raise ValueError(
+                f"Duplicate value '{value}' found in '{config_key}' in config.yml."
+            )
+        normalized_values.append(value)
+        seen.add(value)
+    return normalized_values
+
+
+selected_assemblies = validate_choice_list(
+    "selected_assemblies",
+    config.get("selected_assemblies", ["primary"]),
+    VALID_SELECTED_ASSEMBLIES,
+)
+submission_assemblies = validate_choice_list(
+    "submission_assemblies",
+    config.get("submission_assemblies", ["primary"]),
+    VALID_SELECTED_ASSEMBLIES,
+)
+if not set(submission_assemblies).issubset(selected_assemblies):
+    raise ValueError(
+        "'submission_assemblies' in config.yml must be a subset of 'selected_assemblies'."
+    )
+
+selected_assembly_pattern = "|".join(selected_assemblies)
+submission_assembly_pattern = "|".join(submission_assemblies)
+
+
+def expand_selected_assembly_paths(pattern, assembly_name, assemblies=None, **extra_wildcards):
+    return expand(
+        pattern,
+        assembly_name=assembly_name,
+        selected_assembly=assemblies or selected_assemblies,
+        **extra_wildcards,
+    )
+
+
+def hifiasm_selected_assembly_gfa_path(assembly_name, selected_assembly):
+    return HIFIASM_GFA_PATHS[selected_assembly].format(assembly_name=assembly_name)
+
+
 def seqkit_stats_organelle_path():
     mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"
     mito_tsv = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.tsv"
@@ -78,77 +153,106 @@ def seqkit_stats_organelle_real_path(assembly_name):
 
 
 def assembly_all_inputs(assembly_name):
-    return [
+    inputs = [
         f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
         *seqkit_stats_organelle_real_path(assembly_name),
-        f"results/hifiasm/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/hifiasm/length/{assembly_name}_length.pdf",
-        f"results/hifiasm/gc_content/{assembly_name}_gc_content.pdf",
-        f"results/hifiasm/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
-        f"results/hifiasm/merqury/{assembly_name}.merqury.qv",
-        f"results/hifiasm/depth/{assembly_name}_contig_depth.pdf",
-        f"results/hifiasm/tidk/{assembly_name}_tidk_find.svg",
-        f"results/hifiasm/tidk/{assembly_name}_tidk_explore.tsv",
-        f"results/hifiasm/tidk/{assembly_name}_tidk_search.svg",
     ]
+    for pattern in (
+        "results/hifiasm/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/hifiasm/length/{selected_assembly}/{assembly_name}_length.pdf",
+        "results/hifiasm/gc_content/{selected_assembly}/{assembly_name}_gc_content.pdf",
+        "results/hifiasm/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
+        "results/hifiasm/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
+        "results/hifiasm/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
+        "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
+        "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    return inputs
 
 
 def remove_organelle_all_inputs(assembly_name):
-    return assembly_all_inputs(assembly_name) + [
-        f"results/organelle_removal/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/organelle_removal/length/{assembly_name}_length.pdf",
-        f"results/organelle_removal/gc_content/{assembly_name}_gc_content.pdf",
-        f"results/organelle_removal/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
-        f"results/organelle_removal/merqury/{assembly_name}.merqury.qv",
-        f"results/organelle_removal/depth/{assembly_name}_contig_depth.pdf",
-        f"results/organelle_removal/tidk/{assembly_name}_tidk_find.svg",
-        f"results/organelle_removal/tidk/{assembly_name}_tidk_explore.tsv",
-        f"results/organelle_removal/tidk/{assembly_name}_tidk_search.svg",
-        f"results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_depth.pdf",
-    ]
+    inputs = assembly_all_inputs(assembly_name)
+    for pattern in (
+        "results/organelle_removal/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/organelle_removal/length/{selected_assembly}/{assembly_name}_length.pdf",
+        "results/organelle_removal/gc_content/{selected_assembly}/{assembly_name}_gc_content.pdf",
+        "results/organelle_removal/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
+        "results/organelle_removal/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
+        "results/organelle_removal/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
+        "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
+        "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
+        "results/hifiasm/map_to_organelle/organelle_contig_depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    return inputs
 
 
 def remove_contamination_all_inputs(assembly_name):
-    return remove_organelle_all_inputs(assembly_name) + [
-        f"results/fcs/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/fcs/length/{assembly_name}_length.pdf",
-        f"results/fcs/gc_content/{assembly_name}_gc_content.pdf",
-        f"results/fcs/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa",
-        f"results/fcs/merqury/{assembly_name}.merqury.qv",
-        f"results/fcs/depth/{assembly_name}_contig_depth.pdf",
-        f"results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt",
-    ]
+    inputs = remove_organelle_all_inputs(assembly_name)
+    for pattern in (
+        "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/fcs/length/{selected_assembly}/{assembly_name}_length.pdf",
+        "results/fcs/gc_content/{selected_assembly}/{assembly_name}_gc_content.pdf",
+        "results/fcs/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
+        "results/fcs/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
+        "results/fcs/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    inputs.append(
+        f"results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
+    )
+    return inputs
 
 
 def softmask_all_inputs(assembly_name):
-    return remove_contamination_all_inputs(assembly_name) + [
-        f"results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
-    ]
+    return remove_contamination_all_inputs(assembly_name) + expand_selected_assembly_paths(
+        "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
+        assembly_name,
+    )
 
 
 def gene_prediction_all_inputs(assembly_name, assembly_version):
-    return softmask_all_inputs(assembly_name) + [
-        f"results/isoforms/busco_proteins/BUSCO_{assembly_name}_aa.fa",
-        f"results/longest_cds/busco_proteins/BUSCO_{assembly_name}_aa.fa",
-        f"results/isoforms/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/longest_cds/seqkit/{assembly_name}_seqkit_stats.tsv",
-        f"results/longest_cds/omark/{assembly_name}_omark",
-        f"results/longest_cds/{assembly_name}_transcript.fa",
-        f"results/submission/{assembly_name}_{assembly_version}_genome.fa.gz",
-        f"results/submission/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
-        f"results/submission/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
-        f"results/submission/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
-        f"results/submission/{assembly_name}_{assembly_version}_representative.gff3.gz",
-        f"results/submission/{assembly_name}_{assembly_version}_README.md",
-    ]
+    inputs = softmask_all_inputs(assembly_name)
+    for pattern in (
+        "results/isoforms/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
+        "results/longest_cds/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
+        "results/isoforms/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/longest_cds/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/longest_cds/omark/{selected_assembly}/{assembly_name}_omark",
+        "results/longest_cds/{selected_assembly}/{assembly_name}_transcript.fa",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    for pattern in (
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_genome.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_README.md",
+    ):
+        inputs.extend(
+            expand_selected_assembly_paths(
+                pattern,
+                assembly_name,
+                assemblies=submission_assemblies,
+                assembly_version=assembly_version,
+            )
+        )
+    return inputs
 
 
 def circos_plot_all_inputs(assembly_name, assembly_version):
-    return gene_prediction_all_inputs(assembly_name, assembly_version) + [
-        f"results/circos_plot/{assembly_name}_circos_plot.pdf",
-        f"results/circos_plot/{assembly_name}_linear_plot.pdf",
-    ]
+    return gene_prediction_all_inputs(
+        assembly_name, assembly_version
+    ) + expand_selected_assembly_paths(
+        "results/circos_plot/{selected_assembly}/{assembly_name}_{plot_kind}.pdf",
+        assembly_name,
+        plot_kind=["circos_plot", "linear_plot"],
+    )
 
 
 def hifi_fastplong_reads(_wildcards):
@@ -297,21 +401,25 @@ def braker3_rnaseq_inputs(_wildcards):
     )
 
 
-def circos_plot_input_path():
+def circos_plot_input_path(wildcards):
+    selected_assembly = wildcards.selected_assembly
+    assembly_name = wildcards.assembly_name
     input_dict = {
-        "contig": "results/circos_plot/{assembly_name}_long_contig_length.tsv"
+        "contig": (
+            f"results/circos_plot/{selected_assembly}/{assembly_name}_long_contig_length.tsv"
+        )
     }
     if "gene" in circos_ids:
         input_dict["gene"] = (
-            "results/circos_plot/gene/{assembly_name}_windows_gene_coverage.bed"
+            f"results/circos_plot/gene/{selected_assembly}/{assembly_name}_windows_gene_coverage.bed"
         )
     for repeat_class in repeat_classes:
         input_dict[repeat_class] = (
-            f"results/circos_plot/repeatmasker_repeat/{repeat_class}/"
-            "{assembly_name}_windows_repeat_coverage.bed"
+            f"results/circos_plot/repeatmasker_repeat/{selected_assembly}/{repeat_class}/"
+            f"{assembly_name}_windows_repeat_coverage.bed"
         )
     if "tidk" in circos_ids:
         input_dict["tidk"] = (
-            "results/circos_plot/tidk_repeat/{assembly_name}_windows_tidk.tsv"
+            f"results/circos_plot/tidk_repeat/{selected_assembly}/{assembly_name}_windows_tidk.tsv"
         )
     return input_dict

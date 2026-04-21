@@ -1,5 +1,7 @@
 assembly_name: "Testus_example"
 assembly_version: "v0.0.0"
+selected_assemblies: ["primary"]
+submission_assemblies: ["primary"]
 ont_reads: null
 oatk_lineage: "magnoliopsida"
 oatk_organelle: "mito_and_pltd"

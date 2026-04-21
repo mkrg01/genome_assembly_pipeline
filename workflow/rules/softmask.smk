@@ -1,21 +1,22 @@
 wildcard_constraints:
-    assembly_name = config["assembly_name"]
+    assembly_name = config["assembly_name"],
+    selected_assembly = selected_assembly_pattern
 
 rule build_repeatmodeler_database:
     input:
-        "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        nhr = "results/repeatmodeler/{assembly_name}.nhr",
-        nin = "results/repeatmodeler/{assembly_name}.nin",
-        njs = "results/repeatmodeler/{assembly_name}.njs",
-        nnd = "results/repeatmodeler/{assembly_name}.nnd",
-        nni = "results/repeatmodeler/{assembly_name}.nni",
-        nog = "results/repeatmodeler/{assembly_name}.nog",
-        nsq = "results/repeatmodeler/{assembly_name}.nsq",
-        translation = "results/repeatmodeler/{assembly_name}.translation"
+        nhr = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nhr",
+        nin = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nin",
+        njs = "results/repeatmodeler/{selected_assembly}/{assembly_name}.njs",
+        nnd = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nnd",
+        nni = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nni",
+        nog = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nog",
+        nsq = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nsq",
+        translation = "results/repeatmodeler/{selected_assembly}/{assembly_name}.translation"
     log:
-        out = "logs/build_repeatmodeler_database_{assembly_name}.out",
-        err = "logs/build_repeatmodeler_database_{assembly_name}.err"
+        out = "logs/build_repeatmodeler_database_{selected_assembly}_{assembly_name}.out",
+        err = "logs/build_repeatmodeler_database_{selected_assembly}_{assembly_name}.err"
     container:
         "docker://dfam/tetools:1.93"
     shell:
@@ -25,21 +26,21 @@ rule build_repeatmodeler_database:
 
 rule repeatmodeler:
     input:
-        nhr = "results/repeatmodeler/{assembly_name}.nhr",
-        nin = "results/repeatmodeler/{assembly_name}.nin",
-        njs = "results/repeatmodeler/{assembly_name}.njs",
-        nnd = "results/repeatmodeler/{assembly_name}.nnd",
-        nni = "results/repeatmodeler/{assembly_name}.nni",
-        nog = "results/repeatmodeler/{assembly_name}.nog",
-        nsq = "results/repeatmodeler/{assembly_name}.nsq",
-        translation = "results/repeatmodeler/{assembly_name}.translation"
+        nhr = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nhr",
+        nin = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nin",
+        njs = "results/repeatmodeler/{selected_assembly}/{assembly_name}.njs",
+        nnd = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nnd",
+        nni = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nni",
+        nog = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nog",
+        nsq = "results/repeatmodeler/{selected_assembly}/{assembly_name}.nsq",
+        translation = "results/repeatmodeler/{selected_assembly}/{assembly_name}.translation"
     output:
-        consensus = "results/repeatmodeler/{assembly_name}-families.fa",
-        seed = "results/repeatmodeler/{assembly_name}-families.stk",
-        log = "results/repeatmodeler/{assembly_name}-rmod.log"
+        consensus = "results/repeatmodeler/{selected_assembly}/{assembly_name}-families.fa",
+        seed = "results/repeatmodeler/{selected_assembly}/{assembly_name}-families.stk",
+        log = "results/repeatmodeler/{selected_assembly}/{assembly_name}-rmod.log"
     log:
-        out = "logs/repeatmodeler_{assembly_name}.out",
-        err = "logs/repeatmodeler_{assembly_name}.err"
+        out = "logs/repeatmodeler_{selected_assembly}_{assembly_name}.out",
+        err = "logs/repeatmodeler_{selected_assembly}_{assembly_name}.err"
     container:
         "docker://dfam/tetools:1.93"
     threads:
@@ -47,13 +48,13 @@ rule repeatmodeler:
     shell:
         """
         (
-            cd $(dirname {input.nhr})
+            cd "$(dirname {input.nhr})"
             RepeatModeler \
                 -database {wildcards.assembly_name} \
                 -threads {threads} \
                 -srand 1 \
                 -LTRStruct
-            cd ../../
+            cd "$OLDPWD"
         ) > {log.out} 2> {log.err}
         """
 
@@ -133,12 +134,12 @@ rule export_dfam_repeat_fasta:
 
 rule merge_repeat_datasets:
     input:
-        repeatmodeler = "results/repeatmodeler/{assembly_name}-families.fa",
+        repeatmodeler = "results/repeatmodeler/{selected_assembly}/{assembly_name}-families.fa",
         dfam = f"results/repeatmasker/dfam/dfam_{config['dfam_lineage_name']}.repeat.fasta"
     output:
-        "results/repeatmasker/library/{assembly_name}_repeatmasker_lib.fa"
+        "results/repeatmasker/library/{selected_assembly}/{assembly_name}_repeatmasker_lib.fa"
     log:
-        "logs/merge_repeat_datasets_{assembly_name}.err"
+        "logs/merge_repeat_datasets_{selected_assembly}_{assembly_name}.err"
     container:
         "docker://dfam/tetools:1.93"
     shell:
@@ -146,14 +147,14 @@ rule merge_repeat_datasets:
 
 rule repeatmasker:
     input:
-        library = "results/repeatmasker/library/{assembly_name}_repeatmasker_lib.fa",
-        assembly = "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        library = "results/repeatmasker/library/{selected_assembly}/{assembly_name}_repeatmasker_lib.fa",
+        assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        masked = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
-        out_xm = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.out.xm"
+        masked = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
+        out_xm = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.out.xm"
     log:
-        out = "logs/repeatmasker_{assembly_name}.out",
-        err = "logs/repeatmasker_{assembly_name}.err"
+        out = "logs/repeatmasker_{selected_assembly}_{assembly_name}.out",
+        err = "logs/repeatmasker_{selected_assembly}_{assembly_name}.err"
     container:
         "docker://dfam/tetools:1.93"
     threads:
@@ -161,17 +162,20 @@ rule repeatmasker:
     shell:
         """
         (
-            cd $(dirname {output.masked})
+            library=$(realpath {input.library})
+            assembly=$(realpath {input.assembly})
+            output_dir=$(dirname {output.masked})
+            mkdir -p "$output_dir"
+            cd "$output_dir"
             RepeatMasker \
                 -engine rmblast \
                 -parallel $(( {threads} / 4)) \
-                -lib ../../{input.library} \
-                -dir ../../$(dirname {output.masked}) \
+                -lib "$library" \
+                -dir "$PWD" \
                 -xsmall \
                 -gff \
                 -xm \
-                ../../{input.assembly}
-            cd ../../
-            mv .RepeatMaskerCache $(dirname {output.masked})/
+                "$assembly"
+            cd "$OLDPWD"
         ) > {log.out} 2> {log.err}
         """

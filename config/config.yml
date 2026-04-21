@@ -1,5 +1,7 @@
 assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
 assembly_version: "v1.0" # Version of the assembly. Used for naming output files.
+selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
+submission_assemblies: ["primary"] # One or more assemblies to prepare for submission. Must be a subset of `selected_assemblies`.
 ont_reads: null # Optional: Path to ultra-long ONT reads in FASTQ format (e.g., "raw_data/ont_reads.fastq.gz", "raw_data/ont_reads.fq.gz", "raw_data/ont_reads.fastq", or "raw_data/ont_reads.fq"). If null, hifiasm will run without ONT integration. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration
 oatk_lineage: "magnoliopsida" # Lineage of the Oatk HMM profile database to download. See: https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID
 oatk_organelle: "mito_and_pltd" # {"mito", "pltd", "mito_and_pltd"} - specify which organelle HMM profiles to include for Oatk. "mito_and_pltd" includes both mitochondrial and plastid profiles.

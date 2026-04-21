@@ -11,7 +11,8 @@ rnaseq_sample_ids = discover_sample_ids([
     (rnaseq_fastp_search_path, "_1.fastq"),
 ])
 wildcard_constraints:
-    assembly_name = config["assembly_name"]
+    assembly_name = config["assembly_name"],
+    selected_assembly = selected_assembly_pattern
 
 rule fastp_rnaseq_sample:
     input:
@@ -70,18 +71,18 @@ rule download_orthodb_proteins:
 
 rule braker3:
     input:
-        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
+        assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         rnaseq = braker3_rnaseq_inputs,
         protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
     output:
-        gff3 = "results/braker3/{assembly_name}/braker.gff3",
-        gtf = "results/braker3/{assembly_name}/braker.gtf",
-        cds = "results/braker3/{assembly_name}/braker.codingseq",
-        aa = "results/braker3/{assembly_name}/braker.aa",
-        augustus_config = directory("results/braker3/{assembly_name}/augustus_config")
+        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
+        gtf = "results/braker3/{selected_assembly}/{assembly_name}/braker.gtf",
+        cds = "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq",
+        aa = "results/braker3/{selected_assembly}/{assembly_name}/braker.aa",
+        augustus_config = directory("results/braker3/{selected_assembly}/{assembly_name}/augustus_config")
     log:
-        out = "logs/braker3_{assembly_name}.out",
-        err = "logs/braker3_{assembly_name}.err"
+        out = "logs/braker3_{selected_assembly}_{assembly_name}.out",
+        err = "logs/braker3_{selected_assembly}_{assembly_name}.err"
     container:
         "docker://teambraker/braker3:v3.0.7.6"
     threads:
@@ -108,14 +109,14 @@ rule braker3:
 
 rule copy_isoforms:
     input:
-        cds = "results/braker3/{assembly_name}/braker.codingseq",
-        aa = "results/braker3/{assembly_name}/braker.aa"
+        cds = "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq",
+        aa = "results/braker3/{selected_assembly}/{assembly_name}/braker.aa"
     output:
-        cds = "results/isoforms/{assembly_name}_cds.fa",
-        aa = "results/isoforms/{assembly_name}_aa.fa"
+        cds = "results/isoforms/{selected_assembly}/{assembly_name}_cds.fa",
+        aa = "results/isoforms/{selected_assembly}/{assembly_name}_aa.fa"
     log:
-        out = "logs/copy_isoforms_{assembly_name}.out",
-        err = "logs/copy_isoforms_{assembly_name}.err"
+        out = "logs/copy_isoforms_{selected_assembly}_{assembly_name}.out",
+        err = "logs/copy_isoforms_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     shell:
@@ -128,13 +129,13 @@ rule copy_isoforms:
 
 rule extract_transcript:
     input:
-        gff3 = "results/braker3/{assembly_name}/braker.gff3",
-        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked"
+        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
+        assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked"
     output:
-        "results/isoforms/{assembly_name}_transcript.fa"
+        "results/isoforms/{selected_assembly}/{assembly_name}_transcript.fa"
     log:
-        out = "logs/extract_transcript_{assembly_name}.out",
-        err = "logs/extract_transcript_{assembly_name}.err"
+        out = "logs/extract_transcript_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_transcript_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/gffread.yml"
     shell:
@@ -149,12 +150,12 @@ rule extract_transcript:
 
 rule extract_longest_cds:
     input:
-        "results/braker3/{assembly_name}/braker.codingseq"
+        "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq"
     output:
-        "results/longest_cds/{assembly_name}_cds.fa"
+        "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa"
     log:
-        out = "logs/extract_longest_cds_{assembly_name}.out",
-        err = "logs/extract_longest_cds_{assembly_name}.err"
+        out = "logs/extract_longest_cds_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_longest_cds_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     threads:
@@ -170,13 +171,13 @@ rule extract_longest_cds:
 
 rule extract_longest_cds_aa:
     input:
-        cds = "results/longest_cds/{assembly_name}_cds.fa",
-        aa = "results/isoforms/{assembly_name}_aa.fa"
+        cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
+        aa = "results/isoforms/{selected_assembly}/{assembly_name}_aa.fa"
     output:
-        "results/longest_cds/{assembly_name}_aa.fa"
+        "results/longest_cds/{selected_assembly}/{assembly_name}_aa.fa"
     log:
-        out = "logs/extract_longest_cds_aa_{assembly_name}.out",
-        err = "logs/extract_longest_cds_aa_{assembly_name}.err"
+        out = "logs/extract_longest_cds_aa_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_longest_cds_aa_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     threads:
@@ -191,13 +192,13 @@ rule extract_longest_cds_aa:
 
 rule extract_longest_cds_transcript:
     input:
-        cds = "results/longest_cds/{assembly_name}_cds.fa",
-        transcript = "results/isoforms/{assembly_name}_transcript.fa"
+        cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
+        transcript = "results/isoforms/{selected_assembly}/{assembly_name}_transcript.fa"
     output:
-        "results/longest_cds/{assembly_name}_transcript.fa"
+        "results/longest_cds/{selected_assembly}/{assembly_name}_transcript.fa"
     log:
-        out = "logs/extract_longest_cds_transcript_{assembly_name}.out",
-        err = "logs/extract_longest_cds_transcript_{assembly_name}.err"
+        out = "logs/extract_longest_cds_transcript_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_longest_cds_transcript_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/cdskit.yml"
     threads:
@@ -212,13 +213,13 @@ rule extract_longest_cds_transcript:
 
 rule filter_longest_cds_gff3:
     input:
-        fasta = "results/longest_cds/{assembly_name}_cds.fa",
-        gff3 = "results/braker3/{assembly_name}/braker.gff3"
+        fasta = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
+        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3"
     output:
-        "results/longest_cds/{assembly_name}.gff3"
+        "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     log:
-        out = "logs/filter_longest_cds_gff3_{assembly_name}.out",
-        err = "logs/filter_longest_cds_gff3_{assembly_name}.err"
+        out = "logs/filter_longest_cds_gff3_{selected_assembly}_{assembly_name}.out",
+        err = "logs/filter_longest_cds_gff3_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     shell:
@@ -233,17 +234,18 @@ rule filter_longest_cds_gff3:
 
 rule seqkit_stats_proteins:
     input:
-        "results/{gene}/{assembly_name}_aa.fa"
+        "results/{gene}/{selected_assembly}/{assembly_name}_aa.fa"
     output:
-        txt = "results/{gene}/seqkit/{assembly_name}_seqkit_stats.txt",
-        tsv = "results/{gene}/seqkit/{assembly_name}_seqkit_stats.tsv"
+        txt = "results/{gene}/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.txt",
+        tsv = "results/{gene}/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv"
     log:
-        out = "logs/seqkit_stats_proteins_{gene}_{assembly_name}.out",
-        err = "logs/seqkit_stats_proteins_{gene}_{assembly_name}.err"
+        out = "logs/seqkit_stats_proteins_{gene}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/seqkit_stats_proteins_{gene}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     wildcard_constraints:
-        gene = "(isoforms|longest_cds)"
+        gene = "(isoforms|longest_cds)",
+        selected_assembly = selected_assembly_pattern
     shell:
         """
         (
@@ -254,13 +256,13 @@ rule seqkit_stats_proteins:
 
 rule busco_proteins_mode:
     input:
-        aa = "results/{gene}/{assembly_name}_aa.fa",
+        aa = "results/{gene}/{selected_assembly}/{assembly_name}_aa.fa",
         database = "results/downloads/busco_downloads"
     output:
-        directory("results/{gene}/busco_proteins/BUSCO_{assembly_name}_aa.fa")
+        directory("results/{gene}/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa")
     log:
-        out = "logs/busco_proteins_mode_{gene}_{assembly_name}.out",
-        err = "logs/busco_proteins_mode_{gene}_{assembly_name}.err"
+        out = "logs/busco_proteins_mode_{gene}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/busco_proteins_mode_{gene}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/busco.yml"
     threads:
@@ -268,7 +270,8 @@ rule busco_proteins_mode:
     params:
         lineage_dataset = config["busco_lineage_dataset"]
     wildcard_constraints:
-        gene = "(isoforms|longest_cds)"
+        gene = "(isoforms|longest_cds)",
+        selected_assembly = selected_assembly_pattern
     shell:
         "busco \
             --in {input.aa} \
@@ -294,13 +297,13 @@ rule download_omamer_database:
 
 rule omamer_search:
     input:
-        aa = "results/longest_cds/{assembly_name}_aa.fa",
+        aa = "results/longest_cds/{selected_assembly}/{assembly_name}_aa.fa",
         database = "results/downloads/omamer/LUCA.h5"
     output:
-        "results/longest_cds/omark/{assembly_name}.omamer"
+        "results/longest_cds/omark/{selected_assembly}/{assembly_name}.omamer"
     log:
-        out = "logs/omamer_search_{assembly_name}.out",
-        err = "logs/omamer_search_{assembly_name}.err"
+        out = "logs/omamer_search_{selected_assembly}_{assembly_name}.out",
+        err = "logs/omamer_search_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/omamer.yml"
     threads:
@@ -315,12 +318,12 @@ rule omamer_search:
 rule omark:
     input:
         database = "results/downloads/omamer/LUCA.h5",
-        omamer_search = "results/longest_cds/omark/{assembly_name}.omamer"
+        omamer_search = "results/longest_cds/omark/{selected_assembly}/{assembly_name}.omamer"
     output:
-        directory("results/longest_cds/omark/{assembly_name}_omark")
+        directory("results/longest_cds/omark/{selected_assembly}/{assembly_name}_omark")
     log:
-        out = "logs/omark_{assembly_name}.out",
-        err = "logs/omark_{assembly_name}.err"
+        out = "logs/omark_{selected_assembly}_{assembly_name}.out",
+        err = "logs/omark_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/omark.yml"
     shell:
@@ -331,23 +334,25 @@ rule omark:
 
 rule format_for_submission:
     input:
-        assembly = "results/repeatmasker/{assembly_name}.asm.bp.p_ctg.fa.masked",
-        isoform_cds = "results/isoforms/{assembly_name}_cds.fa",
-        isoform_gff3 = "results/braker3/{assembly_name}/braker.gff3",
-        longest_cds = "results/longest_cds/{assembly_name}_cds.fa",
-        longest_gff3 = "results/longest_cds/{assembly_name}.gff3"
+        assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
+        isoform_cds = "results/isoforms/{selected_assembly}/{assembly_name}_cds.fa",
+        isoform_gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
+        longest_cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
+        longest_gff3 = "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     output:
-        assembly = f"results/submission/{{assembly_name}}_{config['assembly_version']}_genome.fa.gz",
-        isoform_cds = f"results/submission/{{assembly_name}}_{config['assembly_version']}_isoforms.cds.fa.gz",
-        isoform_gff3 = f"results/submission/{{assembly_name}}_{config['assembly_version']}_isoforms.gff3.gz",
-        longest_cds = f"results/submission/{{assembly_name}}_{config['assembly_version']}_representative.cds.fa.gz",
-        longest_gff3 = f"results/submission/{{assembly_name}}_{config['assembly_version']}_representative.gff3.gz",
-        readme = f"results/submission/{{assembly_name}}_{config['assembly_version']}_README.md"
+        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_genome.fa.gz",
+        isoform_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.cds.fa.gz",
+        isoform_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.gff3.gz",
+        longest_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_representative.cds.fa.gz",
+        longest_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_representative.gff3.gz",
+        readme = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_README.md"
     log:
-        out = "logs/format_for_submission_{assembly_name}.out",
-        err = "logs/format_for_submission_{assembly_name}.err"
+        out = "logs/format_for_submission_{selected_assembly}_{assembly_name}.out",
+        err = "logs/format_for_submission_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
+    wildcard_constraints:
+        selected_assembly = submission_assembly_pattern
     params:
         assembly_version = config["assembly_version"]
     shell:

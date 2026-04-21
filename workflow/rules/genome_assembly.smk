@@ -5,7 +5,8 @@ hifi_sample_ids = discover_sample_ids([
 
 wildcard_constraints:
     assembly_name = config["assembly_name"],
-    organelle = "(mito|pltd)"
+    organelle = "(mito|pltd)",
+    selected_assembly = selected_assembly_pattern
 
 rule bam2fastq:
     input:
@@ -260,11 +261,14 @@ rule hifiasm:
 
 rule convert_gfa_to_fa:
     input:
-        "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa"
+        lambda wildcards: hifiasm_selected_assembly_gfa_path(
+            wildcards.assembly_name,
+            wildcards.selected_assembly,
+        )
     output:
-        "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/hifiasm/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
-        "logs/convert_gfa_to_fa_{assembly_name}.err"
+        "logs/convert_gfa_to_fa_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/hifiasm.yml"
     shell:
@@ -273,13 +277,13 @@ rule convert_gfa_to_fa:
 rule map_hifi_reads_to_assembly:
     input:
         hifi_read = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
-        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/hifiasm/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        bam = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam",
-        bai = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam.bai"
+        bam = "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam",
+        bai = "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam.bai"
     log:
-        out = "logs/map_hifi_reads_to_assembly_{assembly_name}.out",
-        err = "logs/map_hifi_reads_to_assembly_{assembly_name}.err"
+        out = "logs/map_hifi_reads_to_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/map_hifi_reads_to_assembly_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/minimap2.yml"
     threads:
@@ -303,12 +307,12 @@ rule map_hifi_reads_to_assembly:
 
 rule get_hifi_read_mapping_summary:
     input:
-        "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam"
+        "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.bam"
     output:
-        "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv"
+        "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv"
     log:
-        out = "logs/get_hifi_read_mapping_summary_{assembly_name}.out",
-        err = "logs/get_hifi_read_mapping_summary_{assembly_name}.err"
+        out = "logs/get_hifi_read_mapping_summary_{selected_assembly}_{assembly_name}.out",
+        err = "logs/get_hifi_read_mapping_summary_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/minimap2.yml"
     shell:
@@ -395,12 +399,12 @@ rule concatenate_organelle_genome:
 rule map_contig_to_organelle:
     input:
         organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa",
-        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/hifiasm/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/hifiasm/map_to_organelle/minimap2/{assembly_name}_to_organelle_concatemer.paf"
+        "results/hifiasm/map_to_organelle/minimap2/{selected_assembly}/{assembly_name}_to_organelle_concatemer.paf"
     log:
-        out = "logs/map_contig_to_organelle_{assembly_name}.out",
-        err = "logs/map_contig_to_organelle_{assembly_name}.err"
+        out = "logs/map_contig_to_organelle_{selected_assembly}_{assembly_name}.out",
+        err = "logs/map_contig_to_organelle_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/minimap2.yml"
     threads:
@@ -421,17 +425,17 @@ rule map_contig_to_organelle:
 
 rule detect_organelle_contigs:
     input:
-        "results/hifiasm/map_to_organelle/minimap2/{assembly_name}_to_organelle_concatemer.paf"
+        "results/hifiasm/map_to_organelle/minimap2/{selected_assembly}/{assembly_name}_to_organelle_concatemer.paf"
     output:
-        organelle_contigs = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt",
-        organelle_contig_info = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_info.tsv",
-        target_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_target.pdf",
-        length_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contig_length.pdf",
-        coverage_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_mapped_contig_coverage.pdf",
-        identity_pdf = "results/hifiasm/map_to_organelle/{assembly_name}_mapped_alignment_identity.pdf"
+        organelle_contigs = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contigs.txt",
+        organelle_contig_info = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contig_info.tsv",
+        target_pdf = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contig_target.pdf",
+        length_pdf = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contig_length.pdf",
+        coverage_pdf = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_mapped_contig_coverage.pdf",
+        identity_pdf = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_mapped_alignment_identity.pdf"
     log:
-        out = "logs/detect_organelle_contigs_{assembly_name}.out",
-        err = "logs/detect_organelle_contigs_{assembly_name}.err"
+        out = "logs/detect_organelle_contigs_{selected_assembly}_{assembly_name}.out",
+        err = "logs/detect_organelle_contigs_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     shell:
@@ -448,13 +452,13 @@ rule detect_organelle_contigs:
 
 rule remove_organelle_contigs:
     input:
-        organelle_contigs = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt",
-        assembly = "results/hifiasm/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        organelle_contigs = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contigs.txt",
+        assembly = "results/hifiasm/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/organelle_removal/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
-        out = "logs/remove_organelle_contigs_{assembly_name}.out",
-        err = "logs/remove_organelle_contigs_{assembly_name}.err"
+        out = "logs/remove_organelle_contigs_{selected_assembly}_{assembly_name}.out",
+        err = "logs/remove_organelle_contigs_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -512,21 +516,21 @@ rule fcs_pull_image:
 rule fcs_adaptor_screen:
     input:
         run_fcsadaptor_sh = "results/downloads/fcs/run_fcsadaptor.sh",
-        assembly = "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/organelle_removal/assembly/{selected_assembly}/{assembly_name}.fa",
         fcs_adaptor_sif = "results/downloads/fcs/fcs_adaptor_0.5.5.sif"
     output:
-        assembly = "results/fcs/fcs_adaptor_screen/cleaned_sequences/{assembly_name}.asm.bp.p_ctg.fa",
-        combined_calls_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_combined.calls.jsonl",
-        fcs_log = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs.log",
-        fcs_adaptor_log = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor.log",
-        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor_report.txt",
-        logs_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_logs.jsonl",
-        pipeline_args_yaml = "results/fcs/fcs_adaptor_screen/{assembly_name}_pipeline_args.yaml",
-        skipped_trims_jsonl = "results/fcs/fcs_adaptor_screen/{assembly_name}_skipped_trims.jsonl",
-        validate_fasta_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_validate_fasta.txt"
+        assembly = "results/fcs/fcs_adaptor_screen/{selected_assembly}/cleaned_sequences/{assembly_name}.fa",
+        combined_calls_jsonl = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_combined.calls.jsonl",
+        fcs_log = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_fcs.log",
+        fcs_adaptor_log = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_fcs_adaptor.log",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_fcs_adaptor_report.txt",
+        logs_jsonl = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_logs.jsonl",
+        pipeline_args_yaml = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_pipeline_args.yaml",
+        skipped_trims_jsonl = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_skipped_trims.jsonl",
+        validate_fasta_txt = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_validate_fasta.txt"
     log:
-        out = "logs/fcs_adaptor_screen_{assembly_name}.out",
-        err = "logs/fcs_adaptor_screen_{assembly_name}.err"
+        out = "logs/fcs_adaptor_screen_{selected_assembly}_{assembly_name}.out",
+        err = "logs/fcs_adaptor_screen_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     container:
@@ -555,15 +559,15 @@ rule fcs_adaptor_screen:
 rule fcs_adaptor_clean:
     input:
         fcs_py = "results/downloads/fcs/fcs.py",
-        assembly = "results/organelle_removal/assembly/{assembly_name}.asm.bp.p_ctg.fa",
-        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{assembly_name}_fcs_adaptor_report.txt",
+        assembly = "results/organelle_removal/assembly/{selected_assembly}/{assembly_name}.fa",
+        fcs_adaptor_report_txt = "results/fcs/fcs_adaptor_screen/{selected_assembly}/{assembly_name}_fcs_adaptor_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.clean.fa",
+        contam = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.contam.fa"
     log:
-        out = "logs/fcs_adaptor_clean_{assembly_name}.out",
-        err = "logs/fcs_adaptor_clean_{assembly_name}.err"
+        out = "logs/fcs_adaptor_clean_{selected_assembly}_{assembly_name}.out",
+        err = "logs/fcs_adaptor_clean_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     container:
@@ -650,14 +654,14 @@ rule fcs_gx_screen:
         code = "results/downloads/fcs/fcs.py",
         manifest = "results/downloads/fcs/gxdb/all.manifest",
         check = "results/downloads/fcs/.gxdb_checked",
-        assembly = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
+        assembly = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.clean.fa",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        report = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
-        taxonomy = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.taxonomy.rpt"
+        report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.fcs_gx_report.txt",
+        taxonomy = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.taxonomy.rpt"
     log:
-        out = "logs/fcs_gx_screen_{assembly_name}.out",
-        err = "logs/fcs_gx_screen_{assembly_name}.err"
+        out = "logs/fcs_gx_screen_{selected_assembly}_{assembly_name}.out",
+        err = "logs/fcs_gx_screen_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     container:
@@ -681,15 +685,15 @@ rule fcs_gx_screen:
 rule fcs_gx_clean:
     input:
         code = "results/downloads/fcs/fcs.py",
-        assembly = "results/fcs/fcs_adaptor_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
-        screen_report = f"results/fcs/fcs_gx_screen/{{assembly_name}}.asm.bp.p_ctg.clean.{config["fcs_gx_taxid"]}.fcs_gx_report.txt",
+        assembly = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.clean.fa",
+        screen_report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.fcs_gx_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        clean = "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.clean.fa",
-        contam = "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.contam.fa"
+        clean = "results/fcs/fcs_gx_clean/{selected_assembly}/{assembly_name}.clean.fa",
+        contam = "results/fcs/fcs_gx_clean/{selected_assembly}/{assembly_name}.contam.fa"
     log:
-        out = "logs/fcs_gx_clean_{assembly_name}.out",
-        err = "logs/fcs_gx_clean_{assembly_name}.err"
+        out = "logs/fcs_gx_clean_{selected_assembly}_{assembly_name}.out",
+        err = "logs/fcs_gx_clean_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     container:
@@ -710,12 +714,12 @@ rule fcs_gx_clean:
 
 rule copy_fcs_gx_clean:
     input:
-        "results/fcs/fcs_gx_clean/{assembly_name}.asm.bp.p_ctg.clean.fa"
+        "results/fcs/fcs_gx_clean/{selected_assembly}/{assembly_name}.clean.fa"
     output:
-        "results/fcs/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
-        out = "logs/copy_fcs_gx_clean_{assembly_name}.out",
-        err = "logs/copy_fcs_gx_clean_{assembly_name}.err"
+        out = "logs/copy_fcs_gx_clean_{selected_assembly}_{assembly_name}.out",
+        err = "logs/copy_fcs_gx_clean_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/fcs.yml"
     shell:
@@ -723,13 +727,13 @@ rule copy_fcs_gx_clean:
 
 rule seqkit_stats:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        txt = "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.txt",
-        tsv = "results/{assembly}/seqkit/{assembly_name}_seqkit_stats.tsv"
+        txt = "results/{assembly}/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.txt",
+        tsv = "results/{assembly}/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv"
     log:
-        out = "logs/seqkit_stats_{assembly}_{assembly_name}.out",
-        err = "logs/seqkit_stats_{assembly}_{assembly_name}.err"
+        out = "logs/seqkit_stats_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/seqkit_stats_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -742,12 +746,12 @@ rule seqkit_stats:
 
 rule calculate_contig_lengths:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/length/{assembly_name}_length.tsv"
+        "results/{assembly}/length/{selected_assembly}/{assembly_name}_length.tsv"
     log:
-        out = "logs/calculate_contig_lengths_{assembly}_{assembly_name}.out",
-        err = "logs/calculate_contig_lengths_{assembly}_{assembly_name}.err"
+        out = "logs/calculate_contig_lengths_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/calculate_contig_lengths_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -759,12 +763,12 @@ rule calculate_contig_lengths:
 
 rule show_contig_lengths:
     input:
-        "results/{assembly}/length/{assembly_name}_length.tsv"
+        "results/{assembly}/length/{selected_assembly}/{assembly_name}_length.tsv"
     output:
-        "results/{assembly}/length/{assembly_name}_length.pdf"
+        "results/{assembly}/length/{selected_assembly}/{assembly_name}_length.pdf"
     log:
-        out = "logs/show_contig_lengths_{assembly}_{assembly_name}.out",
-        err = "logs/show_contig_lengths_{assembly}_{assembly_name}.err"
+        out = "logs/show_contig_lengths_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/show_contig_lengths_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     params:
@@ -781,12 +785,12 @@ rule show_contig_lengths:
 
 rule calculate_gc_content_per_contig:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/gc_content/{assembly_name}_gc_content.tsv"
+        "results/{assembly}/gc_content/{selected_assembly}/{assembly_name}_gc_content.tsv"
     log:
-        out = "logs/calculate_gc_content_per_contig_{assembly}_{assembly_name}.out",
-        err = "logs/calculate_gc_content_per_contig_{assembly}_{assembly_name}.err"
+        out = "logs/calculate_gc_content_per_contig_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/calculate_gc_content_per_contig_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -798,12 +802,12 @@ rule calculate_gc_content_per_contig:
 
 rule show_gc_content_per_contig:
     input:
-        "results/{assembly}/gc_content/{assembly_name}_gc_content.tsv"
+        "results/{assembly}/gc_content/{selected_assembly}/{assembly_name}_gc_content.tsv"
     output:
-        "results/{assembly}/gc_content/{assembly_name}_gc_content.pdf"
+        "results/{assembly}/gc_content/{selected_assembly}/{assembly_name}_gc_content.pdf"
     log:
-        out = "logs/show_gc_content_per_contig_{assembly}_{assembly_name}.out",
-        err = "logs/show_gc_content_per_contig_{assembly}_{assembly_name}.err"
+        out = "logs/show_gc_content_per_contig_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/show_gc_content_per_contig_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     shell:
@@ -837,13 +841,13 @@ rule download_busco_database:
 
 rule busco_genome_mode:
     input:
-        genome = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        genome = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa",
         database = "results/downloads/busco_downloads"
     output:
-        directory("results/{assembly}/busco_genome/BUSCO_{assembly_name}.asm.bp.p_ctg.fa")
+        directory("results/{assembly}/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa")
     log:
-        out = "logs/busco_genome_mode_{assembly}_{assembly_name}.out",
-        err = "logs/busco_genome_mode_{assembly}_{assembly_name}.err"
+        out = "logs/busco_genome_mode_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/busco_genome_mode_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/busco.yml"
     threads:
@@ -883,34 +887,38 @@ rule meryl:
 rule merqury:
     input:
         db = "results/hifi_reads/meryl/{assembly_name}",
-        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/merqury/{assembly_name}.merqury.qv"
+        "results/{assembly}/merqury/{selected_assembly}/{assembly_name}.merqury.qv"
     log:
-        out = "logs/merqury_{assembly}_{assembly_name}.out",
-        err = "logs/merqury_{assembly}_{assembly_name}.err"
+        out = "logs/merqury_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/merqury_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/merqury.yml"
     shell:
         """
         (
-            cd $(dirname {output})
+            db=$(realpath {input.db})
+            assembly=$(realpath {input.assembly})
+            output_dir=$(dirname {output})
+            mkdir -p "$output_dir"
+            cd "$output_dir"
             merqury.sh \
-                ../../../{input.db} \
-                ../../../{input.assembly} \
+                "$db" \
+                "$assembly" \
                 $(basename {output} .qv)
-            cd ../../..
+            cd "$OLDPWD"
         ) > {log.out} 2> {log.err}
         """
 
 rule export_contig_names:
     input:
-        "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/seqkit/{assembly_name}_contig_names.txt"
+        "results/{assembly}/seqkit/{selected_assembly}/{assembly_name}_contig_names.txt"
     log:
-        out = "logs/export_contig_names_{assembly}_{assembly_name}.out",
-        err = "logs/export_contig_names_{assembly}_{assembly_name}.err"
+        out = "logs/export_contig_names_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/export_contig_names_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     shell:
@@ -922,14 +930,14 @@ rule export_contig_names:
 
 rule show_hifi_read_depth_per_contig:
     input:
-        mapping_result = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
-        contig_names = "results/{assembly}/seqkit/{assembly_name}_contig_names.txt"
+        mapping_result = "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
+        contig_names = "results/{assembly}/seqkit/{selected_assembly}/{assembly_name}_contig_names.txt"
     output:
-        depth_plot = "results/{assembly}/depth/{assembly_name}_contig_depth.pdf",
-        contig_info = "results/{assembly}/depth/{assembly_name}_contig_info.tsv"
+        depth_plot = "results/{assembly}/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        contig_info = "results/{assembly}/depth/{selected_assembly}/{assembly_name}_contig_info.tsv"
     log:
-        out = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.out",
-        err = "logs/show_hifi_read_depth_per_contig_{assembly}_{assembly_name}.err"
+        out = "logs/show_hifi_read_depth_per_contig_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/show_hifi_read_depth_per_contig_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     shell:
@@ -945,14 +953,14 @@ rule show_hifi_read_depth_per_contig:
 
 rule show_hifi_read_depth_for_organelle_contigs:
     input:
-        mapping_result = "results/hifi_reads/map_to_assembly/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
-        contig_names = "results/hifiasm/map_to_organelle/{assembly_name}_organelle_contigs.txt"
+        mapping_result = "results/hifi_reads/map_to_assembly/{selected_assembly}/{assembly_name}_hifi_reads_to_hifiasm_assembly.tsv",
+        contig_names = "results/hifiasm/map_to_organelle/{selected_assembly}/{assembly_name}_organelle_contigs.txt"
     output:
-        depth_plot = "results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_depth.pdf",
-        contig_info = "results/hifiasm/map_to_organelle/organelle_contig_depth/{assembly_name}_contig_info.tsv"
+        depth_plot = "results/hifiasm/map_to_organelle/organelle_contig_depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        contig_info = "results/hifiasm/map_to_organelle/organelle_contig_depth/{selected_assembly}/{assembly_name}_contig_info.tsv"
     log:
-        out = "logs/show_hifi_read_depth_for_organelle_contigs_{assembly_name}.out",
-        err = "logs/show_hifi_read_depth_for_organelle_contigs_{assembly_name}.err"
+        out = "logs/show_hifi_read_depth_for_organelle_contigs_{selected_assembly}_{assembly_name}.out",
+        err = "logs/show_hifi_read_depth_for_organelle_contigs_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     shell:
@@ -968,13 +976,13 @@ rule show_hifi_read_depth_for_organelle_contigs:
 
 rule extract_long_contigs:
     input:
-        assembly = "results/{assembly}/assembly/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa",
         config_stamp = "config/config.yml"
     output:
-        "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
     log:
-        out = "logs/extract_long_contigs_{assembly}_{assembly_name}.out",
-        err = "logs/extract_long_contigs_{assembly}_{assembly_name}.err"
+        out = "logs/extract_long_contigs_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_long_contigs_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/seqkit.yml"
     params:
@@ -1009,13 +1017,13 @@ rule tidk_build:
 
 rule tidk_find:
     input:
-        assembly = "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa",
+        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
         database = "results/downloads/tidk/tidk_database.csv"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
+        "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
     log:
-        out = "logs/tidk_find_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_find_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_find_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_find_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     params:
@@ -1036,12 +1044,12 @@ rule tidk_find:
 rule tidk_find_plot:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
-        tsv = "results/{assembly}/tidk/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
+        tsv = "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_find.svg"
+        "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg"
     log:
-        out = "logs/tidk_find_plot_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_find_plot_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_find_plot_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_find_plot_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     shell:
@@ -1057,12 +1065,12 @@ rule tidk_find_plot:
 
 rule tidk_explore:
     input:
-        "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_explore.tsv"
+        "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv"
     log:
-        out = "logs/tidk_explore_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_explore_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_explore_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_explore_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     shell:
@@ -1077,12 +1085,12 @@ rule tidk_explore:
 
 rule tidk_search:
     input:
-        assembly = "results/{assembly}/assembly_long_contigs/{assembly_name}.asm.bp.p_ctg.fa"
+        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
+        "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
     log:
-        out = "logs/tidk_search_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_search_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_search_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_search_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     params:
@@ -1101,12 +1109,12 @@ rule tidk_search:
 rule tidk_search_plot:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
-        tsv = "results/{assembly}/tidk/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
+        tsv = "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
     output:
-        "results/{assembly}/tidk/{assembly_name}_tidk_search.svg"
+        "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg"
     log:
-        out = "logs/tidk_search_plot_{assembly}_{assembly_name}.out",
-        err = "logs/tidk_search_plot_{assembly}_{assembly_name}.err"
+        out = "logs/tidk_search_plot_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/tidk_search_plot_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/tidk.yml"
     shell:
@@ -1121,12 +1129,13 @@ rule tidk_search_plot:
 rule tidk_cleanup:
     input:
         database = "results/downloads/tidk/tidk_database.csv",
-        flag_tidk_find_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_find.svg",
-        flag_tidk_find_organelle_removal = "results/organelle_removal/tidk/{assembly_name}_tidk_find.svg",
-        flag_tidk_find_fcs = "results/fcs/tidk/{assembly_name}_tidk_find.svg",
-        flag_tidk_search_hifiasm = "results/hifiasm/tidk/{assembly_name}_tidk_search.svg",
-        flag_tidk_search_organelle_removal = "results/organelle_removal/tidk/{assembly_name}_tidk_search.svg",
-        flag_tidk_search_fcs = "results/fcs/tidk/{assembly_name}_tidk_search.svg"
+        flags = lambda wildcards: expand(
+            "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_{plot_name}.svg",
+            assembly=["hifiasm", "organelle_removal", "fcs"],
+            selected_assembly=selected_assemblies,
+            assembly_name=wildcards.assembly_name,
+            plot_name=["tidk_find", "tidk_search"],
+        )
     output:
         "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt"
     log:
