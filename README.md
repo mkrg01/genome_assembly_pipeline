@@ -1,6 +1,6 @@
 # genome_assembly_pipeline
 
-[![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![CI](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
+[![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
 This is an integrated pipeline for eukaryotic genome assembly and gene annotation.
 It currently supports PacBio HiFi reads and RNA-seq reads as core inputs, both of which are required.
