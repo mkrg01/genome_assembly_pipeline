@@ -1,32 +1,7 @@
-import os
 hifi_sample_ids = discover_sample_ids([
     ("raw_data/*.hifi_reads.bam", ".hifi_reads.bam"),
     ("results/hifi_reads/fastplong/*_hifi_reads_curated.fastq.gz", "_hifi_reads_curated.fastq.gz"),
 ])
-
-
-def hifi_fastplong_reads(_wildcards):
-    sample_ids = require_sample_ids(
-        hifi_sample_ids,
-        "HiFi read samples",
-        [
-            "raw_data/*.hifi_reads.bam",
-            "results/hifi_reads/fastplong/*_hifi_reads_curated.fastq.gz",
-        ],
-    )
-    return expand(
-        "results/hifi_reads/fastplong/{hifi_sample_id}_hifi_reads_curated.fastq.gz",
-        hifi_sample_id=sample_ids,
-    )
-
-
-def ont_reads_input():
-    ont_reads = config.get("ont_reads", None)
-    if ont_reads:
-        return ont_reads
-    raise RuntimeError(
-        "ONT reads were requested, but 'ont_reads' is not set in config.yml and no ONT preprocessing target was provided."
-    )
 
 wildcard_constraints:
     assembly_name = config["assembly_name"],
@@ -245,12 +220,6 @@ rule genomescope2:
         ) > {log.out} 2> {log.err}
         """
 
-def hifiasm_input(wildcards):
-    inputs = {"hifi": "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz".format(assembly_name=wildcards.assembly_name)}
-    if config.get("ont_reads", None):
-        inputs["ont"] = "results/ont_reads/fastplong/{assembly_name}_ont_reads_curated.fastq.gz".format(assembly_name=wildcards.assembly_name)
-    return inputs
-
 rule hifiasm:
     input:
         unpack(hifiasm_input)
@@ -374,65 +343,6 @@ rule download_oatkdb:
         ) > {log.out} 2> {log.err}
         """
 
-def oatkdb_path():
-    mito_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_mito.fam"
-    pltd_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_pltd.fam"
-    if config["oatk_organelle"] == "mito":
-        return {"mito_fam": mito_fam}
-    elif config["oatk_organelle"] == "pltd":
-        return {"pltd_fam": pltd_fam}
-    elif config["oatk_organelle"] == "mito_and_pltd":
-        return {"mito_fam": mito_fam, "pltd_fam": pltd_fam}
-    else:
-        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
-
-def oatk_output_path():
-    utg_final_gfa = "results/oatk/oatk/{assembly_name}.utg.final.gfa"
-    annot_mito_txt = "results/oatk/oatk/{assembly_name}.annot_mito.txt"
-    annot_pltd_txt = "results/oatk/oatk/{assembly_name}.annot_pltd.txt"
-    mito_gfa = "results/oatk/oatk/{assembly_name}.mito.gfa"
-    mito_bed = "results/oatk/oatk/{assembly_name}.mito.bed"
-    mito_ctg_fasta = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta"
-    mito_ctg_bed = "results/oatk/oatk/{assembly_name}.mito.ctg.bed"
-    pltd_gfa = "results/oatk/oatk/{assembly_name}.pltd.gfa"
-    pltd_bed = "results/oatk/oatk/{assembly_name}.pltd.bed"
-    pltd_ctg_fasta = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta"
-    pltd_ctg_bed = "results/oatk/oatk/{assembly_name}.pltd.ctg.bed"
-    if config["oatk_organelle"] == "mito":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_mito_txt": annot_mito_txt,
-            "mito_gfa": mito_gfa,
-            "mito_bed": mito_bed,
-            "mito_ctg_fasta": mito_ctg_fasta,
-            "mito_ctg_bed": mito_ctg_bed
-        }
-    elif config["oatk_organelle"] == "pltd":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_pltd_txt": annot_pltd_txt,
-            "pltd_gfa": pltd_gfa,
-            "pltd_bed": pltd_bed,
-            "pltd_ctg_fasta": pltd_ctg_fasta,
-            "pltd_ctg_bed": pltd_ctg_bed
-        }
-    elif config["oatk_organelle"] == "mito_and_pltd":
-        return {
-            "utg_final_gfa": utg_final_gfa,
-            "annot_mito_txt": annot_mito_txt,
-            "annot_pltd_txt": annot_pltd_txt,
-            "mito_gfa": mito_gfa,
-            "mito_bed": mito_bed,
-            "mito_ctg_fasta": mito_ctg_fasta,
-            "mito_ctg_bed": mito_ctg_bed,
-            "pltd_gfa": pltd_gfa,
-            "pltd_bed": pltd_bed,
-            "pltd_ctg_fasta": pltd_ctg_fasta,
-            "pltd_ctg_bed": pltd_ctg_bed
-        }
-    else:
-        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
-
 rule oatk:
     input:
         hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
@@ -466,19 +376,6 @@ rule seqkit_stats_organelle:
         "../envs/seqkit.yml"
     script:
         "../scripts/seqkit_stats_organelle.py"
-
-def concatemer_path():
-    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
-    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.pltd.fa"
-    all_organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa"
-    if config["oatk_organelle"] == "mito":
-        return {"mito": mito, "all_organelle": all_organelle}
-    elif config["oatk_organelle"] == "pltd":
-        return {"pltd": pltd, "all_organelle": all_organelle}
-    elif config["oatk_organelle"] == "mito_and_pltd":
-        return {"mito": mito, "pltd": pltd, "all_organelle": all_organelle}
-    else:
-        raise ValueError("Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
 
 rule concatenate_organelle_genome:
     input:
@@ -630,6 +527,8 @@ rule fcs_adaptor_screen:
     log:
         out = "logs/fcs_adaptor_screen_{assembly_name}.out",
         err = "logs/fcs_adaptor_screen_{assembly_name}.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     shell:
@@ -665,6 +564,8 @@ rule fcs_adaptor_clean:
     log:
         out = "logs/fcs_adaptor_clean_{assembly_name}.out",
         err = "logs/fcs_adaptor_clean_{assembly_name}.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     shell:
@@ -696,6 +597,8 @@ rule fcs_gx_get_db:
     log:
         out = "logs/fcs_gx_get_db.out",
         err = "logs/fcs_gx_get_db.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     params:
@@ -728,6 +631,8 @@ rule fcs_gx_check_db:
     log:
         out = "logs/fcs_gx_check_db.out",
         err = "logs/fcs_gx_check_db.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     shell:
@@ -753,6 +658,8 @@ rule fcs_gx_screen:
     log:
         out = "logs/fcs_gx_screen_{assembly_name}.out",
         err = "logs/fcs_gx_screen_{assembly_name}.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     params:
@@ -783,6 +690,8 @@ rule fcs_gx_clean:
     log:
         out = "logs/fcs_gx_clean_{assembly_name}.out",
         err = "logs/fcs_gx_clean_{assembly_name}.err"
+    conda:
+        "../envs/fcs.yml"
     container:
         None # Wrapper scripts will invoke containers
     params:

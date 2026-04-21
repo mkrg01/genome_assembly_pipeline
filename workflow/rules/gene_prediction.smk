@@ -10,30 +10,6 @@ rnaseq_sample_ids = discover_sample_ids([
     *rnaseq_raw_pattern_suffix_pairs,
     (rnaseq_fastp_search_path, "_1.fastq"),
 ])
-
-
-def rnaseq_raw_input_path(rnaseq_sample_id, pair):
-    return resolve_unique_existing_path(
-        [f"raw_data/{rnaseq_sample_id}_{pair}{suffix}" for suffix in RAW_FASTQ_SUFFIXES],
-        f"RNA-Seq read pair {pair} for sample '{rnaseq_sample_id}'",
-    )
-
-
-def braker3_rnaseq_inputs(_wildcards):
-    sample_ids = require_sample_ids(
-        rnaseq_sample_ids,
-        "RNA-Seq samples",
-        [
-            *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
-            rnaseq_fastp_search_path,
-        ],
-    )
-    return expand(
-        "results/rnaseq_reads/fastp/{rnaseq_sample_id}_{pair}.fastq",
-        rnaseq_sample_id=sample_ids,
-        pair=[1, 2],
-    )
-
 wildcard_constraints:
     assembly_name = config["assembly_name"]
 
@@ -372,6 +348,8 @@ rule format_for_submission:
         err = "logs/format_for_submission_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
+    params:
+        assembly_version = config["assembly_version"]
     shell:
         """
         (
@@ -388,7 +366,7 @@ rule format_for_submission:
                 --output-longest-gff3 {output.longest_gff3}
             python3 workflow/scripts/write_submission_readme.py \
                 --assembly-name "{wildcards.assembly_name}" \
-                --assembly-version "{config[assembly_version]}" \
+                --assembly-version "{params.assembly_version}" \
                 --input-assembly {input.assembly} \
                 --input-isoform-cds {input.isoform_cds} \
                 --input-isoform-gff3 {input.isoform_gff3} \

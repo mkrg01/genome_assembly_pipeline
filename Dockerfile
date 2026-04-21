@@ -1,6 +1,6 @@
 FROM condaforge/miniforge3:latest
 LABEL io.github.snakemake.containerized="true"
-LABEL io.github.snakemake.conda_env_hash="6c7dbebbebfb6bc059d85074519fb44033e939e96a1c8c656b27dedd1bb83b11"
+LABEL io.github.snakemake.conda_env_hash="d3a5be68a371d8ea7cef67c89d736a1054da4bb817f2f593a8dff446e4e835da"
 
 # Step 2: Retrieve conda environments
 
@@ -74,14 +74,15 @@ COPY workflow/envs/fastplong.yml /conda-envs/3b2cd99f0beba959d7ba47922f256189/en
 
 # Conda environment:
 #   source: workflow/envs/fcs.yml
-#   prefix: /conda-envs/519414a323ee447d07e07ff75a64ca53
+#   prefix: /conda-envs/9f3c34adf9daf46d5f50639c53e09fbc
 #   name: fcs
 #   channels:
 #     - conda-forge
 #   dependencies:
 #     - python=3.13.7
-RUN mkdir -p /conda-envs/519414a323ee447d07e07ff75a64ca53
-COPY workflow/envs/fcs.yml /conda-envs/519414a323ee447d07e07ff75a64ca53/environment.yaml
+#     - wget
+RUN mkdir -p /conda-envs/9f3c34adf9daf46d5f50639c53e09fbc
+COPY workflow/envs/fcs.yml /conda-envs/9f3c34adf9daf46d5f50639c53e09fbc/environment.yaml
 
 # Conda environment:
 #   source: workflow/envs/genomescope2.yml
@@ -250,7 +251,7 @@ RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --fil
     conda env create --prefix /conda-envs/d7adf9253af4fcb07d233989937fd02c --file /conda-envs/d7adf9253af4fcb07d233989937fd02c/environment.yaml && \
     conda env create --prefix /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac --file /conda-envs/6f277ab7b19cb3d303e76a43f5b601ac/environment.yaml && \
     conda env create --prefix /conda-envs/3b2cd99f0beba959d7ba47922f256189 --file /conda-envs/3b2cd99f0beba959d7ba47922f256189/environment.yaml && \
-    conda env create --prefix /conda-envs/519414a323ee447d07e07ff75a64ca53 --file /conda-envs/519414a323ee447d07e07ff75a64ca53/environment.yaml && \
+    conda env create --prefix /conda-envs/9f3c34adf9daf46d5f50639c53e09fbc --file /conda-envs/9f3c34adf9daf46d5f50639c53e09fbc/environment.yaml && \
     conda env create --prefix /conda-envs/4862331702f5c049997163f0eecce518 --file /conda-envs/4862331702f5c049997163f0eecce518/environment.yaml && \
     conda env create --prefix /conda-envs/12d8afcd573a7d227f3036f560fac5db --file /conda-envs/12d8afcd573a7d227f3036f560fac5db/environment.yaml && \
     conda env create --prefix /conda-envs/0b12060b07954552849bc096ff5185bc --file /conda-envs/0b12060b07954552849bc096ff5185bc/environment.yaml && \

@@ -155,17 +155,6 @@ rule tidk_search_for_circos_plot:
             mv $(dirname {output})/{wildcards.assembly_name}_telomeric_repeat_windows.tsv {output}
         ) > {log.out} 2> {log.err}
         """
-
-def circos_plot_input_path():
-    input_dict = {"contig": f"results/circos_plot/{{assembly_name}}_long_contig_length.tsv"}
-    if "gene" in circos_ids:
-        input_dict["gene"] = f"results/circos_plot/gene/{{assembly_name}}_windows_gene_coverage.bed"
-    for repeat_class in repeat_classes:
-        input_dict[f"{repeat_class}"] = f"results/circos_plot/repeatmasker_repeat/{repeat_class}/{{assembly_name}}_windows_repeat_coverage.bed"
-    if "tidk" in circos_ids:
-        input_dict["tidk"] = f"results/circos_plot/tidk_repeat/{{assembly_name}}_windows_tidk.tsv"
-    return input_dict
-
 rule circos_plot:
     input:
         **circos_plot_input_path()
