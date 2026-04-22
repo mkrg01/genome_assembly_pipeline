@@ -1136,11 +1136,12 @@ rule meryl:
     conda:
         "../envs/merqury.yml"
     threads:
-        max(1, int(workflow.cores * 0.95))
+        max(1, int(workflow.cores * 0.15))
     shell:
         "meryl count \
             output {output} \
             k=21 \
+            memory=64 \
             threads={threads} \
             {input} > {log.out} 2> {log.err}"
 
