@@ -1,5 +1,6 @@
 assembly_name: "Testus_example"
 assembly_version: "v0.0.0"
+pipeline_container: "docker://aurelia01/genome_assembly_pipeline:v0.6.5"
 selected_assemblies: ["primary"]
 submission_assemblies: ["primary"]
 ont_reads: null

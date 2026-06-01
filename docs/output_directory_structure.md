@@ -25,6 +25,7 @@ Several downstream steps use a single "final" assembly after contamination remov
 
 - Without Hi-C reads, the downstream assembly is `results/fcs/assembly/{selected_assembly}/{assembly_name}.fa`.
 - With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{assembly_name}.fa`.
+- With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{assembly_name}.fa`.
 
 This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, submission formatting, and Circos/linear plots.
 
@@ -102,6 +103,15 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
   SeqKit statistics and exported contig-name lists.
 - `tidk/{selected_assembly}/`
   `tidk find`, `tidk explore`, and `tidk search` outputs and plots.
+
+## `results/external/`
+
+Created only when running `workflow/Snakefile.annotation`.
+
+- `assembly/{selected_assembly}/`
+  External input assembly copied from `external_assembly` in `config/config.yml`.
+- `assembly_long_contigs/{selected_assembly}/`
+  Long contigs extracted from the staged external assembly for Circos and linear plots.
 
 ## `results/hic_reads/`
 

@@ -1,0 +1,190 @@
+# Softmasking, gene prediction, and Circos plots for an external genome assembly.
+#
+# Add `-s workflow/Snakefile.annotation` to the Snakemake command line to run this
+# workflow. Set `external_assembly` in config/config.yml to the input FASTA path.
+
+configfile: "config/config.yml"
+containerized: config["pipeline_container"]
+include: "rules/common.smk"
+
+assembly_name = config["assembly_name"]
+assembly_version = config["assembly_version"]
+downstream_assembly_name = "external"
+
+
+def normalize_external_assembly_config():
+    external_assembly = config.get("external_assembly", None)
+    if external_assembly is None:
+        raise ValueError(
+            "'external_assembly' in config.yml must be set to a FASTA path string "
+            "when using workflow/Snakefile.annotation."
+        )
+
+    if not isinstance(external_assembly, str) or not external_assembly.strip():
+        raise ValueError(
+            "'external_assembly' in config.yml must be a non-empty FASTA path string."
+        )
+
+    if len(selected_assemblies) != 1:
+        raise ValueError(
+            "workflow/Snakefile.annotation accepts a single external assembly. "
+            "Set 'selected_assemblies' in config.yml to exactly one label, such as "
+            "['primary']."
+        )
+
+    return external_assembly
+
+
+external_assembly = normalize_external_assembly_config()
+
+
+def external_assembly_input_path(_wildcards):
+    return external_assembly
+
+
+def external_assembly_all_inputs(assembly_name):
+    return expand_selected_assembly_paths(
+        "results/external/assembly/{selected_assembly}/{assembly_name}.fa",
+        assembly_name,
+    )
+
+
+def softmask_all_inputs(assembly_name):
+    return external_assembly_all_inputs(assembly_name) + expand_selected_assembly_paths(
+        "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
+        assembly_name,
+    )
+
+
+def gene_prediction_all_inputs(assembly_name, assembly_version):
+    inputs = softmask_all_inputs(assembly_name)
+    for pattern in (
+        "results/isoforms/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
+        "results/longest_cds/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
+        "results/isoforms/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/longest_cds/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/longest_cds/omark/{selected_assembly}/{assembly_name}_omark",
+        "results/longest_cds/{selected_assembly}/{assembly_name}_transcript.fa",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    for pattern in (
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_genome.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_README.md",
+    ):
+        inputs.extend(
+            expand_selected_assembly_paths(
+                pattern,
+                assembly_name,
+                assemblies=submission_assemblies,
+                assembly_version=assembly_version,
+            )
+        )
+    return inputs
+
+
+def circos_plot_all_inputs(assembly_name, assembly_version):
+    return gene_prediction_all_inputs(
+        assembly_name, assembly_version
+    ) + expand_selected_assembly_paths(
+        "results/circos_plot/{selected_assembly}/{assembly_name}_{plot_kind}.pdf",
+        assembly_name,
+        plot_kind=["circos_plot", "linear_plot"],
+    )
+
+
+include: "rules/softmask.smk"
+include: "rules/gene_prediction.smk"
+include: "rules/circos_plot.smk"
+
+
+rule stage_external_assembly:
+    input:
+        assembly = external_assembly_input_path,
+        config_stamp = "config/config.yml"
+    output:
+        "results/external/assembly/{selected_assembly}/{assembly_name}.fa"
+    log:
+        out = "logs/stage_external_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/stage_external_assembly_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "envs/seqkit.yml"
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output:q})
+            gzip -cdf {input.assembly:q} > {output:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
+
+rule extract_long_contigs:
+    input:
+        assembly = f"results/{downstream_assembly_name}/assembly/{{selected_assembly}}/{{assembly_name}}.fa",
+        config_stamp = "config/config.yml"
+    output:
+        f"results/{downstream_assembly_name}/assembly_long_contigs/{{selected_assembly}}/{{assembly_name}}.fa"
+    log:
+        out = "logs/extract_long_contigs_external_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_long_contigs_external_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "envs/seqkit.yml"
+    params:
+        min_long_contig_length = config["min_long_contig_length"]
+    shell:
+        """
+        (
+            seqkit seq --min-len {params.min_long_contig_length} {input.assembly:q} \
+            | seqkit sort --by-length --reverse \
+            > {output:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
+
+rule download_busco_database:
+    output:
+        directory("results/downloads/busco_downloads")
+    log:
+        out = "logs/download_busco_database.out",
+        err = "logs/download_busco_database.err"
+    conda:
+        "envs/busco.yml"
+    params:
+        lineage_dataset = config["busco_lineage_dataset"]
+    shell:
+        """
+        (
+            busco --download {params.lineage_dataset}
+            mkdir -p {output:q}
+            mv busco_downloads/* {output:q}
+            rm -rf busco_downloads
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
+
+rule all:
+    input:
+        *circos_plot_all_inputs(assembly_name, assembly_version)
+
+
+rule external_assembly_all:
+    input:
+        *external_assembly_all_inputs(assembly_name)
+
+
+rule softmask_all:
+    input:
+        *softmask_all_inputs(assembly_name)
+
+
+rule gene_prediction_all:
+    input:
+        *gene_prediction_all_inputs(assembly_name, assembly_version)
+
+
+rule circos_plot_all:
+    input:
+        *circos_plot_all_inputs(assembly_name, assembly_version)

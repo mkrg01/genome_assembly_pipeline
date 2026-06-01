@@ -9,7 +9,7 @@ This document explains:
 
 ## 1. Input Files (`raw_data/`)
 
-The pipeline requires **PacBio HiFi reads**. **Paired-end RNA-seq reads** are required when running targets that include gene prediction (`gene_prediction_all`, `circos_plot_all`, or `all`).
+The full assembly workflow requires **PacBio HiFi reads**. The external-assembly annotation workflow (`workflow/Snakefile.annotation`) instead requires an assembly FASTA via `external_assembly`. **Paired-end RNA-seq reads** are required when running targets that include gene prediction (`gene_prediction_all`, `circos_plot_all`, or `all`).
 
 Place your raw sequencing files in the `raw_data` directory with the following naming conventions:
 
@@ -17,6 +17,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 | -------------------------- | ---------------------------- | ------------------------------------------ |
 | PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
 | Index for HiFi reads  | `*.hifi_reads.bam.pbi` | `SAMPLE1.hifi_reads.bam.pbi`                    |
+| External assembly FASTA (annotation workflow only) | Any path set in `external_assembly` | `raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna` |
 | Ultra-long ONT reads (optional) | Any FASTQ path in config (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/ont_reads.fastq.gz`              |
 | Hi-C reads R1 (optional) | One or more FASTQ paths in `hic_reads_r1` (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/hic_R1.fastq.gz` |
 | Hi-C reads R2 (optional) | One or more FASTQ paths in `hic_reads_r2` (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/hic_R2.fastq.gz` |
@@ -26,6 +27,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 **Notes:**
 
 - The pipeline will automatically detect and process multiple PacBio HiFi and RNA-seq samples, if present.
+- PacBio HiFi reads are not required when running the external-assembly annotation workflow with `workflow/Snakefile.annotation`.
 - RNA-seq raw FASTQ inputs can be gzipped or plain text. The pipeline normalizes them during preprocessing, so downstream rules keep using the same internal filenames.
 - Keep only one raw RNA-seq file per sample and read pair. For example, do not place both `SAMPLE_1.fastq.gz` and `SAMPLE_1.fq` in `raw_data/`.
 - Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
@@ -42,8 +44,10 @@ Below are the available parameters:
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
 | `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
 | `assembly_version`         | Version used for output files | `"v1.0"` |
+| `pipeline_container` | Container image used by the top-level Snakemake workflow. All entrypoint Snakefiles read this value. | `"docker://aurelia01/genome_assembly_pipeline:v0.6.5"` |
 | `selected_assemblies`   | One or more assemblies to process after hifiasm. Allowed values: `{"primary", "hap1", "hap2"}`. Downstream outputs are written under assembly-specific subdirectories such as `results/fcs/assembly/<selected_assembly>/...` or `results/submission/<selected_assembly>/...`. When Hi-C integration is enabled, these correspond to hifiasm `hic.p_ctg`, `hic.hap1.p_ctg`, and `hic.hap2.p_ctg` outputs, which are then scaffolded with YaHS, exported as Juicebox-ready contact-map files under `results/juicebox/<selected_assembly>/...`, and written under `results/yahs/assembly/<selected_assembly>/...` before RepeatMasker and later steps. Organelle submission assets are staged separately under `results/submission/organelle/...` according to `oatk_organelle`. | `["primary", "hap1", "hap2"]` |
 | `submission_assemblies` | One or more assemblies to package for submission. Must be a subset of `selected_assemblies`. | `["primary"]` |
+| `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
 | `hifiasm_dual_scaf`    | Optional: Enable hifiasm self-scaffolding by adding `--dual-scaf`. `{true, false}` | `false` |
 | `ont_reads`             | Optional: Path to ultra-long ONT reads in FASTQ format (`.fastq.gz`, `.fq.gz`, `.fastq`, or `.fq`). Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
 | `hic_reads_r1`          | Optional: Hi-C read 1 input for hifiasm phasing, YaHS scaffolding, and Juicebox-ready contact maps. Set to `null` to disable Hi-C integration, or provide one or more FASTQ paths as a YAML list. Must be paired with `hic_reads_r2`. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#hi-c-integration) | `["raw_data/hic_R1.fastq.gz"]` |

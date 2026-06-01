@@ -12,8 +12,8 @@
 
 # Add `-s workflow/Snakefile.circos` option to Snakemake command line to run this workflow.
 
-containerized: "docker://aurelia01/genome_assembly_pipeline:latest"
 configfile: "config/config.yml"
+containerized: config["pipeline_container"]
 include: "rules/common.smk"
 include: "rules/softmask.smk"
 include: "rules/circos_plot.smk"

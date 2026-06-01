@@ -2,7 +2,9 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
-This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for all runs. Paired-end RNA-seq reads are required for gene prediction. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Paired-end RNA-seq reads are required for gene prediction. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+
+If you already have an assembly FASTA from another workflow, use `workflow/Snakefile.annotation` to run the downstream annotation path only: RepeatModeler/RepeatMasker softmasking, BRAKER3 gene prediction, protein/transcript QC, formatting, and Circos/linear plots. In that mode, set `external_assembly` in `config/config.yml` and keep paired-end RNA-seq reads in `raw_data/`.
 
 See [this page](docs/output_directory_structure.md) for details on the expected outputs.
 
@@ -59,3 +61,11 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > All rules except those with FCS wrapper scripts (`fcs.py`, `run_fcsadaptor.sh`) run in containers. These wrapper scripts internally call the main FCS functions, which are executed inside containers.
 
 The output will be generated in the [`results` directory](docs/output_directory_structure.md).
+
+## Annotating an External Assembly
+
+To annotate an existing genome assembly, set `external_assembly` in `config/config.yml` and run:
+
+```
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 -s workflow/Snakefile.annotation all
+```
