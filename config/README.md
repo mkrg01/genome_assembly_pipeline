@@ -59,7 +59,7 @@ Below are the available parameters:
 | `organelle_annotation` | Annotation tools for Oatk-assembled organelle genomes. Mitochondrion: `{"pmga", "mitoz", null}`. Chloroplast: `{"pga_v2", null}`. Omitted keys, per-organelle `null`, or top-level `organelle_annotation: null` skip annotation. Legacy keys `mito` and `pltd` are still accepted. PMGA and PGA v2.0 are downloaded automatically only when selected. | `{mitochondrion: "pmga", chloroplast: "pga_v2"}` |
 | `mitoz_clade` | Required only when `organelle_annotation.mitochondrion` is `mitoz`. Passed to `mitoz annotate --clade`; choose the value appropriate for the target taxon. | `null` |
 | `mitoz_genetic_code` | Required only when `organelle_annotation.mitochondrion` is `mitoz`. Positive integer NCBI translation table number passed to `mitoz annotate --genetic_code`. | `null` |
-| `pga_v2_reference_dir` | Directory containing reference plastid GenBank files for PGA v2.0. The directory is copied into the PGA v2 work area before annotation so the original reference files are not modified. | `"resources/plastid_reference"` |
+| `pga_v2_reference_dir` | Directory containing reference plastid GenBank files for PGA v2.0. The directory is copied into the PGA v2 work area before annotation so the original reference files are not modified. | `"plastid_reference"` |
 | `fcs_gx_taxid`          | NCBI Taxonomy ID for FCS-GX screening. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `tidk_clade`            | Clade for [tidk find](https://github.com/tolkit/telomeric-identifier). [Lineage list](https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find) | `"Caryophyllales"`|
@@ -90,10 +90,10 @@ Useful NCBI Nucleotide searches:
 NCBI GenBank download:
 
 ```bash
-mkdir -p resources/plastid_reference
+mkdir -p plastid_reference
 
 ACCESSION="NC_041245.1"
 
 curl -L "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${ACCESSION}&rettype=gb&retmode=text" \
-  -o "resources/plastid_reference/${ACCESSION}.gbk"
+  -o "plastid_reference/${ACCESSION}.gbk"
 ```
