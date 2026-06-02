@@ -1,4 +1,4 @@
-pipeline_container: "docker://aurelia01/genome_assembly_pipeline:v0.6.7" # Container image used by the entrypoint Snakefiles.
+pipeline_container: "docker://aurelia01/genome_assembly_pipeline:v0.6.8" # Container image used by the entrypoint Snakefiles.
 assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
 assembly_version: "v1.0" # Version of the assembly. Used for naming output files.
 selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
