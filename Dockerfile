@@ -1,4 +1,4 @@
-FROM condaforge/miniforge3:latest
+FROM condaforge/miniforge3:26.1.1-3
 LABEL io.github.snakemake.containerized="true"
 LABEL io.github.snakemake.conda_env_hash="dfd3e38b9d2338fb350fd6adf9db050f7fec2991591813bf77a532a0209c217f"
 
