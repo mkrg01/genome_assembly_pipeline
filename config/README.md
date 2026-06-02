@@ -74,3 +74,35 @@ Below are the available parameters:
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
+
+### Choosing PGA v2 plastid references
+
+When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb` or `.gbk`) in the directory configured by `pga_v2_reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming.
+
+Recommended search order:
+
+1. A complete chloroplast/plastid genome from the same species.
+2. Complete chloroplast/plastid genomes from species in the same genus.
+3. Complete chloroplast/plastid genomes from species in the same family.
+4. More distant references if no closer complete plastome is available.
+
+Prefer records that are complete, circular or near-complete plastomes with rich GenBank feature annotations.
+
+Useful NCBI Nucleotide searches:
+
+```text
+"<Species name>"[Organism] AND chloroplast[Title] AND "complete genome"[Title]
+<Genus name>[Organism] AND chloroplast[Title] AND "complete genome"[Title]
+<Family name>[Organism] AND chloroplast[Title] AND "complete genome"[Title]
+```
+
+NCBI GenBank download:
+
+```bash
+mkdir -p resources/plastid_reference
+
+ACCESSION="NC_041245.1"
+
+curl -L "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${ACCESSION}&rettype=gb&retmode=text" \
+  -o "resources/plastid_reference/${ACCESSION}.gbk"
+```
