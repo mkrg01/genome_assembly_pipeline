@@ -393,7 +393,7 @@ rule oatk:
         err = "logs/oatk_{assembly_name}.err"
     params:
         oatk_minimum_kmer_coverage = config["oatk_minimum_kmer_coverage"],
-        oatk_organelle = config["oatk_organelle"]
+        oatk_organelle = oatk_organelle
     conda:
         "../envs/oatk.yml"
     threads:
@@ -410,7 +410,7 @@ rule seqkit_stats_organelle:
         out = "logs/seqkit_stats_organelle_{assembly_name}.out",
         err = "logs/seqkit_stats_organelle_{assembly_name}.err"
     params:
-        oatk_organelle = config["oatk_organelle"]
+        oatk_organelle = oatk_organelle
     conda:
         "../envs/seqkit.yml"
     script:
@@ -425,7 +425,7 @@ rule concatenate_organelle_genome:
         out = "logs/concatenate_organelle_genome_{assembly_name}.out",
         err = "logs/concatenate_organelle_genome_{assembly_name}.err"
     params:
-        oatk_organelle = config["oatk_organelle"]
+        oatk_organelle = oatk_organelle
     conda:
         "../envs/seqkit.yml"
     script:

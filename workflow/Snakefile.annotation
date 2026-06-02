@@ -7,6 +7,8 @@ configfile: "config/config.yml"
 containerized: config["pipeline_container"]
 include: "rules/common.smk"
 
+enable_organelle_submission = False
+
 assembly_name = config["assembly_name"]
 assembly_version = config["assembly_version"]
 downstream_assembly_name = "external"

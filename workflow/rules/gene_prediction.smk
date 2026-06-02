@@ -387,20 +387,20 @@ rule format_for_submission:
         """
 
 
-if configured_oatk_organelles():
-    rule format_organelle_for_submission:
+if globals().get("enable_organelle_submission", True) and configured_oatk_organelles_with_annotation():
+    rule format_organelle_with_annotation_for_submission:
         input:
-            genome = lambda wildcards: organelle_submission_input_paths(
+            genome = lambda wildcards: organelle_submission_input_paths_with_annotation(
                 wildcards.assembly_name,
                 wildcards.organelle,
             )["genome"],
-            annotation = lambda wildcards: organelle_submission_input_paths(
+            annotation = lambda wildcards: organelle_submission_input_paths_with_annotation(
                 wildcards.assembly_name,
                 wildcards.organelle,
             )["annotation"]
         output:
             genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_genome.fa.gz",
-            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_annotation.txt.gz",
+            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_annotation.gbk.gz",
             readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.out",
@@ -408,26 +408,65 @@ if configured_oatk_organelles():
         conda:
             "../envs/pybase.yml"
         wildcard_constraints:
-            organelle = "|".join(configured_oatk_organelles())
+            organelle = "|".join(configured_oatk_organelles_with_annotation())
+        params:
+            assembly_version = config["assembly_version"],
+            annotation_tool = lambda wildcards: configured_organelle_annotation_tool(
+                wildcards.organelle
+            )
+        shell:
+            """
+            (
+                python3 workflow/scripts/copy_submission_file_to_gzip.py \
+                    --input {input.genome:q} \
+                    --output {output.genome:q}
+                python3 workflow/scripts/copy_submission_file_to_gzip.py \
+                    --input {input.annotation:q} \
+                    --output {output.annotation:q}
+                python3 workflow/scripts/write_organelle_submission_readme.py \
+                    --organelle {wildcards.organelle:q} \
+                    --annotation-tool {params.annotation_tool:q} \
+                    --assembly-name {wildcards.assembly_name:q} \
+                    --assembly-version {params.assembly_version:q} \
+                    --input-genome {input.genome:q} \
+                    --input-annotation {input.annotation:q} \
+                    --output-genome {output.genome:q} \
+                    --output-annotation {output.annotation:q} \
+                    --output-readme {output.readme:q}
+            ) > {log.out} 2> {log.err}
+            """
+
+if globals().get("enable_organelle_submission", True) and configured_oatk_organelles_without_annotation():
+    rule format_organelle_without_annotation_for_submission:
+        input:
+            genome = lambda wildcards: organelle_submission_input_paths_without_annotation(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )["genome"]
+        output:
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_genome.fa.gz",
+            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
+        log:
+            out = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.out",
+            err = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "|".join(configured_oatk_organelles_without_annotation())
         params:
             assembly_version = config["assembly_version"]
         shell:
             """
             (
                 python3 workflow/scripts/copy_submission_file_to_gzip.py \
-                    --input {input.genome} \
-                    --output {output.genome}
-                python3 workflow/scripts/copy_submission_file_to_gzip.py \
-                    --input {input.annotation} \
-                    --output {output.annotation}
+                    --input {input.genome:q} \
+                    --output {output.genome:q}
                 python3 workflow/scripts/write_organelle_submission_readme.py \
-                    --organelle {wildcards.organelle} \
-                    --assembly-name "{wildcards.assembly_name}" \
-                    --assembly-version "{params.assembly_version}" \
-                    --input-genome {input.genome} \
-                    --input-annotation {input.annotation} \
-                    --output-genome {output.genome} \
-                    --output-annotation {output.annotation} \
-                    --output-readme {output.readme}
+                    --organelle {wildcards.organelle:q} \
+                    --assembly-name {wildcards.assembly_name:q} \
+                    --assembly-version {params.assembly_version:q} \
+                    --input-genome {input.genome:q} \
+                    --output-genome {output.genome:q} \
+                    --output-readme {output.readme:q}
             ) > {log.out} 2> {log.err}
             """

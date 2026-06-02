@@ -50,7 +50,9 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > 4. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding and Juicebox-ready contact maps when Hi-C reads are configured. Without Hi-C reads, this is effectively the same as `remove_contamination_all`.
 > 5. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
 > 6. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
-> 7. `circos_plot_all`: Runs rules up to the Circos plot (equivalent to `all`).
+> 7. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
+> 8. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes that have configured organelle annotation tools, including any required pinned tool downloads.
+> 9. `organelle_submission_all`: Stages Oatk-assembled organelle genome and annotation files for submission.
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 

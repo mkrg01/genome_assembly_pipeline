@@ -6,13 +6,15 @@ assembly_name = config["assembly_name"]
 assembly_version = config["assembly_version"]
 
 include: "rules/genome_assembly.smk"
+include: "rules/organelle_annotation.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
 include: "rules/circos_plot.smk"
 
 rule all:
     input:
-        *circos_plot_all_inputs(assembly_name, assembly_version)
+        *circos_plot_all_inputs(assembly_name, assembly_version),
+        *organelle_submission_all_inputs(assembly_name, assembly_version)
 
 rule assembly_all:
     input:
@@ -41,3 +43,11 @@ rule gene_prediction_all:
 rule circos_plot_all:
     input:
         *circos_plot_all_inputs(assembly_name, assembly_version)
+
+rule organelle_annotation_all:
+    input:
+        *organelle_annotation_all_inputs(assembly_name)
+
+rule organelle_submission_all:
+    input:
+        *organelle_submission_all_inputs(assembly_name, assembly_version)

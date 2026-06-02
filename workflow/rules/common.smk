@@ -55,6 +55,32 @@ VALID_SELECTED_ASSEMBLIES = (
     "hap2",
 )
 
+ORGANELLE_ALIASES = {
+    "mitochondrion": "mitochondrion",
+    "mitochondria": "mitochondrion",
+    "mito": "mitochondrion",
+    "chloroplast": "chloroplast",
+    "plastid": "chloroplast",
+    "pltd": "chloroplast",
+}
+
+OATK_ORGANELLE_ALIASES = {
+    **ORGANELLE_ALIASES,
+    "mitochondrion_and_chloroplast": "mitochondrion_and_chloroplast",
+    "mitochondria_and_chloroplast": "mitochondrion_and_chloroplast",
+    "mito_and_pltd": "mitochondrion_and_chloroplast",
+}
+
+OATK_SHORT_ORGANELLE_NAMES = {
+    "mitochondrion": "mito",
+    "chloroplast": "pltd",
+}
+
+VALID_ORGANELLE_ANNOTATION_TOOLS = {
+    "mitochondrion": ("pmga", "mitoz"),
+    "chloroplast": ("pga_v2",),
+}
+
 HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS = {
     "default": {
         "primary": "results/hifiasm/hifiasm/{assembly_name}.asm.bp.p_ctg.gfa",
@@ -133,6 +159,98 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def required_mitoz_config_value(config_key):
+    value = config.get(config_key, None)
+    if value is None:
+        raise ValueError(
+            f"'{config_key}' in config.yml is required when "
+            "'organelle_annotation.mitochondrion' is set to 'mitoz'."
+        )
+    if isinstance(value, bool):
+        raise ValueError(f"'{config_key}' in config.yml must not be a boolean.")
+    value = str(value).strip()
+    if not value:
+        raise ValueError(
+            f"'{config_key}' in config.yml must not be empty when "
+            "'organelle_annotation.mitochondrion' is set to 'mitoz'."
+        )
+    return value
+
+
+def required_mitoz_genetic_code():
+    value = required_mitoz_config_value("mitoz_genetic_code")
+    if not value.isdigit() or int(value) < 1:
+        raise ValueError(
+            "'mitoz_genetic_code' in config.yml must be a positive integer "
+            "NCBI translation table number."
+        )
+    return value
+
+
+def normalize_organelle_name(config_key, value):
+    if not isinstance(value, str):
+        raise ValueError(f"'{config_key}' in config.yml must be a string.")
+    try:
+        return ORGANELLE_ALIASES[value]
+    except KeyError as exc:
+        raise ValueError(
+            f"Invalid organelle '{value}' for '{config_key}' in config.yml. Must be one of: "
+            "mitochondrion, chloroplast"
+        ) from exc
+
+
+def normalize_oatk_organelle_config(value):
+    if value is None:
+        value = "mitochondrion_and_chloroplast"
+    if not isinstance(value, str):
+        raise ValueError("'oatk_organelle' in config.yml must be a string.")
+    try:
+        return OATK_ORGANELLE_ALIASES[value]
+    except KeyError as exc:
+        raise ValueError(
+            "Invalid value for 'oatk_organelle' in config.yml. Must be one of: "
+            "mitochondrion, chloroplast, mitochondrion_and_chloroplast."
+        ) from exc
+
+
+def normalize_organelle_annotation_config(values):
+    if values is None:
+        values = {}
+    if isinstance(values, str) and values.strip().lower() in ("null", "none"):
+        values = {}
+    if not isinstance(values, dict):
+        raise ValueError(
+            "'organelle_annotation' in config.yml must be a mapping such as "
+            "{'mitochondrion': 'pmga', 'chloroplast': None}."
+        )
+
+    normalized = {}
+    for organelle, tool in values.items():
+        organelle = normalize_organelle_name("organelle_annotation", organelle)
+        if organelle not in VALID_ORGANELLE_ANNOTATION_TOOLS:
+            raise ValueError(
+                f"Invalid organelle '{organelle}' in 'organelle_annotation'. Must be one of: "
+                f"{', '.join(VALID_ORGANELLE_ANNOTATION_TOOLS)}"
+            )
+        if tool is None or (
+            isinstance(tool, str) and tool.strip().lower() in ("null", "none")
+        ):
+            normalized[organelle] = None
+            continue
+        if not isinstance(tool, str):
+            raise ValueError(
+                f"Annotation tool for '{organelle}' in 'organelle_annotation' must be "
+                "a string or null."
+            )
+        if tool not in VALID_ORGANELLE_ANNOTATION_TOOLS[organelle]:
+            raise ValueError(
+                f"Invalid annotation tool '{tool}' for '{organelle}'. Must be one of: "
+                f"{', '.join(VALID_ORGANELLE_ANNOTATION_TOOLS[organelle])}"
+            )
+        normalized[organelle] = tool
+    return normalized
+
+
 selected_assemblies = validate_choice_list(
     "selected_assemblies",
     config.get("selected_assemblies", ["primary"]),
@@ -177,6 +295,9 @@ hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]
 downstream_assembly_name = "yahs" if hic_reads_enabled else "fcs"
+oatk_organelle = normalize_oatk_organelle_config(
+    config.get("oatk_organelle", "mitochondrion_and_chloroplast")
+)
 
 
 def expand_selected_assembly_paths(pattern, assembly_name, assemblies=None, **extra_wildcards):
@@ -228,15 +349,15 @@ def downstream_assembly_path(assembly_name, selected_assembly):
 
 
 def seqkit_stats_organelle_path():
-    mito_txt = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.txt"
-    mito_tsv = "results/oatk/seqkit/{assembly_name}_mito_seqkit_stats.tsv"
-    pltd_txt = "results/oatk/seqkit/{assembly_name}_pltd_seqkit_stats.txt"
-    pltd_tsv = "results/oatk/seqkit/{assembly_name}_pltd_seqkit_stats.tsv"
-    if config["oatk_organelle"] == "mito":
+    mito_txt = "results/oatk/seqkit/{assembly_name}_mitochondrion_seqkit_stats.txt"
+    mito_tsv = "results/oatk/seqkit/{assembly_name}_mitochondrion_seqkit_stats.tsv"
+    pltd_txt = "results/oatk/seqkit/{assembly_name}_chloroplast_seqkit_stats.txt"
+    pltd_tsv = "results/oatk/seqkit/{assembly_name}_chloroplast_seqkit_stats.tsv"
+    if oatk_organelle == "mitochondrion":
         return {"mito_txt": mito_txt, "mito_tsv": mito_tsv}
-    if config["oatk_organelle"] == "pltd":
+    if oatk_organelle == "chloroplast":
         return {"pltd_txt": pltd_txt, "pltd_tsv": pltd_tsv}
-    if config["oatk_organelle"] == "mito_and_pltd":
+    if oatk_organelle == "mitochondrion_and_chloroplast":
         return {
             "mito_txt": mito_txt,
             "mito_tsv": mito_tsv,
@@ -244,8 +365,8 @@ def seqkit_stats_organelle_path():
             "pltd_tsv": pltd_tsv,
         }
     raise ValueError(
-        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
-        "'pltd', or 'mito_and_pltd'."
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of "
+        "'mitochondrion', 'chloroplast', or 'mitochondrion_and_chloroplast'."
     )
 
 
@@ -369,45 +490,161 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
                 assembly_version=assembly_version,
             )
         )
-    inputs.extend(organelle_submission_output_paths(assembly_name, assembly_version))
     return inputs
 
 
 def configured_oatk_organelles():
-    if config["oatk_organelle"] == "mito":
-        return ["mito"]
-    if config["oatk_organelle"] == "pltd":
-        return ["pltd"]
-    if config["oatk_organelle"] == "mito_and_pltd":
-        return ["mito", "pltd"]
+    if oatk_organelle == "mitochondrion":
+        return ["mitochondrion"]
+    if oatk_organelle == "chloroplast":
+        return ["chloroplast"]
+    if oatk_organelle == "mitochondrion_and_chloroplast":
+        return ["mitochondrion", "chloroplast"]
     raise ValueError(
-        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
-        "'pltd', or 'mito_and_pltd'."
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of "
+        "'mitochondrion', 'chloroplast', or 'mitochondrion_and_chloroplast'."
     )
 
 
-def organelle_submission_input_paths(assembly_name, organelle):
+organelle_annotation_tools = normalize_organelle_annotation_config(
+    config.get("organelle_annotation", None)
+)
+pga_v2_reference_dir = config.get("pga_v2_reference_dir", "resources/plastid_reference")
+
+
+def configured_organelle_annotation_tool(organelle):
+    organelle = normalize_organelle_name("organelle_annotation", organelle)
+    return organelle_annotation_tools.get(organelle)
+
+
+def has_configured_organelle_annotation(organelle):
+    return configured_organelle_annotation_tool(organelle) is not None
+
+
+def configured_oatk_organelles_with_annotation():
+    return [
+        organelle for organelle in configured_oatk_organelles()
+        if has_configured_organelle_annotation(organelle)
+    ]
+
+
+def configured_oatk_organelles_without_annotation():
+    return [
+        organelle for organelle in configured_oatk_organelles()
+        if not has_configured_organelle_annotation(organelle)
+    ]
+
+
+def organelle_annotation_output_paths(assembly_name, organelle):
+    organelle = normalize_organelle_name("organelle_annotation", organelle)
+    tool = configured_organelle_annotation_tool(organelle)
+    if tool is None:
+        raise ValueError(
+            f"No annotation tool is configured for organelle '{organelle}'."
+        )
+    prefix = f"results/organelle_annotation/{organelle}/{tool}/{assembly_name}"
     return {
-        "genome": f"results/oatk/oatk/{assembly_name}.{organelle}.ctg.fasta",
-        "annotation": f"results/oatk/oatk/{assembly_name}.annot_{organelle}.txt",
+        "annotation": f"{prefix}/{assembly_name}.{organelle}.annotation.gbk",
+        "manifest": f"{prefix}/{assembly_name}.{organelle}.annotation_manifest.json",
+    }
+
+
+def organelle_annotation_all_inputs(assembly_name):
+    outputs = []
+    for organelle in configured_oatk_organelles_with_annotation():
+        outputs.extend(organelle_annotation_output_paths(assembly_name, organelle).values())
+    return outputs
+
+
+def organelle_submission_genome_input_path(assembly_name, organelle):
+    organelle = normalize_organelle_name("oatk_organelle", organelle)
+    oatk_short_name = OATK_SHORT_ORGANELLE_NAMES[organelle]
+    return f"results/oatk/oatk/{assembly_name}.{oatk_short_name}.ctg.fasta"
+
+
+def organelle_submission_annotation_input_path(assembly_name, organelle):
+    return organelle_annotation_output_paths(assembly_name, organelle)["annotation"]
+
+
+def organelle_submission_input_paths(assembly_name, organelle):
+    inputs = {
+        "genome": organelle_submission_genome_input_path(assembly_name, organelle),
+    }
+    if has_configured_organelle_annotation(organelle):
+        inputs["annotation"] = organelle_submission_annotation_input_path(
+            assembly_name,
+            organelle,
+        )
+    return inputs
+
+
+def organelle_submission_output_paths_by_organelle(assembly_name, assembly_version, organelle):
+    organelle = normalize_organelle_name("oatk_organelle", organelle)
+    prefix = (
+        f"results/submission/organelle/{organelle}/"
+        f"{assembly_name}_{assembly_version}_{organelle}"
+    )
+    outputs = {
+        "genome": f"{prefix}_genome.fa.gz",
+        "readme": f"{prefix}_README.md",
+    }
+    if has_configured_organelle_annotation(organelle):
+        outputs["annotation"] = f"{prefix}_annotation.gbk.gz"
+    return outputs
+
+
+def organelle_submission_output_paths_with_annotation(assembly_name, assembly_version):
+    outputs = []
+    for organelle in configured_oatk_organelles_with_annotation():
+        paths = organelle_submission_output_paths_by_organelle(
+            assembly_name,
+            assembly_version,
+            organelle,
+        )
+        outputs.extend(paths.values())
+    return outputs
+
+
+def organelle_submission_output_paths_without_annotation(assembly_name, assembly_version):
+    outputs = []
+    for organelle in configured_oatk_organelles_without_annotation():
+        paths = organelle_submission_output_paths_by_organelle(
+            assembly_name,
+            assembly_version,
+            organelle,
+        )
+        outputs.extend(paths.values())
+    return outputs
+
+
+def organelle_submission_input_paths_with_annotation(assembly_name, organelle):
+    return {
+        "genome": organelle_submission_genome_input_path(assembly_name, organelle),
+        "annotation": organelle_submission_annotation_input_path(assembly_name, organelle),
+    }
+
+
+def organelle_submission_input_paths_without_annotation(assembly_name, organelle):
+    return {
+        "genome": organelle_submission_genome_input_path(assembly_name, organelle),
     }
 
 
 def organelle_submission_output_paths(assembly_name, assembly_version):
     outputs = []
     for organelle in configured_oatk_organelles():
-        prefix = (
-            f"results/submission/organelle/{organelle}/"
-            f"{assembly_name}_{assembly_version}_{organelle}"
-        )
         outputs.extend(
-            [
-                f"{prefix}_genome.fa.gz",
-                f"{prefix}_annotation.txt.gz",
-                f"{prefix}_README.md",
-            ]
+            organelle_submission_output_paths_by_organelle(
+                assembly_name,
+                assembly_version,
+                organelle,
+            ).values()
         )
     return outputs
+
+
+def organelle_submission_all_inputs(assembly_name, assembly_version):
+    return organelle_submission_output_paths(assembly_name, assembly_version)
 
 
 def circos_plot_all_inputs(assembly_name, assembly_version):
@@ -471,15 +708,15 @@ def hifiasm_hic_option(input):
 def oatkdb_path():
     mito_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_mito.fam"
     pltd_fam = f"results/downloads/oatkdb/{config['oatk_lineage']}_pltd.fam"
-    if config["oatk_organelle"] == "mito":
+    if oatk_organelle == "mitochondrion":
         return {"mito_fam": mito_fam}
-    if config["oatk_organelle"] == "pltd":
+    if oatk_organelle == "chloroplast":
         return {"pltd_fam": pltd_fam}
-    if config["oatk_organelle"] == "mito_and_pltd":
+    if oatk_organelle == "mitochondrion_and_chloroplast":
         return {"mito_fam": mito_fam, "pltd_fam": pltd_fam}
     raise ValueError(
-        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
-        "'pltd', or 'mito_and_pltd'."
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of "
+        "'mitochondrion', 'chloroplast', or 'mitochondrion_and_chloroplast'."
     )
 
 
@@ -495,7 +732,7 @@ def oatk_output_path():
     pltd_bed = "results/oatk/oatk/{assembly_name}.pltd.bed"
     pltd_ctg_fasta = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta"
     pltd_ctg_bed = "results/oatk/oatk/{assembly_name}.pltd.ctg.bed"
-    if config["oatk_organelle"] == "mito":
+    if oatk_organelle == "mitochondrion":
         return {
             "utg_final_gfa": utg_final_gfa,
             "annot_mito_txt": annot_mito_txt,
@@ -504,7 +741,7 @@ def oatk_output_path():
             "mito_ctg_fasta": mito_ctg_fasta,
             "mito_ctg_bed": mito_ctg_bed,
         }
-    if config["oatk_organelle"] == "pltd":
+    if oatk_organelle == "chloroplast":
         return {
             "utg_final_gfa": utg_final_gfa,
             "annot_pltd_txt": annot_pltd_txt,
@@ -513,7 +750,7 @@ def oatk_output_path():
             "pltd_ctg_fasta": pltd_ctg_fasta,
             "pltd_ctg_bed": pltd_ctg_bed,
         }
-    if config["oatk_organelle"] == "mito_and_pltd":
+    if oatk_organelle == "mitochondrion_and_chloroplast":
         return {
             "utg_final_gfa": utg_final_gfa,
             "annot_mito_txt": annot_mito_txt,
@@ -528,24 +765,24 @@ def oatk_output_path():
             "pltd_ctg_bed": pltd_ctg_bed,
         }
     raise ValueError(
-        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
-        "'pltd', or 'mito_and_pltd'."
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of "
+        "'mitochondrion', 'chloroplast', or 'mitochondrion_and_chloroplast'."
     )
 
 
 def concatemer_path():
-    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mito.fa"
-    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.pltd.fa"
+    mito = "results/oatk/concatemer/{assembly_name}.concatemer.mitochondrion.fa"
+    pltd = "results/oatk/concatemer/{assembly_name}.concatemer.chloroplast.fa"
     all_organelle = "results/oatk/concatemer/{assembly_name}.concatemer.all.fa"
-    if config["oatk_organelle"] == "mito":
+    if oatk_organelle == "mitochondrion":
         return {"mito": mito, "all_organelle": all_organelle}
-    if config["oatk_organelle"] == "pltd":
+    if oatk_organelle == "chloroplast":
         return {"pltd": pltd, "all_organelle": all_organelle}
-    if config["oatk_organelle"] == "mito_and_pltd":
+    if oatk_organelle == "mitochondrion_and_chloroplast":
         return {"mito": mito, "pltd": pltd, "all_organelle": all_organelle}
     raise ValueError(
-        "Invalid value for 'oatk_organelle' in config.yml. Must be one of 'mito', "
-        "'pltd', or 'mito_and_pltd'."
+        "Invalid value for 'oatk_organelle' in config.yml. Must be one of "
+        "'mitochondrion', 'chloroplast', or 'mitochondrion_and_chloroplast'."
     )
 
 

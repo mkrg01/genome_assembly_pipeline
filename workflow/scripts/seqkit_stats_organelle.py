@@ -21,21 +21,42 @@ def run_seqkit_stats(fasta, txt_out, tsv_out, log_err):
 def run_seqkit_stats_organelle(snakemake):
     oatk_organelle = snakemake.params.oatk_organelle
     with open(snakemake.log.err, "w") as log_err:
-        if oatk_organelle in ("mito", "mito_and_pltd"):
+        if oatk_organelle in (
+            "mitochondrion",
+            "mitochondrion_and_chloroplast",
+            "mito",
+            "mito_and_pltd",
+        ):
             run_seqkit_stats(
                 fasta=str(snakemake.input.mito_ctg_fasta),
                 txt_out=str(snakemake.output.mito_txt),
                 tsv_out=str(snakemake.output.mito_tsv),
                 log_err=log_err
             )
-        if oatk_organelle in ("pltd", "mito_and_pltd"):
+        if oatk_organelle in (
+            "chloroplast",
+            "mitochondrion_and_chloroplast",
+            "pltd",
+            "mito_and_pltd",
+        ):
             run_seqkit_stats(
                 fasta=str(snakemake.input.pltd_ctg_fasta),
                 txt_out=str(snakemake.output.pltd_txt),
                 tsv_out=str(snakemake.output.pltd_tsv),
                 log_err=log_err
             )
-        if oatk_organelle not in ("mito", "pltd", "mito_and_pltd"):
-            raise ValueError(f"Invalid value for 'oatk_organelle' in config.yml: {oatk_organelle}. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+        if oatk_organelle not in (
+            "mitochondrion",
+            "chloroplast",
+            "mitochondrion_and_chloroplast",
+            "mito",
+            "pltd",
+            "mito_and_pltd",
+        ):
+            raise ValueError(
+                f"Invalid value for 'oatk_organelle' in config.yml: {oatk_organelle}. "
+                "Must be one of 'mitochondrion', 'chloroplast', or "
+                "'mitochondrion_and_chloroplast'."
+            )
 
 run_seqkit_stats_organelle(snakemake)

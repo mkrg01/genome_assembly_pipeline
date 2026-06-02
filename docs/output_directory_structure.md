@@ -10,13 +10,13 @@ The exact set of directories depends on the target you run and on the configurat
 | --- | --- |
 | `{selected_assembly}` | One of the assemblies listed in `selected_assemblies` in `config/config.yml`: `primary`, `hap1`, or `hap2`. |
 | `{assembly_name}` | The value of `assembly_name` in `config/config.yml`. |
-| `{organelle}` | One of the organelle types selected by `oatk_organelle`: `mito` or `pltd`. |
+| `{organelle}` | One of the organelle types selected by `oatk_organelle`: `mitochondrion` or `chloroplast`. |
 
 - `results/submission/{selected_assembly}/` is created only for assemblies listed in `submission_assemblies`.
-- `results/submission/organelle/` depends on `oatk_organelle` and is populated from Oatk outputs.
+- `results/submission/organelle/` depends on `oatk_organelle` and `organelle_annotation`; genome FASTA files are populated from Oatk outputs, and annotation files are populated only for organelles with configured annotation tools.
 - `results/ont_reads/` is created only when `ont_reads` is set.
 - `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
-- Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mito`, `pltd`, or `mito_and_pltd`).
+- Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mitochondrion`, `chloroplast`, or `mitochondrion_and_chloroplast`). Raw Oatk files still use Oatk's native `mito` and `pltd` suffixes.
 - Track-specific subdirectories in `results/circos_plot/` depend on `circos_plot_tracks`.
 
 ## Downstream Assembly Used by Later Steps
@@ -68,6 +68,10 @@ Downloaded reference datasets, wrapper scripts, and helper files.
   The OMAmer database (`LUCA.h5`) used by OMArk.
 - `orthodb/`
   OrthoDB protein dataset used by BRAKER3.
+- `pmga/`
+  Pinned PMGA Figshare archive, extracted PMGA bundle, and download manifest when PMGA is selected for mitochondrial annotation.
+- `pga_v2/`
+  Pinned PGA v2.0 script downloaded from the configured PlastidHub commit, plus a checksum manifest.
 - `tidk/`
   The `tidk` database CSV and a cleanup flag file used to restore or remove `~/.local/share/tidk`.
 
@@ -210,12 +214,23 @@ Organelle assembly outputs generated from HiFi reads.
 
 - `oatk/`
   Raw Oatk outputs.
-  Depending on `oatk_organelle`, this directory can include mitochondrial and/or plastid annotations, GFA files, BED files, and contig FASTA files.
+  Depending on `oatk_organelle`, this directory can include mitochondrial and/or chloroplast/plastid GFA files, BED files, and contig FASTA files. Oatk writes these raw files with its native `mito` and `pltd` suffixes. Oatk annotation files are not used by the submission path.
 - `concatemer/`
   Concatenated organelle references.
-  `*.concatemer.all.fa` is always produced; organelle-specific `*.concatemer.mito.fa` and/or `*.concatemer.pltd.fa` are produced when applicable.
+  `*.concatemer.all.fa` is always produced; organelle-specific `*.concatemer.mitochondrion.fa` and/or `*.concatemer.chloroplast.fa` are produced when applicable.
 - `seqkit/`
   Organelle-specific SeqKit statistics for mitochondrial and/or plastid contig FASTA files.
+
+## `results/organelle_annotation/`
+
+Annotations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`.
+
+- `mitochondrion/pmga/{assembly_name}/`
+  PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, a canonical GenBank file (`*.mitochondrion.annotation.gbk`), and a JSON manifest.
+- `mitochondrion/mitoz/{assembly_name}/`
+  MitoZ annotation outputs when `organelle_annotation.mitochondrion` is set to `mitoz`.
+- `chloroplast/pga_v2/{assembly_name}/`
+  PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, a canonical GenBank file (`*.chloroplast.annotation.gbk`), and a JSON manifest.
 
 ## `results/ont_reads/`
 
@@ -276,12 +291,12 @@ RNA-seq preprocessing outputs.
 
 ## `results/submission/`
 
-Submission-ready files produced for assemblies listed in `submission_assemblies`, plus organelle submission assets staged from Oatk outputs.
+Submission-ready files produced for assemblies listed in `submission_assemblies`, plus organelle submission assets staged from Oatk assemblies.
 
 - `{selected_assembly}/`
   Gzipped genome FASTA, isoform CDS/GFF3 files, representative CDS/GFF3 files, and a generated README for submission.
 - `organelle/{organelle}/`
-  Organelle-specific submission files derived from the corresponding Oatk outputs. Each organelle subdirectory contains a gzipped genome FASTA, a gzipped Oatk annotation text file, and a generated README describing file provenance.
+  Organelle-specific submission files. Each organelle subdirectory contains a gzipped genome FASTA and a generated README describing file provenance. A gzipped GenBank annotation file is included only when `organelle_annotation` configures a non-null annotation tool for that organelle.
 
 ## `results/yahs/`
 

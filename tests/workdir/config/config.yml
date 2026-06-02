@@ -8,8 +8,14 @@ hic_reads_r1: null
 hic_reads_r2: null
 yahs_restriction_enzymes: null
 oatk_lineage: "magnoliopsida"
-oatk_organelle: "mito_and_pltd"
+oatk_organelle: "mitochondrion_and_chloroplast"
 oatk_minimum_kmer_coverage: "250"
+organelle_annotation:
+  mitochondrion: "pmga"
+  chloroplast: "pga_v2"
+mitoz_clade: null
+mitoz_genetic_code: null
+pga_v2_reference_dir: "resources/plastid_reference"
 fcs_gx_taxid: "122299"
 busco_lineage_dataset: "embryophyta_odb12"
 tidk_clade: "Caryophyllales"

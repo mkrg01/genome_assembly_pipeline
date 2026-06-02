@@ -1,0 +1,5 @@
+name: mitoz
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::mitoz=3.6

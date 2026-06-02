@@ -14,14 +14,18 @@ def run_oatk(snakemake):
 
     cmd = ["oatk"]
 
-    if oatk_organelle == "mito":
+    if oatk_organelle in ("mitochondrion", "mito"):
         cmd += ["-m", str(input.mito_fam)]
-    elif oatk_organelle == "pltd":
+    elif oatk_organelle in ("chloroplast", "pltd"):
         cmd += ["-p", str(input.pltd_fam)]
-    elif oatk_organelle == "mito_and_pltd":
+    elif oatk_organelle in ("mitochondrion_and_chloroplast", "mito_and_pltd"):
         cmd += ["-m", str(input.mito_fam), "-p", str(input.pltd_fam)]
     else:
-        raise ValueError(f"Invalid value for 'oatk_organelle' in config.yml: {oatk_organelle}. Must be one of 'mito', 'pltd', or 'mito_and_pltd'.")
+        raise ValueError(
+            f"Invalid value for 'oatk_organelle' in config.yml: {oatk_organelle}. "
+            "Must be one of 'mitochondrion', 'chloroplast', or "
+            "'mitochondrion_and_chloroplast'."
+        )
 
     cmd += [
         "-o", str(outprefix),

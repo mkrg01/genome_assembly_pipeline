@@ -10,8 +10,14 @@ hic_reads_r1: null # Optional: Hi-C read 1 FASTQ path(s) for hifiasm Hi-C phasin
 hic_reads_r2: null # Optional: Hi-C read 2 FASTQ path(s) matching `hic_reads_r1` in length and order for hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps. Use a YAML list or set to null to disable.
 yahs_restriction_enzymes: null # Optional: Restriction enzyme motif(s) for YaHS Hi-C scaffolding, e.g. "GATC" or "GATC,GANTC". Set to null to use YaHS defaults. See: https://github.com/c-zhou/yahs
 oatk_lineage: "magnoliopsida" # Lineage of the Oatk HMM profile database to download. See: https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID
-oatk_organelle: "mito_and_pltd" # {"mito", "pltd", "mito_and_pltd"} - specify which organelle HMM profiles to include for Oatk. "mito_and_pltd" includes both mitochondrial and plastid profiles.
+oatk_organelle: "mitochondrion_and_chloroplast" # {"mitochondrion", "chloroplast", "mitochondrion_and_chloroplast"} - specify which organelle HMM profiles to include for Oatk. "mitochondrion_and_chloroplast" includes both mitochondrial and chloroplast/plastid profiles.
 oatk_minimum_kmer_coverage: "250" # Minimum kmer coverage for Oatk. Syncmers with coverages below the threshold will be excluded from the assembly graph. As an empirical instruction, this parameter can be set as 5-10 times the value of nuclear sequence coverage. See: https://github.com/c-zhou/oatk
+organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. Set an organelle or this whole key to null, or omit an organelle key, to skip annotation. Mitochondrion: {"pmga", "mitoz", null}. Chloroplast: {"pga_v2", null}.
+  mitochondrion: "pmga"
+  chloroplast: "pga_v2"
+mitoz_clade: null # Required when organelle_annotation.mitochondrion is "mitoz". Passed to `mitoz annotate --clade`, e.g. "Arthropoda".
+mitoz_genetic_code: null # Required when organelle_annotation.mitochondrion is "mitoz". NCBI translation table number passed to `mitoz annotate --genetic_code`, e.g. 5 for invertebrate mitochondrial code.
+pga_v2_reference_dir: "resources/plastid_reference" # Directory containing reference plastid GenBank files for PGA v2.0. PGA v2 copies this directory into its work area before annotation.
 fcs_gx_taxid: "122299" # NCBI Taxonomy ID for FCS-GX. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 tidk_clade: "Caryophyllales" # Clade to use for tidk (Telomere Identification Toolkit). See: https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find

@@ -1,0 +1,7 @@
+name: pga_v2
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13.7
+  - perl=5.32.*
+  - bioconda::blast=2.16.0
