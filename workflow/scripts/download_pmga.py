@@ -69,24 +69,18 @@ def checked_members(tar, destination):
         member_path = (destination / member.name).resolve()
         if destination not in [member_path, *member_path.parents]:
             raise RuntimeError(f"Unsafe path in PMGA archive: {member.name}")
-        if member.issym() or member.islnk():
-            if member.issym():
-                link_target = Path(member.linkname)
-                target_path = (
-                    link_target
-                    if link_target.is_absolute()
-                    else destination / Path(member.name).parent / link_target
-                )
-            else:
-                link_target = Path(member.linkname)
-                target_path = (
-                    link_target
-                    if link_target.is_absolute()
-                    else destination / link_target
-                )
+        if member.islnk():
+            link_target = Path(member.linkname)
+            target_path = (
+                link_target
+                if link_target.is_absolute()
+                else destination / link_target
+            )
             target_path = target_path.resolve()
             if destination not in [target_path, *target_path.parents]:
                 raise RuntimeError(f"Unsafe link in PMGA archive: {member.name}")
+        elif member.issym():
+            pass
         elif not (member.isfile() or member.isdir()):
             raise RuntimeError(f"Unsupported member in PMGA archive: {member.name}")
         yield member
