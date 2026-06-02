@@ -66,12 +66,38 @@ def top_level_members(tar):
 def checked_members(tar, destination):
     destination = destination.resolve()
     for member in tar.getmembers():
-        if member.issym() or member.islnk():
-            raise RuntimeError(f"Unsafe link in PMGA archive: {member.name}")
         member_path = (destination / member.name).resolve()
         if destination not in [member_path, *member_path.parents]:
             raise RuntimeError(f"Unsafe path in PMGA archive: {member.name}")
+        if member.issym() or member.islnk():
+            if member.issym():
+                link_target = Path(member.linkname)
+                target_path = (
+                    link_target
+                    if link_target.is_absolute()
+                    else destination / Path(member.name).parent / link_target
+                )
+            else:
+                link_target = Path(member.linkname)
+                target_path = (
+                    link_target
+                    if link_target.is_absolute()
+                    else destination / link_target
+                )
+            target_path = target_path.resolve()
+            if destination not in [target_path, *target_path.parents]:
+                raise RuntimeError(f"Unsafe link in PMGA archive: {member.name}")
+        elif not (member.isfile() or member.isdir()):
+            raise RuntimeError(f"Unsupported member in PMGA archive: {member.name}")
         yield member
+
+
+def extractall_checked(tar, destination):
+    members = checked_members(tar, destination)
+    try:
+        tar.extractall(destination, members=members, filter="fully_trusted")
+    except TypeError:
+        tar.extractall(destination, members=members)
 
 
 def unpack_archive(archive, bundle):
@@ -84,7 +110,7 @@ def unpack_archive(archive, bundle):
         tmpdir = Path(tmpdir)
         with tarfile.open(archive) as tar:
             members = top_level_members(tar)
-            tar.extractall(tmpdir, members=checked_members(tar, tmpdir))
+            extractall_checked(tar, tmpdir)
 
         preferred = tmpdir / bundle.name
         if preferred.exists():
