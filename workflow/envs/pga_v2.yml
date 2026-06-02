@@ -3,5 +3,5 @@ channels:
   - conda-forge
 dependencies:
   - python=3.13.7
-  - perl=5.32.*
+  - perl=5.32.1
   - bioconda::blast=2.16.0
