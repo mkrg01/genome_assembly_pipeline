@@ -79,15 +79,6 @@ Below are the available parameters:
 
 When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb` or `.gbk`) in the directory configured by `pga_v2_reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming.
 
-Recommended search order:
-
-1. A complete chloroplast/plastid genome from the same species.
-2. Complete chloroplast/plastid genomes from species in the same genus.
-3. Complete chloroplast/plastid genomes from species in the same family.
-4. More distant references if no closer complete plastome is available.
-
-Prefer records that are complete, circular or near-complete plastomes with rich GenBank feature annotations.
-
 Useful NCBI Nucleotide searches:
 
 ```text
