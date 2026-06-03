@@ -1,5 +1,5 @@
 configfile: "config/config.yml"
-# containerized: config["pipeline_container"]
+containerized: config["pipeline_container"]
 include: "rules/common.smk"
 
 assembly_name = config["assembly_name"]
