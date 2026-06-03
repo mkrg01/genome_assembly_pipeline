@@ -1,5 +1,5 @@
 configfile: "config/config.yml"
-containerized: config["pipeline_container"]
+# containerized: config["pipeline_container"]
 include: "rules/common.smk"
 
 assembly_name = config["assembly_name"]
@@ -47,6 +47,10 @@ rule circos_plot_all:
 rule organelle_annotation_all:
     input:
         *organelle_annotation_all_inputs(assembly_name)
+
+rule organelle_visualization_all:
+    input:
+        *organelle_visualization_all_inputs(assembly_name)
 
 rule organelle_submission_all:
     input:

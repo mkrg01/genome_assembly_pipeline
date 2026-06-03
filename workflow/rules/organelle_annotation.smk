@@ -71,8 +71,8 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
             genome = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta",
             pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"
         output:
-            annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.annotation.gbk",
-            manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.annotation_manifest.json"
+            annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.gbk",
+            manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.manifest.json"
         log:
             out = "logs/annotate_mitochondrion_pmga_{assembly_name}.out",
             err = "logs/annotate_mitochondrion_pmga_{assembly_name}.err"
@@ -101,8 +101,8 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
         input:
             genome = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta"
         output:
-            annotation = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.annotation.gbk",
-            manifest = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.annotation_manifest.json"
+            annotation = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.gbk",
+            manifest = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.manifest.json"
         log:
             out = "logs/annotate_mitochondrion_mitoz_{assembly_name}.out",
             err = "logs/annotate_mitochondrion_mitoz_{assembly_name}.err"
@@ -134,8 +134,8 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             genome = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta",
             script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl"
         output:
-            annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.annotation.gbk",
-            manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.annotation_manifest.json",
+            annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.gbk",
+            manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
             post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.md"
         log:
             out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
@@ -170,4 +170,72 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --qcoverage {params.qcoverage:q} \
                     --warning {params.warning:q}
             ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_annotation():
+    rule plot_organelle_pycirclize:
+        input:
+            annotation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.gbk"
+            )
+        output:
+            (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.pycirclize.pdf"
+            )
+        log:
+            out = "logs/plot_organelle_pycirclize_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/plot_organelle_pycirclize_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/pycirclize.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast",
+            tool = "pmga|mitoz|pga_v2"
+        params:
+            assembly_name = lambda wildcards: wildcards.assembly_name,
+            organelle = lambda wildcards: wildcards.organelle,
+            label_features = True
+        script:
+            "../scripts/organelle_pycirclize.py"
+
+
+if configured_oatk_organelles_with_annotation():
+    rule plot_organelle_gbdraw:
+        input:
+            annotation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.gbk"
+            )
+        output:
+            (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.gbdraw.pdf"
+            )
+        log:
+            out = "logs/plot_organelle_gbdraw_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/plot_organelle_gbdraw_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/gbdraw.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast",
+            tool = "pmga|mitoz|pga_v2"
+        params:
+            output_prefix = lambda wildcards: (
+                "results/organelle_annotation/"
+                f"{wildcards.organelle}/{wildcards.tool}/{wildcards.assembly_name}/"
+                f"{wildcards.assembly_name}.{wildcards.organelle}.gbdraw"
+            ),
+            species = lambda wildcards: wildcards.assembly_name.replace("_", " "),
+            labels = "both"
+        shell:
+            """
+            python3 workflow/scripts/organelle_gbdraw.py \
+                --gbk {input.annotation:q} \
+                --output-prefix {params.output_prefix:q} \
+                --formats pdf \
+                --species {params.species:q} \
+                --labels {params.labels:q} \
+                --overwrite > {log.out:q} 2> {log.err:q}
             """

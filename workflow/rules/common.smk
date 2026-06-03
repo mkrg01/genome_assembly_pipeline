@@ -475,7 +475,7 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     for pattern in (
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_genome.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}.fa.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
@@ -544,18 +544,39 @@ def organelle_annotation_output_paths(assembly_name, organelle):
         )
     prefix = f"results/organelle_annotation/{organelle}/{tool}/{assembly_name}"
     paths = {
-        "annotation": f"{prefix}/{assembly_name}.{organelle}.annotation.gbk",
-        "manifest": f"{prefix}/{assembly_name}.{organelle}.annotation_manifest.json",
+        "annotation": f"{prefix}/{assembly_name}.{organelle}.gbk",
+        "manifest": f"{prefix}/{assembly_name}.{organelle}.manifest.json",
     }
     if organelle == "chloroplast" and tool == "pga_v2":
         paths["post_curation"] = f"{prefix}/post_curation.md"
     return paths
 
 
+def organelle_visualization_output_paths(assembly_name, organelle):
+    organelle = normalize_organelle_name("organelle_annotation", organelle)
+    tool = configured_organelle_annotation_tool(organelle)
+    if tool is None:
+        raise ValueError(
+            f"No annotation tool is configured for organelle '{organelle}'."
+        )
+    prefix = f"results/organelle_annotation/{organelle}/{tool}/{assembly_name}"
+    return {
+        "pycirclize": f"{prefix}/{assembly_name}.{organelle}.pycirclize.pdf",
+        "gbdraw": f"{prefix}/{assembly_name}.{organelle}.gbdraw.pdf",
+    }
+
+
 def organelle_annotation_all_inputs(assembly_name):
     outputs = []
     for organelle in configured_oatk_organelles_with_annotation():
         outputs.extend(organelle_annotation_output_paths(assembly_name, organelle).values())
+    return outputs
+
+
+def organelle_visualization_all_inputs(assembly_name):
+    outputs = []
+    for organelle in configured_oatk_organelles_with_annotation():
+        outputs.extend(organelle_visualization_output_paths(assembly_name, organelle).values())
     return outputs
 
 
@@ -588,11 +609,11 @@ def organelle_submission_output_paths_by_organelle(assembly_name, assembly_versi
         f"{assembly_name}_{assembly_version}_{organelle}"
     )
     outputs = {
-        "genome": f"{prefix}_genome.fa.gz",
+        "genome": f"{prefix}.fa.gz",
         "readme": f"{prefix}_README.md",
     }
     if has_configured_organelle_annotation(organelle):
-        outputs["annotation"] = f"{prefix}_annotation.gbk.gz"
+        outputs["annotation"] = f"{prefix}.gbk.gz"
     return outputs
 
 

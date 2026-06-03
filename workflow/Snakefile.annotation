@@ -70,7 +70,7 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     for pattern in (
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_genome.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}.fa.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
         "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",

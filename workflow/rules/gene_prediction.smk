@@ -340,7 +340,7 @@ rule format_for_submission:
         longest_cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
         longest_gff3 = "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     output:
-        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_genome.fa.gz",
+        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}.fa.gz",
         isoform_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.cds.fa.gz",
         isoform_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.gff3.gz",
         longest_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_representative.cds.fa.gz",
@@ -399,8 +399,8 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["annotation"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_genome.fa.gz",
-            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_annotation.gbk.gz",
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.fa.gz",
+            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.gbk.gz",
             readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.out",
@@ -444,7 +444,7 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["genome"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_genome.fa.gz",
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.fa.gz",
             readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.out",

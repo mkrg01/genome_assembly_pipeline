@@ -223,14 +223,14 @@ Organelle assembly outputs generated from HiFi reads.
 
 ## `results/organelle_annotation/`
 
-Annotations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`.
+Annotations and visualizations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`. The GenBank, manifest, and `post_curation.md` files are produced by `organelle_annotation_all`; pyCirclize and gbdraw PDFs are produced separately by `organelle_visualization_all` so the GenBank files can be manually curated first.
 
 - `mitochondrion/pmga/{assembly_name}/`
-  PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, a canonical GenBank file (`*.mitochondrion.annotation.gbk`), and a JSON manifest.
+  PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), and a JSON manifest (`*.mitochondrion.manifest.json`).
 - `mitochondrion/mitoz/{assembly_name}/`
-  MitoZ annotation outputs when `organelle_annotation.mitochondrion` is set to `mitoz`.
+  MitoZ annotation outputs when `organelle_annotation.mitochondrion` is set to `mitoz`, including pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`).
 - `chloroplast/pga_v2/{assembly_name}/`
-  PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, a canonical GenBank file (`*.chloroplast.annotation.gbk`), and a JSON manifest.
+  PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, a canonical GenBank file (`*.chloroplast.gbk`), pyCirclize and gbdraw circular maps (`*.chloroplast.pycirclize.pdf`, `*.chloroplast.gbdraw.pdf`), a JSON manifest (`*.chloroplast.manifest.json`), and a regenerated `post_curation.md` template that records automatic post-curation and provides space for user-written manual curation notes after the workflow run.
 
 ## `results/ont_reads/`
 
