@@ -543,10 +543,13 @@ def organelle_annotation_output_paths(assembly_name, organelle):
             f"No annotation tool is configured for organelle '{organelle}'."
         )
     prefix = f"results/organelle_annotation/{organelle}/{tool}/{assembly_name}"
-    return {
+    paths = {
         "annotation": f"{prefix}/{assembly_name}.{organelle}.annotation.gbk",
         "manifest": f"{prefix}/{assembly_name}.{organelle}.annotation_manifest.json",
     }
+    if organelle == "chloroplast" and tool == "pga_v2":
+        paths["manual_modification"] = f"{prefix}/manual_modification.txt"
+    return paths
 
 
 def organelle_annotation_all_inputs(assembly_name):

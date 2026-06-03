@@ -3,7 +3,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from organelle_annotation_utils import copy_first_genbank, write_run_manifest
+from organelle_annotation_utils import (
+    copy_first_genbank,
+    curate_source_organism,
+    write_manual_modification_record,
+    write_run_manifest,
+)
 
 
 def parse_args():
@@ -13,6 +18,8 @@ def parse_args():
     parser.add_argument("--reference-dir", type=Path, required=True)
     parser.add_argument("--annotation", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--manual-modification", type=Path, required=True)
+    parser.add_argument("--assembly-name", required=True)
     parser.add_argument("--form", default="circular")
     parser.add_argument("--ir", default="1000")
     parser.add_argument("--pidentity", default="40")
@@ -36,6 +43,7 @@ def main():
     reference_dir = args.reference_dir.resolve()
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
+    manual_modification = args.manual_modification.resolve()
 
     if not reference_dir.is_dir():
         raise RuntimeError(
@@ -79,6 +87,14 @@ def main():
     ]
     subprocess.run(cmd, check=True, cwd=run_root)
     selected = copy_first_genbank(raw_output_dir, annotation)
+    source_organism_curation = curate_source_organism(annotation, args.assembly_name)
+    post_curation = {
+        "source_organism": source_organism_curation,
+    }
+    manual_modification_record = write_manual_modification_record(
+        manual_modification,
+        post_curation,
+    )
     write_run_manifest(
         manifest,
         {
@@ -90,6 +106,8 @@ def main():
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),
+            "post_curation": post_curation,
+            **manual_modification_record,
             "command": cmd,
         },
     )
