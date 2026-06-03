@@ -1,7 +1,9 @@
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import stat
 import tarfile
 import tempfile
 import urllib.request
@@ -54,6 +56,61 @@ def download_file(url, output_path):
     tmp_path.replace(output_path)
 
 
+def sudo_owner_ids():
+    if hasattr(os, "geteuid") and os.geteuid() == 0 and os.environ.get("SUDO_UID"):
+        uid = int(os.environ["SUDO_UID"])
+        gid = int(os.environ.get("SUDO_GID", "-1"))
+        return uid, gid
+    return None
+
+
+def make_path_user_writable(path, owner_ids=None):
+    path = Path(path)
+    if path.is_symlink():
+        return
+
+    try:
+        mode = path.stat().st_mode
+    except FileNotFoundError:
+        return
+
+    if owner_ids is not None:
+        os.chown(path, *owner_ids)
+
+    writable_mode = mode | stat.S_IRUSR | stat.S_IWUSR
+    if stat.S_ISDIR(mode):
+        writable_mode |= stat.S_IXUSR
+    os.chmod(path, writable_mode)
+
+
+def make_tree_user_writable(path):
+    path = Path(path)
+    if not path.exists():
+        return
+
+    owner_ids = sudo_owner_ids()
+    make_path_user_writable(path, owner_ids)
+    if not path.is_dir():
+        return
+
+    for root, dirs, files in os.walk(path):
+        root_path = Path(root)
+        make_path_user_writable(root_path, owner_ids)
+        for name in dirs + files:
+            make_path_user_writable(root_path / name, owner_ids)
+
+
+def remove_tree(path):
+    make_tree_user_writable(path)
+    try:
+        shutil.rmtree(path)
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"Could not remove existing PMGA bundle at {path}. "
+            "If it was extracted as root, change ownership or remove it with sudo, then rerun."
+        ) from exc
+
+
 def top_level_members(tar):
     names = set()
     for member in tar.getmembers():
@@ -98,23 +155,28 @@ def unpack_archive(archive, bundle):
     bundle_parent = bundle.parent
     bundle_parent.mkdir(parents=True, exist_ok=True)
     if bundle.exists():
-        shutil.rmtree(bundle)
+        remove_tree(bundle)
 
     with tempfile.TemporaryDirectory(dir=bundle_parent) as tmpdir:
         tmpdir = Path(tmpdir)
-        with tarfile.open(archive) as tar:
-            members = top_level_members(tar)
-            extractall_checked(tar, tmpdir)
+        try:
+            with tarfile.open(archive) as tar:
+                members = top_level_members(tar)
+                extractall_checked(tar, tmpdir)
 
-        preferred = tmpdir / bundle.name
-        if preferred.exists():
-            shutil.move(str(preferred), bundle)
-        elif len(members) == 1 and (tmpdir / members[0]).exists():
-            shutil.move(str(tmpdir / members[0]), bundle)
-        else:
-            bundle.mkdir(parents=True, exist_ok=True)
-            for child in tmpdir.iterdir():
-                shutil.move(str(child), bundle / child.name)
+            make_tree_user_writable(tmpdir)
+            preferred = tmpdir / bundle.name
+            if preferred.exists():
+                shutil.move(str(preferred), bundle)
+            elif len(members) == 1 and (tmpdir / members[0]).exists():
+                shutil.move(str(tmpdir / members[0]), bundle)
+            else:
+                bundle.mkdir(parents=True, exist_ok=True)
+                for child in tmpdir.iterdir():
+                    shutil.move(str(child), bundle / child.name)
+        finally:
+            make_tree_user_writable(tmpdir)
+    make_tree_user_writable(bundle)
 
 
 def write_manifest(args, file_info, actual_md5):
