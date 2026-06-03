@@ -548,7 +548,7 @@ def organelle_annotation_output_paths(assembly_name, organelle):
         "manifest": f"{prefix}/{assembly_name}.{organelle}.annotation_manifest.json",
     }
     if organelle == "chloroplast" and tool == "pga_v2":
-        paths["manual_modification"] = f"{prefix}/manual_modification.txt"
+        paths["manual_modification"] = f"{prefix}/manual_modification.md"
     return paths
 
 

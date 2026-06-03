@@ -98,17 +98,10 @@ def format_manual_modification_record(post_curation):
         else:
             lines.append(f'- source /organism: already "{after}"')
 
-    if len(lines) == 5:
-        lines.append("- No automatic post-curation changes were recorded.")
-
     lines.extend(
         [
             "",
             "# Manual post-curation notes",
-            "",
-            "Add manually applied edits below this heading. Keep enough detail to "
-            "reproduce each edit, including gene names, affected qualifiers, and "
-            "rationale.",
             "",
         ]
     )

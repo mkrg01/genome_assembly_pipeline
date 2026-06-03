@@ -136,7 +136,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
         output:
             annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.annotation.gbk",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.annotation_manifest.json",
-            manual_modification = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/manual_modification.txt"
+            manual_modification = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/manual_modification.md"
         log:
             out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
             err = "logs/annotate_chloroplast_pga_v2_{assembly_name}.err"
