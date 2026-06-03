@@ -6,7 +6,7 @@ from pathlib import Path
 from organelle_annotation_utils import (
     copy_first_genbank,
     curate_source_organism,
-    write_manual_modification_record,
+    write_post_curation_record,
     write_run_manifest,
 )
 
@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--reference-dir", type=Path, required=True)
     parser.add_argument("--annotation", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--manual-modification", type=Path, required=True)
+    parser.add_argument("--post-curation", type=Path, required=True)
     parser.add_argument("--assembly-name", required=True)
     parser.add_argument("--form", default="circular")
     parser.add_argument("--ir", default="1000")
@@ -43,7 +43,7 @@ def main():
     reference_dir = args.reference_dir.resolve()
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
-    manual_modification = args.manual_modification.resolve()
+    post_curation_path = args.post_curation.resolve()
 
     if not reference_dir.is_dir():
         raise RuntimeError(
@@ -91,9 +91,10 @@ def main():
     post_curation = {
         "source_organism": source_organism_curation,
     }
-    manual_modification_record = write_manual_modification_record(
-        manual_modification,
+    post_curation_record = write_post_curation_record(
+        post_curation_path,
         post_curation,
+        annotation,
     )
     write_run_manifest(
         manifest,
@@ -107,7 +108,7 @@ def main():
             "selected_annotation": str(selected),
             "annotation": str(annotation),
             "post_curation": post_curation,
-            **manual_modification_record,
+            **post_curation_record,
             "command": cmd,
         },
     )
