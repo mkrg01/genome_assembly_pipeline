@@ -6,4 +6,3 @@ dependencies:
   - pandas=2.2.3
   - matplotlib=3.10.6
   - numpy=2.2.6
-  - ete4=4.3.0

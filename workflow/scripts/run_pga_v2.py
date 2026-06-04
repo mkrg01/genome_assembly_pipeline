@@ -6,9 +6,9 @@ from pathlib import Path
 from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
-    curate_genbank_species_metadata,
-    load_taxonomy_lineage_record,
+    curate_genbank_source_metadata,
     topology_from_fasta_header,
+    trim_genbank_to_core_sections,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -31,7 +31,6 @@ def parse_args():
     parser.add_argument("--qcoverage", default="0.5,2.0")
     parser.add_argument("--warning", default="warning")
     parser.add_argument("--taxid")
-    parser.add_argument("--taxonomy-lineage")
     return parser.parse_args()
 
 
@@ -119,19 +118,20 @@ def main():
     ]
     subprocess.run(cmd, check=True, cwd=run_root)
     selected = copy_first_genbank(raw_output_dir, annotation)
+    core_sections = trim_genbank_to_core_sections(annotation)
     topology, input_headers, sequence_length = input_fasta_topology(input_fasta)
     topology_curation = curate_genbank_locus(
         annotation,
         topology=topology,
         sequence_length=sequence_length,
     )
-    taxonomy_lineage = load_taxonomy_lineage_record(args.taxonomy_lineage)
-    post_curation = curate_genbank_species_metadata(
+    post_curation = curate_genbank_source_metadata(
         annotation,
         args.assembly_name,
         taxid=args.taxid,
-        taxonomy_lineage=taxonomy_lineage,
+        organelle="plastid:chloroplast",
     )
+    post_curation["core_sections"] = core_sections
     post_curation["locus_topology"] = topology_curation
     post_curation_record = write_post_curation_record(
         post_curation_path,
@@ -152,7 +152,6 @@ def main():
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),
-            "taxonomy_lineage": args.taxonomy_lineage or None,
             "post_curation": post_curation,
             **post_curation_record,
             "command": cmd,

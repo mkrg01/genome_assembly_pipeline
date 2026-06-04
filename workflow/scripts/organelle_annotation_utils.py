@@ -7,11 +7,7 @@ from pathlib import Path
 GENBANK_SUFFIXES = (".gb", ".gbk", ".gbf")
 FEATURE_INDENT = "     "
 QUALIFIER_INDENT = "                     "
-ORGANISM_PREFIX = "  ORGANISM  "
-ORGANISM_TAXONOMY_INDENT = "            "
-GENBANK_LINE_WIDTH = 79
 SPECIES_PLACEHOLDER = "YOUR_SPECIES"
-OMITTED_GENBANK_TAXONOMY_NAMES = {"root", "cellular organisms"}
 GENBANK_TOPOLOGIES = {"circular", "linear"}
 FASTA_CIRCULAR_PATTERN = re.compile(r"(?:^|\s)circular=(true|false)(?=\s|$)", re.I)
 GENBANK_DATE_PATTERN = re.compile(r"\d{2}-[A-Z]{3}-\d{4}")
@@ -41,6 +37,71 @@ def copy_first_genbank(output_dir: Path, annotation_path: Path):
     annotation_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(candidates[0], annotation_path)
     return candidates[0]
+
+
+def split_genbank_records(lines):
+    records = []
+    current = []
+    for line in lines:
+        current.append(line)
+        if line.strip() == "//":
+            records.append(current)
+            current = []
+    if current:
+        records.append(current)
+    return records
+
+
+def trim_genbank_record_to_core_sections(record, path: Path):
+    locus_index = None
+    features_index = None
+    origin_index = None
+    for index, line in enumerate(record):
+        if line.startswith("LOCUS") and locus_index is None:
+            locus_index = index
+        elif line.startswith("FEATURES") and features_index is None:
+            features_index = index
+        elif line.startswith("ORIGIN") and origin_index is None:
+            origin_index = index
+
+    missing = [
+        name
+        for name, index in (
+            ("LOCUS", locus_index),
+            ("FEATURES", features_index),
+            ("ORIGIN", origin_index),
+        )
+        if index is None
+    ]
+    if missing:
+        raise ValueError(
+            f"GenBank record in {path} is missing required section(s): "
+            + ", ".join(missing)
+        )
+    if not locus_index < features_index < origin_index:
+        raise ValueError(
+            f"GenBank record in {path} has sections out of order: "
+            "expected LOCUS, FEATURES, ORIGIN."
+        )
+
+    return [record[locus_index], *record[features_index:]]
+
+
+def trim_genbank_to_core_sections(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    trimmed_records = [
+        trim_genbank_record_to_core_sections(record, path) for record in records
+    ]
+    trimmed_lines = [line for record in trimmed_records for line in record]
+    changed = lines != trimmed_lines
+    if changed:
+        path.write_text("".join(trimmed_lines))
+    return {
+        "core_sections": ["LOCUS", "FEATURES", "ORIGIN"],
+        "core_sections_record_count": len(trimmed_records),
+        "core_sections_changed": changed,
+    }
 
 
 def topology_from_fasta_header(header: str):
@@ -258,6 +319,65 @@ def curate_source_organism(path: Path, assembly_name: str):
     }
 
 
+def curate_source_organelle(path: Path, organelle: str | None = None):
+    if organelle is None:
+        return {
+            "source_organelle_before": None,
+            "source_organelle_after": None,
+            "source_organelle_changed": False,
+            "source_organelle_skipped_reason": "no organelle qualifier requested",
+        }
+    if any(character in organelle for character in '"\r\n'):
+        raise ValueError(f"Invalid source organelle qualifier: {organelle!r}")
+
+    organelle_line = f'{QUALIFIER_INDENT}/organelle="{organelle}"\n'
+    lines = path.read_text().splitlines(keepends=True)
+
+    source_index = None
+    for index, line in enumerate(lines):
+        if line.startswith(f"{FEATURE_INDENT}source"):
+            source_index = index
+            break
+    if source_index is None:
+        raise ValueError(f"No source feature was found in {path}.")
+
+    next_feature_index = len(lines)
+    for index in range(source_index + 1, len(lines)):
+        line = lines[index]
+        if line.startswith(FEATURE_INDENT) and not line.startswith(QUALIFIER_INDENT):
+            next_feature_index = index
+            break
+
+    previous_organelle = None
+    organelle_index = None
+    organism_index = None
+    for index in range(source_index + 1, next_feature_index):
+        stripped = lines[index].strip()
+        if stripped.startswith("/organism="):
+            organism_index = index
+        elif stripped.startswith("/organelle="):
+            organelle_index = index
+            previous_organelle = stripped.removeprefix("/organelle=").strip('"')
+            break
+
+    if organelle_index is None:
+        insert_index = organism_index + 1 if organism_index is not None else source_index + 1
+        lines.insert(insert_index, organelle_line)
+    elif lines[organelle_index] != organelle_line:
+        lines[organelle_index] = organelle_line
+
+    changed = previous_organelle != organelle
+    if changed:
+        path.write_text("".join(lines))
+
+    return {
+        "source_organelle_before": previous_organelle,
+        "source_organelle_after": organelle,
+        "source_organelle_changed": changed,
+        "source_organelle_skipped_reason": None,
+    }
+
+
 def normalize_taxid(taxid):
     if taxid is None:
         return None
@@ -269,79 +389,6 @@ def normalize_taxid(taxid):
     if not value.isdigit() or int(value) < 1:
         raise ValueError("taxid must be a positive integer NCBI Taxonomy ID.")
     return value
-
-
-def load_taxonomy_lineage_record(path):
-    if path is None:
-        return None
-    if not str(path).strip():
-        return None
-    path = Path(path)
-    return json.loads(path.read_text())
-
-
-def genbank_taxonomy_text(taxonomy_names):
-    if not taxonomy_names:
-        return ""
-    return "; ".join(taxonomy_names) + "."
-
-
-def wrap_genbank_taxonomy(taxonomy_names):
-    items = [
-        f"{name};" if index < len(taxonomy_names) - 1 else f"{name}."
-        for index, name in enumerate(taxonomy_names)
-    ]
-    lines = []
-    current = ""
-    content_width = GENBANK_LINE_WIDTH - len(ORGANISM_TAXONOMY_INDENT)
-    for item in items:
-        candidate = item if not current else f"{current} {item}"
-        if current and len(candidate) > content_width:
-            lines.append(f"{ORGANISM_TAXONOMY_INDENT}{current}\n")
-            current = item
-        else:
-            current = candidate
-    if current:
-        lines.append(f"{ORGANISM_TAXONOMY_INDENT}{current}\n")
-    return lines
-
-
-def taxonomy_record_from_ncbi_taxa(ncbi, taxid):
-    taxid = normalize_taxid(taxid)
-    lineage_taxids = [
-        int(lineage_taxid) for lineage_taxid in ncbi.get_lineage(int(taxid))
-    ]
-    names_by_taxid = ncbi.get_taxid_translator(lineage_taxids)
-    ranks_by_taxid = ncbi.get_rank(lineage_taxids)
-    lineage = []
-    genbank_taxonomy = []
-
-    for lineage_taxid in lineage_taxids:
-        name = names_by_taxid.get(lineage_taxid)
-        if name is None:
-            name = str(lineage_taxid)
-        rank = ranks_by_taxid.get(lineage_taxid)
-        lineage.append(
-            {
-                "taxid": str(lineage_taxid),
-                "name": name,
-                "rank": rank,
-            }
-        )
-        if lineage_taxid == int(taxid):
-            continue
-        if name in OMITTED_GENBANK_TAXONOMY_NAMES:
-            continue
-        genbank_taxonomy.append(name)
-
-    return {
-        "source": "NCBI Taxonomy via ete4",
-        "taxid": taxid,
-        "scientific_name": names_by_taxid.get(int(taxid)),
-        "lineage": lineage,
-        "genbank_taxonomy": genbank_taxonomy,
-        "genbank_taxonomy_text": genbank_taxonomy_text(genbank_taxonomy),
-    }
 
 
 def curate_source_taxon_db_xref(path: Path, taxid=None, remove_without_taxid=False):
@@ -413,90 +460,6 @@ def curate_source_taxon_db_xref(path: Path, taxid=None, remove_without_taxid=Fal
     }
 
 
-def extract_taxonomy_names(taxonomy_lineage):
-    if taxonomy_lineage is None:
-        return []
-    if isinstance(taxonomy_lineage, dict):
-        taxonomy_names = taxonomy_lineage.get("genbank_taxonomy", [])
-    else:
-        taxonomy_names = taxonomy_lineage
-    if taxonomy_names is None:
-        return []
-    normalized = []
-    for name in taxonomy_names:
-        if not isinstance(name, str):
-            raise ValueError(f"Taxonomy lineage names must be strings: {name!r}")
-        name = " ".join(name.split())
-        if any(character in name for character in "\r\n;"):
-            raise ValueError(f"Invalid taxonomy lineage name: {name!r}")
-        if name:
-            normalized.append(name)
-    return normalized
-
-
-def curate_organism_taxonomy_lineage(path: Path, taxonomy_lineage=None):
-    taxonomy_names = extract_taxonomy_names(taxonomy_lineage)
-    source = None
-    taxid = None
-    if isinstance(taxonomy_lineage, dict):
-        source = taxonomy_lineage.get("source")
-        taxid = taxonomy_lineage.get("taxid")
-
-    if not taxonomy_names:
-        return {
-            "organism_taxonomy_source": source,
-            "organism_taxonomy_taxid": taxid,
-            "organism_taxonomy_before": None,
-            "organism_taxonomy_after": None,
-            "organism_taxonomy_changed": False,
-            "organism_taxonomy_skipped_reason": "no taxonomy lineage provided",
-        }
-
-    lines = path.read_text().splitlines(keepends=True)
-    organism_index = None
-    for index, line in enumerate(lines):
-        if line.startswith(ORGANISM_PREFIX):
-            organism_index = index
-            break
-
-    if organism_index is None:
-        return {
-            "organism_taxonomy_source": source,
-            "organism_taxonomy_taxid": taxid,
-            "organism_taxonomy_before": None,
-            "organism_taxonomy_after": genbank_taxonomy_text(taxonomy_names),
-            "organism_taxonomy_changed": False,
-            "organism_taxonomy_skipped_reason": "no ORGANISM line found",
-        }
-
-    taxonomy_start = organism_index + 1
-    taxonomy_end = taxonomy_start
-    while taxonomy_end < len(lines) and lines[taxonomy_end].startswith(
-        ORGANISM_TAXONOMY_INDENT
-    ):
-        taxonomy_end += 1
-
-    previous_lines = lines[taxonomy_start:taxonomy_end]
-    next_lines = wrap_genbank_taxonomy(taxonomy_names)
-    changed = [line.rstrip("\n") for line in previous_lines] != [
-        line.rstrip("\n") for line in next_lines
-    ]
-    if changed:
-        lines[taxonomy_start:taxonomy_end] = next_lines
-        path.write_text("".join(lines))
-
-    before_text = " ".join(line.strip() for line in previous_lines) or None
-    after_text = genbank_taxonomy_text(taxonomy_names)
-    return {
-        "organism_taxonomy_source": source,
-        "organism_taxonomy_taxid": taxid,
-        "organism_taxonomy_before": before_text,
-        "organism_taxonomy_after": after_text,
-        "organism_taxonomy_changed": changed,
-        "organism_taxonomy_skipped_reason": None,
-    }
-
-
 def curate_species_placeholders(path: Path, assembly_name: str):
     organism_name = organism_name_from_assembly_name(assembly_name)
     lines = path.read_text().splitlines(keepends=True)
@@ -518,37 +481,43 @@ def curate_species_placeholders(path: Path, assembly_name: str):
     }
 
 
-def curate_genbank_species_metadata(
+def curate_genbank_source_metadata(
     path: Path,
     assembly_name: str,
     taxid=None,
-    taxonomy_lineage=None,
+    organelle=None,
 ):
     normalized_taxid = normalize_taxid(taxid)
-    if isinstance(taxonomy_lineage, dict) and taxonomy_lineage.get("taxid"):
-        taxonomy_taxid = normalize_taxid(taxonomy_lineage["taxid"])
-        if normalized_taxid and taxonomy_taxid != normalized_taxid:
-            raise ValueError(
-                "Taxonomy lineage taxid does not match configured taxid: "
-                f"{taxonomy_taxid} != {normalized_taxid}"
-            )
     source_organism = curate_source_organism(path, assembly_name)
+    source_organelle = curate_source_organelle(path, organelle)
     source_taxon_db_xref = curate_source_taxon_db_xref(
         path,
         taxid=normalized_taxid,
         remove_without_taxid=source_organism["source_organism_changed"],
     )
     species_placeholders = curate_species_placeholders(path, assembly_name)
-    organism_taxonomy = curate_organism_taxonomy_lineage(path, taxonomy_lineage)
     return {
         "source_organism": source_organism,
+        "source_organelle": source_organelle,
         "source_taxon_db_xref": source_taxon_db_xref,
         "species_placeholders": species_placeholders,
-        "organism_taxonomy": organism_taxonomy,
     }
 
 
 def append_post_curation_summary(lines, post_curation):
+    core_sections = post_curation.get("core_sections")
+    if core_sections:
+        sections = ", ".join(core_sections["core_sections"])
+        record_count = core_sections["core_sections_record_count"]
+        if core_sections["core_sections_changed"]:
+            lines.append(
+                f"- GenBank file: trimmed {record_count} record(s) to {sections}"
+            )
+        else:
+            lines.append(
+                f"- GenBank file: already contained only {sections} section(s)"
+            )
+
     locus_topology = post_curation.get("locus_topology")
     if locus_topology:
         before = locus_topology["locus_topology_before"]
@@ -574,6 +543,17 @@ def append_post_curation_summary(lines, post_curation):
         else:
             lines.append(f'- source /organism: already "{after}"')
 
+    source_organelle = post_curation.get("source_organelle")
+    if source_organelle and not source_organelle["source_organelle_skipped_reason"]:
+        before = source_organelle["source_organelle_before"]
+        after = source_organelle["source_organelle_after"]
+        if before is None:
+            lines.append(f'- source /organelle: added "{after}"')
+        elif source_organelle["source_organelle_changed"]:
+            lines.append(f'- source /organelle: changed from "{before}" to "{after}"')
+        else:
+            lines.append(f'- source /organelle: already "{after}"')
+
     source_taxon_db_xref = post_curation.get("source_taxon_db_xref")
     if source_taxon_db_xref and source_taxon_db_xref["source_taxon_db_xref_changed"]:
         before = source_taxon_db_xref["source_taxon_db_xrefs_before"]
@@ -583,26 +563,6 @@ def append_post_curation_summary(lines, post_curation):
         lines.append(
             f"- source taxon db_xref: changed from {before_text} to {after_text}"
         )
-
-    organism_taxonomy = post_curation.get("organism_taxonomy")
-    if organism_taxonomy:
-        before = organism_taxonomy["organism_taxonomy_before"]
-        after = organism_taxonomy["organism_taxonomy_after"]
-        taxid = organism_taxonomy["organism_taxonomy_taxid"]
-        source = organism_taxonomy["organism_taxonomy_source"]
-        source_text = source or "configured taxonomy lineage"
-        taxid_text = f" for taxid {taxid}" if taxid else ""
-        if organism_taxonomy["organism_taxonomy_changed"]:
-            before_text = f'"{before}"' if before else "none"
-            lines.append(
-                "- ORGANISM taxonomy lineage: changed from "
-                f"{before_text} to \"{after}\" ({source_text}{taxid_text})"
-            )
-        elif after and not organism_taxonomy["organism_taxonomy_skipped_reason"]:
-            lines.append(
-                "- ORGANISM taxonomy lineage: already matched "
-                f"{source_text}{taxid_text}"
-            )
 
     species_placeholders = post_curation.get("species_placeholders")
     if species_placeholders and species_placeholders["species_placeholder_changed"]:

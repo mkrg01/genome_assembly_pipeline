@@ -8,9 +8,9 @@ from pathlib import Path
 from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
-    curate_genbank_species_metadata,
-    load_taxonomy_lineage_record,
+    curate_genbank_source_metadata,
     topology_from_fasta_header,
+    trim_genbank_to_core_sections,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -40,7 +40,6 @@ def parse_args():
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--assembly-name")
     parser.add_argument("--taxid")
-    parser.add_argument("--taxonomy-lineage")
     return parser.parse_args()
 
 
@@ -200,7 +199,6 @@ def main():
 
     cwd = Path.cwd().resolve()
     assembly_name = args.assembly_name or args.prefix
-    taxonomy_lineage = load_taxonomy_lineage_record(args.taxonomy_lineage)
     records = parse_fasta_records(input_fasta)
     record_count = len(records)
 
@@ -215,18 +213,20 @@ def main():
             raw_output_dir,
         )
         selected = copy_first_genbank(raw_output_dir, annotation)
+        core_sections = trim_genbank_to_core_sections(annotation)
         topology_curation = curate_genbank_locus(
             annotation,
             topology=records[0]["topology"],
             locus_name=args.prefix,
             sequence_length=len(records[0]["sequence"]),
         )
-        post_curation = curate_genbank_species_metadata(
+        post_curation = curate_genbank_source_metadata(
             annotation,
             assembly_name,
             taxid=args.taxid,
-            taxonomy_lineage=taxonomy_lineage,
+            organelle="mitochondrion",
         )
+        post_curation["core_sections"] = core_sections
         post_curation["locus_topology"] = topology_curation
         commands = [cmd]
         selected_annotations = [str(selected)]
@@ -267,18 +267,20 @@ def main():
                 record_pmga_output,
             )
             selected = copy_first_genbank(record_pmga_output, record_annotation)
+            core_sections = trim_genbank_to_core_sections(record_annotation)
             topology_curation = curate_genbank_locus(
                 record_annotation,
                 topology=record["topology"],
                 locus_name=record_prefix,
                 sequence_length=len(record["sequence"]),
             )
-            record_post_curation = curate_genbank_species_metadata(
+            record_post_curation = curate_genbank_source_metadata(
                 record_annotation,
                 assembly_name,
                 taxid=args.taxid,
-                taxonomy_lineage=taxonomy_lineage,
+                organelle="mitochondrion",
             )
+            record_post_curation["core_sections"] = core_sections
             record_post_curation["locus_topology"] = topology_curation
 
             commands.append(cmd)
@@ -327,7 +329,6 @@ def main():
             "selected_annotation": selected_annotations[0],
             "selected_annotations": selected_annotations,
             "annotation": str(annotation),
-            "taxonomy_lineage": args.taxonomy_lineage or None,
             "post_curation": post_curation,
             **post_curation_record,
             "db": str(args.db),

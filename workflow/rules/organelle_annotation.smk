@@ -2,12 +2,6 @@ PMGA_FIGSHARE_ARTICLE_ID = "27201798"
 PMGA_FIGSHARE_VERSION = "4"
 PMGA_ARCHIVE_NAME = "PMGA.tar.gz"
 PMGA_DB = "1"
-NCBI_TAXONOMY_DIR = "results/downloads/ncbi_taxonomy"
-NCBI_TAXONOMY_DB = f"{NCBI_TAXONOMY_DIR}/taxa.sqlite"
-NCBI_TAXONOMY_LINEAGE = (
-    f"{NCBI_TAXONOMY_DIR}/taxid_{taxid or 'unconfigured'}.lineage.json"
-)
-NCBI_TAXONOMY_LINEAGE_INPUT = [] if taxid is None else NCBI_TAXONOMY_LINEAGE
 
 PGA_V2_COMMIT = "6fa800c2a379ec3356da5ccbf2ea7b903e784f46"
 PGA_V2_SCRIPT_SHA256 = "809d04f5070b4d8892fa2707776f47989e0e242ac87c85f6624f5df21c444e9a"
@@ -70,35 +64,11 @@ rule download_pga_v2_script:
         """
 
 
-if taxid is not None:
-    rule prepare_ncbi_taxonomy_lineage:
-        output:
-            db = NCBI_TAXONOMY_DB,
-            lineage = NCBI_TAXONOMY_LINEAGE
-        log:
-            out = "logs/prepare_ncbi_taxonomy_lineage.out",
-            err = "logs/prepare_ncbi_taxonomy_lineage.err"
-        conda:
-            "../envs/pybase.yml"
-        params:
-            taxid = taxid
-        shell:
-            """
-            (
-                python3 workflow/scripts/prepare_ncbi_taxonomy_lineage.py \
-                    --taxid {params.taxid:q} \
-                    --db {output.db:q} \
-                    --lineage {output.lineage:q}
-            ) > {log.out:q} 2> {log.err:q}
-            """
-
-
 if "mitochondrion" in configured_oatk_organelles() and configured_organelle_annotation_tool("mitochondrion") == "pmga":
     rule annotate_mitochondrion_pmga:
         input:
             genome = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta",
-            pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA",
-            taxonomy_lineage = NCBI_TAXONOMY_LINEAGE_INPUT
+            pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"
         output:
             annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.gbk",
             manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.manifest.json",
@@ -112,8 +82,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
             None
         params:
             db = PMGA_DB,
-            taxid = taxid or "",
-            taxonomy_lineage = lambda wildcards, input: input.taxonomy_lineage or ""
+            taxid = taxid or ""
         shell:
             """
             (
@@ -126,8 +95,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
                     --db {params.db:q} \
                     --prefix {wildcards.assembly_name:q} \
                     --assembly-name {wildcards.assembly_name:q} \
-                    --taxid {params.taxid:q} \
-                    --taxonomy-lineage {params.taxonomy_lineage:q}
+                    --taxid {params.taxid:q}
             ) > {log.out:q} 2> {log.err:q}
             """
 
@@ -168,8 +136,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
     rule annotate_chloroplast_pga_v2:
         input:
             genome = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta",
-            script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl",
-            taxonomy_lineage = NCBI_TAXONOMY_LINEAGE_INPUT
+            script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl"
         output:
             annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.gbk",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
@@ -188,8 +155,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             redundancy = config.get("pga_v2_redundancy", "N"),
             qcoverage = config.get("pga_v2_qcoverage", "0.5,2.0"),
             warning = config.get("pga_v2_warning", "warning"),
-            taxid = taxid or "",
-            taxonomy_lineage = lambda wildcards, input: input.taxonomy_lineage or ""
+            taxid = taxid or ""
         shell:
             """
             (
@@ -208,8 +174,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --redundancy {params.redundancy:q} \
                     --qcoverage {params.qcoverage:q} \
                     --warning {params.warning:q} \
-                    --taxid {params.taxid:q} \
-                    --taxonomy-lineage {params.taxonomy_lineage:q}
+                    --taxid {params.taxid:q}
             ) > {log.out:q} 2> {log.err:q}
             """
 
