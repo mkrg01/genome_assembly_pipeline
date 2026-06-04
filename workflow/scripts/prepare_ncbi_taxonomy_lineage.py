@@ -18,12 +18,19 @@ def parse_args():
     return parser.parse_args()
 
 
+def ensure_ete_cache_dir():
+    cache_dir = Path.home() / ".local" / "share" / "ete"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
 def main():
     args = parse_args()
     taxid = normalize_taxid(args.taxid)
 
     args.db.parent.mkdir(parents=True, exist_ok=True)
     args.lineage.parent.mkdir(parents=True, exist_ok=True)
+    ensure_ete_cache_dir()
 
     from ete4 import NCBITaxa
 
