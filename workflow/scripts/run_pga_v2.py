@@ -5,8 +5,10 @@ from pathlib import Path
 
 from organelle_annotation_utils import (
     copy_first_genbank,
+    curate_genbank_locus,
     curate_genbank_species_metadata,
     load_taxonomy_lineage_record,
+    topology_from_fasta_header,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -37,6 +39,33 @@ def recreate_dir(path):
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
+
+
+def input_fasta_topology(path):
+    topologies = []
+    headers = []
+    lengths = []
+    current_length = None
+    with path.open() as handle:
+        for line in handle:
+            if line.startswith(">"):
+                if current_length is not None:
+                    lengths.append(current_length)
+                current_length = 0
+                header = line[1:].strip()
+                headers.append(header)
+                topology = topology_from_fasta_header(header)
+                if topology is not None:
+                    topologies.append(topology)
+            elif current_length is not None:
+                current_length += len("".join(line.split()))
+    if current_length is not None:
+        lengths.append(current_length)
+
+    unique_topologies = sorted(set(topologies))
+    topology = unique_topologies[0] if len(unique_topologies) == 1 else None
+    sequence_length = lengths[0] if len(lengths) == 1 else None
+    return topology, headers, sequence_length
 
 
 def main():
@@ -90,6 +119,12 @@ def main():
     ]
     subprocess.run(cmd, check=True, cwd=run_root)
     selected = copy_first_genbank(raw_output_dir, annotation)
+    topology, input_headers, sequence_length = input_fasta_topology(input_fasta)
+    topology_curation = curate_genbank_locus(
+        annotation,
+        topology=topology,
+        sequence_length=sequence_length,
+    )
     taxonomy_lineage = load_taxonomy_lineage_record(args.taxonomy_lineage)
     post_curation = curate_genbank_species_metadata(
         annotation,
@@ -97,6 +132,7 @@ def main():
         taxid=args.taxid,
         taxonomy_lineage=taxonomy_lineage,
     )
+    post_curation["locus_topology"] = topology_curation
     post_curation_record = write_post_curation_record(
         post_curation_path,
         post_curation,
@@ -110,6 +146,9 @@ def main():
             "input_fasta": str(input_fasta),
             "reference_dir": str(reference_dir),
             "staged_reference_dir": str(copied_reference_dir),
+            "input_record_headers": input_headers,
+            "input_record_length": sequence_length,
+            "input_topology": topology,
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),

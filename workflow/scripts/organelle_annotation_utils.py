@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,10 @@ ORGANISM_TAXONOMY_INDENT = "            "
 GENBANK_LINE_WIDTH = 79
 SPECIES_PLACEHOLDER = "YOUR_SPECIES"
 OMITTED_GENBANK_TAXONOMY_NAMES = {"root", "cellular organisms"}
+GENBANK_TOPOLOGIES = {"circular", "linear"}
+FASTA_CIRCULAR_PATTERN = re.compile(r"(?:^|\s)circular=(true|false)(?=\s|$)", re.I)
+GENBANK_DATE_PATTERN = re.compile(r"\d{2}-[A-Z]{3}-\d{4}")
+GENBANK_MOLECULE_PATTERN = re.compile(r"\b(mRNA|DNA|RNA)\b")
 
 
 def organism_name_from_assembly_name(assembly_name: str):
@@ -36,6 +41,176 @@ def copy_first_genbank(output_dir: Path, annotation_path: Path):
     annotation_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(candidates[0], annotation_path)
     return candidates[0]
+
+
+def topology_from_fasta_header(header: str):
+    match = FASTA_CIRCULAR_PATTERN.search(header)
+    if match is None:
+        return None
+    return "circular" if match.group(1).lower() == "true" else "linear"
+
+
+def normalize_genbank_topology(topology):
+    if topology is None:
+        return None
+    normalized = str(topology).strip().lower()
+    if normalized not in GENBANK_TOPOLOGIES:
+        raise ValueError(
+            f"Unsupported GenBank topology '{topology}'. Expected 'circular' or 'linear'."
+        )
+    return normalized
+
+
+def extract_locus_metadata(line: str, sequence_length=None):
+    if not line.startswith("LOCUS"):
+        raise ValueError(f"Expected a GenBank LOCUS line, got: {line!r}")
+
+    length_match = re.search(r"(\d+)\s+bp\b", line)
+    if length_match:
+        parsed_length = int(length_match.group(1))
+        name = line[len("LOCUS") : length_match.start(1)].strip()
+        suffix = line[length_match.end() :]
+    else:
+        parsed_length = None
+        name = line[len("LOCUS") :].strip()
+        suffix = ""
+
+    length = sequence_length if sequence_length is not None else parsed_length
+    if sequence_length is not None:
+        length_text = str(sequence_length)
+        if name.endswith(length_text):
+            name = name[: -len(length_text)].rstrip()
+
+    molecule_match = GENBANK_MOLECULE_PATTERN.search(suffix)
+    molecule = molecule_match.group(1) if molecule_match else "DNA"
+
+    topology_match = re.search(r"circular|linear", suffix, flags=re.I)
+    topology = topology_match.group(0).lower() if topology_match else None
+
+    date_match = GENBANK_DATE_PATTERN.search(suffix)
+    date = date_match.group(0) if date_match else None
+
+    division = None
+    if date_match:
+        before_date = suffix[: date_match.start()]
+        division_match = re.search(
+            r"(?:circular|linear)?\s*([A-Z]{3})\s*$",
+            before_date,
+            flags=re.I,
+        )
+        if division_match:
+            division = division_match.group(1).upper()
+    if division is None:
+        division = "PLN"
+
+    return {
+        "name": name,
+        "length": length,
+        "molecule": molecule,
+        "topology": topology,
+        "division": division,
+        "date": date,
+    }
+
+
+def format_locus_line(
+    original_line: str,
+    *,
+    topology=None,
+    locus_name=None,
+    sequence_length=None,
+):
+    metadata = extract_locus_metadata(original_line, sequence_length=sequence_length)
+    topology = normalize_genbank_topology(topology) or metadata["topology"]
+    name = locus_name or metadata["name"]
+    length = sequence_length if sequence_length is not None else metadata["length"]
+    if length is None:
+        raise ValueError(f"Could not determine LOCUS sequence length from: {original_line!r}")
+
+    if topology is None:
+        topology_text = ""
+    else:
+        topology_text = f"{topology:<8} "
+    trailing = " ".join(item for item in (metadata["division"], metadata["date"]) if item)
+    return (
+        f"LOCUS       {name:<24} {length:>11} bp    "
+        f"{metadata['molecule']:<6} {topology_text}{trailing}"
+    ).rstrip()
+
+
+def replace_locus_topology(line: str, topology: str):
+    return format_locus_line(line, topology=topology)
+
+
+def curate_genbank_locus(
+    path: Path,
+    *,
+    topology=None,
+    locus_name=None,
+    sequence_length=None,
+):
+    topology = normalize_genbank_topology(topology)
+    if topology is None and locus_name is None and sequence_length is None:
+        return {
+            "locus_topology_before": None,
+            "locus_topology_after": None,
+            "locus_topology_changed": False,
+            "locus_topology_skipped_reason": "no input FASTA circular flag provided",
+            "locus_line_before": None,
+            "locus_line_after": None,
+            "locus_line_changed": False,
+        }
+
+    lines = path.read_text().splitlines(keepends=True)
+    locus_index = None
+    for index, line in enumerate(lines):
+        if line.startswith("LOCUS"):
+            locus_index = index
+            break
+    if locus_index is None:
+        return {
+            "locus_topology_before": None,
+            "locus_topology_after": topology,
+            "locus_topology_changed": False,
+            "locus_topology_skipped_reason": "no LOCUS line found",
+            "locus_line_before": None,
+            "locus_line_after": None,
+            "locus_line_changed": False,
+        }
+
+    line = lines[locus_index]
+    newline = "\n" if line.endswith("\n") else ""
+    line_without_newline = line.rstrip("\n")
+    before_metadata = extract_locus_metadata(
+        line_without_newline,
+        sequence_length=sequence_length,
+    )
+    before = before_metadata["topology"]
+    updated_line_without_newline = format_locus_line(
+        line_without_newline,
+        topology=topology,
+        locus_name=locus_name,
+        sequence_length=sequence_length,
+    )
+    updated_line = updated_line_without_newline + newline
+    changed = updated_line != line
+    if changed:
+        lines[locus_index] = updated_line
+        path.write_text("".join(lines))
+
+    return {
+        "locus_topology_before": before,
+        "locus_topology_after": topology or before,
+        "locus_topology_changed": before != (topology or before),
+        "locus_topology_skipped_reason": None,
+        "locus_line_before": line_without_newline,
+        "locus_line_after": updated_line_without_newline,
+        "locus_line_changed": changed,
+    }
+
+
+def curate_genbank_locus_topology(path: Path, topology):
+    return curate_genbank_locus(path, topology=topology)
 
 
 def curate_source_organism(path: Path, assembly_name: str):
@@ -374,6 +549,20 @@ def curate_genbank_species_metadata(
 
 
 def append_post_curation_summary(lines, post_curation):
+    locus_topology = post_curation.get("locus_topology")
+    if locus_topology:
+        before = locus_topology["locus_topology_before"]
+        after = locus_topology["locus_topology_after"]
+        skipped_reason = locus_topology["locus_topology_skipped_reason"]
+        if skipped_reason:
+            lines.append(f"- LOCUS topology: skipped ({skipped_reason})")
+        elif before is None:
+            lines.append(f'- LOCUS topology: added "{after}"')
+        elif locus_topology["locus_topology_changed"]:
+            lines.append(f'- LOCUS topology: changed from "{before}" to "{after}"')
+        else:
+            lines.append(f'- LOCUS topology: already "{after}"')
+
     source_organism = post_curation.get("source_organism")
     if source_organism:
         before = source_organism["source_organism_before"]

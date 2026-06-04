@@ -7,8 +7,10 @@ from pathlib import Path
 
 from organelle_annotation_utils import (
     copy_first_genbank,
+    curate_genbank_locus,
     curate_genbank_species_metadata,
     load_taxonomy_lineage_record,
+    topology_from_fasta_header,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -16,6 +18,15 @@ from organelle_annotation_utils import (
 
 IMAGE_SUFFIXES = (".sif", ".simg")
 FASTA_LINE_WIDTH = 80
+
+
+def make_fasta_record(header, sequence_lines):
+    return {
+        "header": header,
+        "id": fasta_record_id(header),
+        "sequence": "".join(sequence_lines),
+        "topology": topology_from_fasta_header(header),
+    }
 
 
 def parse_args():
@@ -74,13 +85,7 @@ def parse_fasta_records(path):
             line = line.rstrip("\n")
             if line.startswith(">"):
                 if header is not None:
-                    records.append(
-                        {
-                            "header": header,
-                            "id": fasta_record_id(header),
-                            "sequence": "".join(sequence_lines),
-                        }
-                    )
+                    records.append(make_fasta_record(header, sequence_lines))
                 header = line[1:].strip()
                 if not header:
                     raise ValueError(
@@ -99,13 +104,7 @@ def parse_fasta_records(path):
             sequence_lines.append("".join(line.split()))
 
     if header is not None:
-        records.append(
-            {
-                "header": header,
-                "id": fasta_record_id(header),
-                "sequence": "".join(sequence_lines),
-            }
-        )
+        records.append(make_fasta_record(header, sequence_lines))
     if not records:
         raise ValueError(f"No FASTA records found in {path}.")
     return records
@@ -216,12 +215,19 @@ def main():
             raw_output_dir,
         )
         selected = copy_first_genbank(raw_output_dir, annotation)
+        topology_curation = curate_genbank_locus(
+            annotation,
+            topology=records[0]["topology"],
+            locus_name=args.prefix,
+            sequence_length=len(records[0]["sequence"]),
+        )
         post_curation = curate_genbank_species_metadata(
             annotation,
             assembly_name,
             taxid=args.taxid,
             taxonomy_lineage=taxonomy_lineage,
         )
+        post_curation["locus_topology"] = topology_curation
         commands = [cmd]
         selected_annotations = [str(selected)]
         record_manifests = [
@@ -229,6 +235,7 @@ def main():
                 "input_record_id": records[0]["id"],
                 "input_record_header": records[0]["header"],
                 "input_record_length": len(records[0]["sequence"]),
+                "input_record_topology": records[0]["topology"],
                 "pmga_prefix": args.prefix,
                 "raw_output_dir": str(raw_output_dir),
                 "selected_annotation": str(selected),
@@ -260,12 +267,19 @@ def main():
                 record_pmga_output,
             )
             selected = copy_first_genbank(record_pmga_output, record_annotation)
+            topology_curation = curate_genbank_locus(
+                record_annotation,
+                topology=record["topology"],
+                locus_name=record_prefix,
+                sequence_length=len(record["sequence"]),
+            )
             record_post_curation = curate_genbank_species_metadata(
                 record_annotation,
                 assembly_name,
                 taxid=args.taxid,
                 taxonomy_lineage=taxonomy_lineage,
             )
+            record_post_curation["locus_topology"] = topology_curation
 
             commands.append(cmd)
             selected_annotations.append(str(selected))
@@ -275,6 +289,7 @@ def main():
                     "input_record_id": record["id"],
                     "input_record_header": record["header"],
                     "input_record_length": len(record["sequence"]),
+                    "input_record_topology": record["topology"],
                     "pmga_prefix": record_prefix,
                     "split_input_fasta": str(record_input),
                     "raw_output_dir": str(record_pmga_output),
