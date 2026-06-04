@@ -225,6 +225,7 @@ def main():
             assembly_name,
             taxid=args.taxid,
             organelle="mitochondrion",
+            annotation_method="PMGA-Plant Mitochondrial Genome Annotator",
         )
         post_curation["core_sections"] = core_sections
         post_curation["locus_topology"] = topology_curation
@@ -279,6 +280,7 @@ def main():
                 assembly_name,
                 taxid=args.taxid,
                 organelle="mitochondrion",
+                annotation_method="PMGA-Plant Mitochondrial Genome Annotator",
             )
             record_post_curation["core_sections"] = core_sections
             record_post_curation["locus_topology"] = topology_curation

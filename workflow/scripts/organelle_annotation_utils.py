@@ -378,6 +378,70 @@ def curate_source_organelle(path: Path, organelle: str | None = None):
     }
 
 
+def curate_source_annotation_method(path: Path, annotation_method: str | None = None):
+    if annotation_method is None:
+        return {
+            "source_annotation_method_before": None,
+            "source_annotation_method_after": None,
+            "source_annotation_method_changed": False,
+            "source_annotation_method_skipped_reason": (
+                "no annotation method note requested"
+            ),
+        }
+    if any(character in annotation_method for character in '"\r\n'):
+        raise ValueError(f"Invalid annotation method note: {annotation_method!r}")
+
+    note_value = f"Annotation Method :: {annotation_method}"
+    note_line = f'{QUALIFIER_INDENT}/note="{note_value}"\n'
+    lines = path.read_text().splitlines(keepends=True)
+
+    source_index = None
+    for index, line in enumerate(lines):
+        if line.startswith(f"{FEATURE_INDENT}source"):
+            source_index = index
+            break
+    if source_index is None:
+        raise ValueError(f"No source feature was found in {path}.")
+
+    next_feature_index = len(lines)
+    for index in range(source_index + 1, len(lines)):
+        line = lines[index]
+        if line.startswith(FEATURE_INDENT) and not line.startswith(QUALIFIER_INDENT):
+            next_feature_index = index
+            break
+
+    previous_note = None
+    annotation_note_index = None
+    last_source_qualifier_index = source_index
+    for index in range(source_index + 1, next_feature_index):
+        stripped = lines[index].strip()
+        if stripped.startswith("/"):
+            last_source_qualifier_index = index
+        if not stripped.startswith("/note="):
+            continue
+        note = stripped.removeprefix("/note=").strip('"')
+        if note.startswith("Annotation Method ::"):
+            annotation_note_index = index
+            previous_note = note
+            break
+
+    if annotation_note_index is None:
+        lines.insert(last_source_qualifier_index + 1, note_line)
+    elif lines[annotation_note_index] != note_line:
+        lines[annotation_note_index] = note_line
+
+    changed = previous_note != note_value
+    if changed:
+        path.write_text("".join(lines))
+
+    return {
+        "source_annotation_method_before": previous_note,
+        "source_annotation_method_after": note_value,
+        "source_annotation_method_changed": changed,
+        "source_annotation_method_skipped_reason": None,
+    }
+
+
 def normalize_taxid(taxid):
     if taxid is None:
         return None
@@ -486,10 +550,15 @@ def curate_genbank_source_metadata(
     assembly_name: str,
     taxid=None,
     organelle=None,
+    annotation_method=None,
 ):
     normalized_taxid = normalize_taxid(taxid)
     source_organism = curate_source_organism(path, assembly_name)
     source_organelle = curate_source_organelle(path, organelle)
+    source_annotation_method = curate_source_annotation_method(
+        path,
+        annotation_method,
+    )
     source_taxon_db_xref = curate_source_taxon_db_xref(
         path,
         taxid=normalized_taxid,
@@ -499,6 +568,7 @@ def curate_genbank_source_metadata(
     return {
         "source_organism": source_organism,
         "source_organelle": source_organelle,
+        "source_annotation_method": source_annotation_method,
         "source_taxon_db_xref": source_taxon_db_xref,
         "species_placeholders": species_placeholders,
     }
@@ -553,6 +623,23 @@ def append_post_curation_summary(lines, post_curation):
             lines.append(f'- source /organelle: changed from "{before}" to "{after}"')
         else:
             lines.append(f'- source /organelle: already "{after}"')
+
+    source_annotation_method = post_curation.get("source_annotation_method")
+    if (
+        source_annotation_method
+        and not source_annotation_method["source_annotation_method_skipped_reason"]
+    ):
+        before = source_annotation_method["source_annotation_method_before"]
+        after = source_annotation_method["source_annotation_method_after"]
+        if before is None:
+            lines.append(f'- source annotation method /note: added "{after}"')
+        elif source_annotation_method["source_annotation_method_changed"]:
+            lines.append(
+                f'- source annotation method /note: changed from "{before}" '
+                f'to "{after}"'
+            )
+        else:
+            lines.append(f'- source annotation method /note: already "{after}"')
 
     source_taxon_db_xref = post_curation.get("source_taxon_db_xref")
     if source_taxon_db_xref and source_taxon_db_xref["source_taxon_db_xref_changed"]:

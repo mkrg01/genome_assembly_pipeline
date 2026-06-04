@@ -130,6 +130,7 @@ def main():
         args.assembly_name,
         taxid=args.taxid,
         organelle="plastid:chloroplast",
+        annotation_method="PGA-Plastid Genome Annotator",
     )
     post_curation["core_sections"] = core_sections
     post_curation["locus_topology"] = topology_curation
