@@ -7,6 +7,7 @@ import argparse
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import re
 from typing import Iterable
 
 from Bio import SeqIO
@@ -90,7 +91,33 @@ def has_selected_features(record, selected_features: Iterable[str]) -> bool:
     return any(feature.type in selected for feature in record.features)
 
 
-def save_with_exact_prefix(canvas, formats: list[str], output_prefix: Path, overwrite: bool) -> list[Path]:
+def safe_record_name(record, index: int) -> str:
+    for value in (getattr(record, "id", None), getattr(record, "name", None)):
+        if value and value != "<unknown id>":
+            safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("._-")
+            if safe:
+                return safe
+    return f"record{index:02d}"
+
+
+def output_prefix_for_record(
+    output_prefix: Path,
+    record,
+    index: int,
+    record_count: int,
+) -> Path:
+    if record_count == 1 or index == 1:
+        return output_prefix
+    record_name = safe_record_name(record, index)
+    return output_prefix.with_name(f"{output_prefix.name}.record{index:02d}_{record_name}")
+
+
+def save_with_exact_prefix(
+    canvas,
+    formats: list[str],
+    output_prefix: Path,
+    overwrite: bool,
+) -> list[Path]:
     output_dir = output_prefix.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,7 +235,9 @@ def main() -> None:
     selected_features = parse_features(args.features)
     if args.include_repeat_region and "repeat_region" not in selected_features:
         selected_features.append("repeat_region")
-    record = SeqIO.read(args.gbk, "genbank")
+    records = list(SeqIO.parse(args.gbk, "genbank"))
+    if not records:
+        raise ValueError(f"No GenBank records found in {args.gbk}.")
 
     species = args.species
     if species and not args.plain_species:
@@ -229,18 +258,37 @@ def main() -> None:
             read_qualifier_priority_file(str(args.qualifier_priority))
         )
 
+    all_written: list[Path] = []
     with circular_accession_visibility(not args.hide_accession):
-        canvas = assemble_circular_diagram_from_record(
-            record,
-            config_dict=config_dict,
-            selected_features_set=selected_features,
-            output_prefix=args.output_prefix.name,
-            species=species,
-            legend="right" if has_selected_features(record, selected_features) else "none",
-        )
+        for index, record in enumerate(records, start=1):
+            record_output_prefix = output_prefix_for_record(
+                args.output_prefix,
+                record,
+                index,
+                len(records),
+            )
+            canvas = assemble_circular_diagram_from_record(
+                record,
+                config_dict=config_dict,
+                selected_features_set=selected_features,
+                output_prefix=record_output_prefix.name,
+                species=species,
+                legend=(
+                    "right"
+                    if has_selected_features(record, selected_features)
+                    else "none"
+                ),
+            )
+            all_written.extend(
+                save_with_exact_prefix(
+                    canvas,
+                    formats,
+                    record_output_prefix,
+                    args.overwrite,
+                )
+            )
 
-    written = save_with_exact_prefix(canvas, formats, args.output_prefix, args.overwrite)
-    for path in written:
+    for path in all_written:
         print(path)
 
 
