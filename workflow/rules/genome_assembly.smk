@@ -8,6 +8,8 @@ wildcard_constraints:
     organelle = "(mito|pltd)",
     selected_assembly = selected_assembly_pattern
 
+target_taxid = required_taxid_config("FCS-GX")
+
 rule bam2fastq:
     input:
         read = "raw_data/{hifi_sample_id}.hifi_reads.bam",
@@ -692,8 +694,8 @@ rule fcs_gx_screen:
         assembly = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.clean.fa",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
-        report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.fcs_gx_report.txt",
-        taxonomy = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.taxonomy.rpt"
+        report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{target_taxid}.fcs_gx_report.txt",
+        taxonomy = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{target_taxid}.taxonomy.rpt"
     log:
         out = "logs/fcs_gx_screen_{selected_assembly}_{assembly_name}.out",
         err = "logs/fcs_gx_screen_{selected_assembly}_{assembly_name}.err"
@@ -702,7 +704,7 @@ rule fcs_gx_screen:
     container:
         None # Wrapper scripts will invoke containers
     params:
-        taxid = config["fcs_gx_taxid"]
+        taxid = target_taxid
     threads:
         48
     shell:
@@ -721,7 +723,7 @@ rule fcs_gx_clean:
     input:
         code = "results/downloads/fcs/fcs.py",
         assembly = "results/fcs/fcs_adaptor_clean/{selected_assembly}/{assembly_name}.clean.fa",
-        screen_report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{config['fcs_gx_taxid']}.fcs_gx_report.txt",
+        screen_report = f"results/fcs/fcs_gx_screen/{{selected_assembly}}/{{assembly_name}}.clean.{target_taxid}.fcs_gx_report.txt",
         fcs_gx_sif = "results/downloads/fcs/fcs_gx_0.5.5.sif"
     output:
         clean = "results/fcs/fcs_gx_clean/{selected_assembly}/{assembly_name}.clean.fa",
@@ -734,7 +736,7 @@ rule fcs_gx_clean:
     container:
         None # Wrapper scripts will invoke containers
     params:
-        taxid = config["fcs_gx_taxid"]
+        taxid = target_taxid
     shell:
         """
         (

@@ -159,6 +159,29 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def normalize_taxid_config():
+    value = config.get("taxid", config.get("fcs_gx_taxid", None))
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("'taxid' in config.yml must not be a boolean.")
+    value = str(value).strip()
+    if not value.isdigit() or int(value) < 1:
+        raise ValueError(
+            "'taxid' in config.yml must be a positive integer NCBI Taxonomy ID."
+        )
+    return value
+
+
+def required_taxid_config(tool_name):
+    if taxid is None:
+        raise ValueError(
+            f"'taxid' in config.yml is required for {tool_name}. "
+            "Legacy 'fcs_gx_taxid' is still accepted as a fallback."
+        )
+    return taxid
+
+
 def required_mitoz_config_value(config_key):
     value = config.get(config_key, None)
     if value is None:
@@ -295,6 +318,7 @@ hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]
 downstream_assembly_name = "yahs" if hic_reads_enabled else "fcs"
+taxid = normalize_taxid_config()
 oatk_organelle = normalize_oatk_organelle_config(
     config.get("oatk_organelle", "mitochondrion_and_chloroplast")
 )
@@ -547,7 +571,9 @@ def organelle_annotation_output_paths(assembly_name, organelle):
         "annotation": f"{prefix}/{assembly_name}.{organelle}.gbk",
         "manifest": f"{prefix}/{assembly_name}.{organelle}.manifest.json",
     }
-    if organelle == "chloroplast" and tool == "pga_v2":
+    if (organelle == "chloroplast" and tool == "pga_v2") or (
+        organelle == "mitochondrion" and tool == "pmga"
+    ):
         paths["post_curation"] = f"{prefix}/post_curation.md"
     return paths
 

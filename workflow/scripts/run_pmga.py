@@ -3,7 +3,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from organelle_annotation_utils import copy_first_genbank, write_run_manifest
+from organelle_annotation_utils import (
+    copy_first_genbank,
+    curate_genbank_species_metadata,
+    load_taxonomy_lineage_record,
+    write_post_curation_record,
+    write_run_manifest,
+)
 
 
 IMAGE_SUFFIXES = (".sif", ".simg")
@@ -15,8 +21,12 @@ def parse_args():
     parser.add_argument("--input-fasta", type=Path, required=True)
     parser.add_argument("--annotation", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--post-curation", type=Path, required=True)
     parser.add_argument("--db", default="1")
     parser.add_argument("--prefix", required=True)
+    parser.add_argument("--assembly-name")
+    parser.add_argument("--taxid")
+    parser.add_argument("--taxonomy-lineage")
     return parser.parse_args()
 
 
@@ -58,6 +68,7 @@ def main():
     input_fasta = args.input_fasta.resolve()
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
+    post_curation_path = args.post_curation.resolve()
     raw_output_dir = annotation.parent / "pmga_raw"
     if raw_output_dir.exists():
         shutil.rmtree(raw_output_dir)
@@ -82,6 +93,19 @@ def main():
     ]
     subprocess.run(cmd, check=True)
     selected = copy_first_genbank(raw_output_dir, annotation)
+    assembly_name = args.assembly_name or args.prefix
+    taxonomy_lineage = load_taxonomy_lineage_record(args.taxonomy_lineage)
+    post_curation = curate_genbank_species_metadata(
+        annotation,
+        assembly_name,
+        taxid=args.taxid,
+        taxonomy_lineage=taxonomy_lineage,
+    )
+    post_curation_record = write_post_curation_record(
+        post_curation_path,
+        post_curation,
+        annotation,
+    )
     write_run_manifest(
         manifest,
         {
@@ -93,6 +117,9 @@ def main():
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),
+            "taxonomy_lineage": args.taxonomy_lineage or None,
+            "post_curation": post_curation,
+            **post_curation_record,
             "db": str(args.db),
             "command": cmd,
         },

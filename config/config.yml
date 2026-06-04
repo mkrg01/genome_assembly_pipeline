@@ -18,7 +18,7 @@ organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. S
 mitoz_clade: null # Required when organelle_annotation.mitochondrion is "mitoz". Passed to `mitoz annotate --clade`, e.g. "Arthropoda".
 mitoz_genetic_code: null # Required when organelle_annotation.mitochondrion is "mitoz". NCBI translation table number passed to `mitoz annotate --genetic_code`, e.g. 5 for invertebrate mitochondrial code.
 pga_v2_reference_dir: "plastid_reference" # Directory containing reference plastid GenBank files for PGA v2.0. Prefer complete chloroplast/plastid genomes from the same species, then species in the same genus or family; see config/README.md.
-fcs_gx_taxid: "122299" # NCBI Taxonomy ID for FCS-GX. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
+taxid: "122299" # NCBI Taxonomy ID for the target organism. Used by FCS-GX and organelle GenBank source db_xref/taxonomy-lineage post-curation. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 tidk_clade: "Caryophyllales" # Clade to use for tidk (Telomere Identification Toolkit). See: https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find
 tidk_telomeric_repeat_unit: "AAACCCT" # Telomeric repeat unit to search for with tidk (Telomere Identification Toolkit). See [the telomeric repeat database](https://github.com/tolkit/a-telomeric-repeat-database) or results from `tidk explore`.

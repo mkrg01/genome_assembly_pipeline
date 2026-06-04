@@ -72,6 +72,8 @@ Downloaded reference datasets, wrapper scripts, and helper files.
   Pinned PMGA Figshare archive, extracted PMGA bundle, and download manifest when PMGA is selected for mitochondrial annotation.
 - `pga_v2/`
   Pinned PGA v2.0 script downloaded from the configured PlastidHub commit, plus a checksum manifest.
+- `ncbi_taxonomy/`
+  ete4 NCBI taxonomy SQLite database and per-`taxid` lineage JSON used to post-curate GenBank `ORGANISM` taxonomy continuation lines without changing the configured organism name.
 - `tidk/`
   The `tidk` database CSV and a cleanup flag file used to restore or remove `~/.local/share/tidk`.
 
@@ -223,14 +225,14 @@ Organelle assembly outputs generated from HiFi reads.
 
 ## `results/organelle_annotation/`
 
-Annotations and visualizations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`. The GenBank, manifest, and `post_curation.md` files are produced by `organelle_annotation_all`; pyCirclize and gbdraw PDFs are produced separately by `organelle_visualization_all` so the GenBank files can be manually curated first.
+Annotations and visualizations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`. The GenBank, manifest, and supported-tool `post_curation.md` files are produced by `organelle_annotation_all`; pyCirclize and gbdraw PDFs are produced separately by `organelle_visualization_all` so the GenBank files can be manually curated first.
 
 - `mitochondrion/pmga/{assembly_name}/`
-  PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), and a JSON manifest (`*.mitochondrion.manifest.json`).
+  PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), a JSON manifest (`*.mitochondrion.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/species/taxonomy-lineage metadata post-curation and provides space for user-written manual curation notes after the workflow run.
 - `mitochondrion/mitoz/{assembly_name}/`
   MitoZ annotation outputs when `organelle_annotation.mitochondrion` is set to `mitoz`, including pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`).
 - `chloroplast/pga_v2/{assembly_name}/`
-  PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, a canonical GenBank file (`*.chloroplast.gbk`), pyCirclize and gbdraw circular maps (`*.chloroplast.pycirclize.pdf`, `*.chloroplast.gbdraw.pdf`), a JSON manifest (`*.chloroplast.manifest.json`), and a regenerated `post_curation.md` template that records automatic post-curation and provides space for user-written manual curation notes after the workflow run.
+  PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, a canonical GenBank file (`*.chloroplast.gbk`), pyCirclize and gbdraw circular maps (`*.chloroplast.pycirclize.pdf`, `*.chloroplast.gbdraw.pdf`), a JSON manifest (`*.chloroplast.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/species/taxonomy-lineage metadata post-curation and provides space for user-written manual curation notes after the workflow run.
 
 ## `results/ont_reads/`
 

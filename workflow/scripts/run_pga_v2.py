@@ -5,7 +5,8 @@ from pathlib import Path
 
 from organelle_annotation_utils import (
     copy_first_genbank,
-    curate_source_organism,
+    curate_genbank_species_metadata,
+    load_taxonomy_lineage_record,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -27,6 +28,8 @@ def parse_args():
     parser.add_argument("--redundancy", default="N")
     parser.add_argument("--qcoverage", default="0.5,2.0")
     parser.add_argument("--warning", default="warning")
+    parser.add_argument("--taxid")
+    parser.add_argument("--taxonomy-lineage")
     return parser.parse_args()
 
 
@@ -87,10 +90,13 @@ def main():
     ]
     subprocess.run(cmd, check=True, cwd=run_root)
     selected = copy_first_genbank(raw_output_dir, annotation)
-    source_organism_curation = curate_source_organism(annotation, args.assembly_name)
-    post_curation = {
-        "source_organism": source_organism_curation,
-    }
+    taxonomy_lineage = load_taxonomy_lineage_record(args.taxonomy_lineage)
+    post_curation = curate_genbank_species_metadata(
+        annotation,
+        args.assembly_name,
+        taxid=args.taxid,
+        taxonomy_lineage=taxonomy_lineage,
+    )
     post_curation_record = write_post_curation_record(
         post_curation_path,
         post_curation,
@@ -107,6 +113,7 @@ def main():
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),
+            "taxonomy_lineage": args.taxonomy_lineage or None,
             "post_curation": post_curation,
             **post_curation_record,
             "command": cmd,
