@@ -69,13 +69,18 @@ def write_readme(args):
         provenance_rows.append(
             (
                 f"| {quote_path(output_annotation)} | {quote_path(input_annotation)} | "
-                f"The organelle annotation file generated with `{annotation_tool}` was copied "
-                "without content changes and compressed with `gzip`. |"
+                f"The organelle annotation file generated with `{annotation_tool}` was "
+                "assigned DDBJ-style organelle `/locus_tag` qualifiers and compressed "
+                "with `gzip`. |"
             )
         )
         notes.append(
             "- The organelle annotation was staged from the configured organelle annotation "
             "tool selected by `organelle_annotation` in `config/config.yml`."
+        )
+        notes.append(
+            "- Organelle GenBank submission files are assigned locus tags during staging "
+            "with `workflow/scripts/add_organelle_locus_tags_to_genbank.py`."
         )
     else:
         notes.append(
@@ -96,7 +101,6 @@ This directory contains files staged for submission of the {label} genome for `{
 ## Notes
 
 {chr(10).join(notes)}
-- No automatic identifier renaming or annotation rewriting was applied to the organelle inputs.
 - This README was generated automatically by `workflow/scripts/write_organelle_submission_readme.py`.
 """
 

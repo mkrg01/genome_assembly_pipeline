@@ -1,6 +1,7 @@
 import json
 import re
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -12,6 +13,37 @@ GENBANK_TOPOLOGIES = {"circular", "linear"}
 FASTA_CIRCULAR_PATTERN = re.compile(r"(?:^|\s)circular=(true|false)(?=\s|$)", re.I)
 GENBANK_DATE_PATTERN = re.compile(r"\d{2}-[A-Z]{3}-\d{4}")
 GENBANK_MOLECULE_PATTERN = re.compile(r"\b(mRNA|DNA|RNA)\b")
+GENBANK_FEATURE_LINE_PATTERN = re.compile(r"^     (\S+)\s+(.+)")
+GENBANK_LOCATION_RANGE_PATTERN = re.compile(r"<?(\d+)\.\.>?(\d+)")
+GENBANK_LOCATION_POSITION_PATTERN = re.compile(r"(?<![A-Za-z_])<?(\d+)(?![A-Za-z_])")
+FEATURE_SORT_ORDER = {
+    "gene": 0,
+    "mRNA": 1,
+    "CDS": 1,
+    "tRNA": 1,
+    "rRNA": 1,
+    "ncRNA": 1,
+    "tmRNA": 1,
+    "precursor_RNA": 1,
+    "prim_transcript": 1,
+    "misc_RNA": 1,
+    "exon": 2,
+    "5'UTR": 2,
+    "3'UTR": 2,
+    "intron": 2,
+}
+
+
+@dataclass
+class GenBankFeatureBlock:
+    key: str
+    start: int
+    end: int
+    lines: list[str]
+    feature_index: int
+    location: str
+    qualifiers: dict[str, list[str]] = field(default_factory=dict)
+    intervals: list[tuple[int, int]] = field(default_factory=list)
 
 
 def organism_name_from_assembly_name(assembly_name: str):
@@ -101,6 +133,242 @@ def trim_genbank_to_core_sections(path: Path):
         "core_sections": ["LOCUS", "FEATURES", "ORIGIN"],
         "core_sections_record_count": len(trimmed_records),
         "core_sections_changed": changed,
+    }
+
+
+def genbank_qualifier_values(block_lines: list[str], qualifier: str):
+    values = []
+    for line in block_lines[1:]:
+        stripped = line.strip()
+        if not stripped.startswith(f"/{qualifier}="):
+            continue
+        value = stripped.removeprefix(f"/{qualifier}=")
+        if value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        values.append(value)
+    return values
+
+
+def genbank_feature_location(block_lines: list[str]):
+    match = GENBANK_FEATURE_LINE_PATTERN.match(block_lines[0])
+    if not match:
+        return ""
+    parts = [match.group(2).strip()]
+    for line in block_lines[1:]:
+        stripped = line.strip()
+        if stripped.startswith("/"):
+            break
+        if stripped:
+            parts.append(stripped)
+    return "".join(parts)
+
+
+def genbank_location_intervals(location: str):
+    intervals = [
+        (min(int(start), int(end)), max(int(start), int(end)))
+        for start, end in GENBANK_LOCATION_RANGE_PATTERN.findall(location)
+    ]
+    if intervals:
+        return intervals
+
+    positions = [
+        int(position) for position in GENBANK_LOCATION_POSITION_PATTERN.findall(location)
+    ]
+    return [(position, position) for position in positions]
+
+
+def genbank_location_start(intervals: list[tuple[int, int]]):
+    if not intervals:
+        return float("inf")
+    return min(start for start, _ in intervals)
+
+
+def genbank_location_end(intervals: list[tuple[int, int]]):
+    if not intervals:
+        return float("inf")
+    return max(end for _, end in intervals)
+
+
+def genbank_interval_overlap(left: list[tuple[int, int]], right: list[tuple[int, int]]):
+    overlap = 0
+    for left_start, left_end in left:
+        for right_start, right_end in right:
+            start = max(left_start, right_start)
+            end = min(left_end, right_end)
+            if start <= end:
+                overlap += end - start + 1
+    return overlap
+
+
+def parse_genbank_feature_blocks(record: list[str]):
+    features_index = None
+    origin_index = None
+    feature_start = None
+    block_ranges = []
+
+    for index, line in enumerate(record):
+        if line.startswith("FEATURES") and features_index is None:
+            features_index = index
+            continue
+        if features_index is None:
+            continue
+        if line.startswith("ORIGIN") or line.startswith("BASE COUNT") or line.startswith("//"):
+            origin_index = index
+            if feature_start is not None:
+                block_ranges.append((feature_start, index))
+            break
+        if GENBANK_FEATURE_LINE_PATTERN.match(line):
+            if feature_start is not None:
+                block_ranges.append((feature_start, index))
+            feature_start = index
+
+    if features_index is None or origin_index is None:
+        return features_index, origin_index, []
+
+    blocks = []
+    for feature_index, (start, end) in enumerate(block_ranges):
+        lines = record[start:end]
+        match = GENBANK_FEATURE_LINE_PATTERN.match(lines[0])
+        if match is None:
+            continue
+        location = genbank_feature_location(lines)
+        blocks.append(
+            GenBankFeatureBlock(
+                key=match.group(1),
+                start=start,
+                end=end,
+                lines=lines,
+                feature_index=feature_index,
+                location=location,
+                qualifiers={"gene": genbank_qualifier_values(lines, "gene")},
+                intervals=genbank_location_intervals(location),
+            )
+        )
+
+    return features_index, origin_index, blocks
+
+
+def match_genbank_gene_feature(
+    target: GenBankFeatureBlock,
+    gene_features: list[GenBankFeatureBlock],
+):
+    if target.key == "gene":
+        return target
+
+    target_genes = set(target.qualifiers.get("gene", []))
+    if not target_genes:
+        return None
+
+    candidates = []
+    gene_name_matches = []
+    for gene_feature in gene_features:
+        gene_names = set(gene_feature.qualifiers.get("gene", []))
+        if target_genes and gene_names and target_genes.isdisjoint(gene_names):
+            continue
+        if target_genes and gene_names:
+            gene_name_matches.append(gene_feature)
+        overlap = genbank_interval_overlap(target.intervals, gene_feature.intervals)
+        if overlap <= 0:
+            continue
+        candidates.append((overlap, -gene_feature.feature_index, gene_feature))
+
+    if candidates:
+        return max(candidates, key=lambda candidate: (candidate[0], candidate[1]))[2]
+    if len(gene_name_matches) == 1:
+        return gene_name_matches[0]
+    return None
+
+
+def genbank_feature_sort_key(feature: GenBankFeatureBlock):
+    return (
+        genbank_location_start(feature.intervals),
+        genbank_location_end(feature.intervals),
+        feature.feature_index,
+    )
+
+
+def sort_genbank_record_features_by_location(record: list[str]):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, len(blocks), 0
+
+    source_blocks = [block for block in blocks if block.key == "source"]
+    sortable_blocks = [block for block in blocks if block.key != "source"]
+    gene_features = [block for block in sortable_blocks if block.key == "gene"]
+    group_features = {}
+    groups = {}
+
+    for block in sortable_blocks:
+        gene_feature = match_genbank_gene_feature(block, gene_features)
+        if gene_feature is None:
+            group_key = ("feature", block.feature_index)
+            group_feature = block
+        else:
+            group_key = ("gene", gene_feature.feature_index)
+            group_feature = gene_feature
+        groups.setdefault(group_key, []).append(block)
+        group_features.setdefault(group_key, group_feature)
+
+    sorted_group_keys = sorted(
+        group_features,
+        key=lambda group_key: genbank_feature_sort_key(group_features[group_key]),
+    )
+    sorted_blocks = [*source_blocks]
+    for group_key in sorted_group_keys:
+        sorted_blocks.extend(
+            sorted(
+                groups[group_key],
+                key=lambda block: (
+                    FEATURE_SORT_ORDER.get(block.key, 3),
+                    genbank_feature_sort_key(block),
+                ),
+            )
+        )
+
+    original_feature_lines = record[features_index + 1 : origin_index]
+    sorted_feature_lines = [
+        line for block in sorted_blocks for line in block.lines
+    ]
+    changed = original_feature_lines != sorted_feature_lines
+    if not changed:
+        return record, False, len(blocks), len(source_blocks)
+
+    sorted_record = [
+        *record[: features_index + 1],
+        *sorted_feature_lines,
+        *record[origin_index:],
+    ]
+    return sorted_record, True, len(blocks), len(source_blocks)
+
+
+def sort_genbank_features_by_location(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    sorted_records = []
+    changed_records = 0
+    feature_count = 0
+    source_feature_count = 0
+
+    for record in records:
+        sorted_record, changed, record_feature_count, record_source_count = (
+            sort_genbank_record_features_by_location(record)
+        )
+        sorted_records.append(sorted_record)
+        changed_records += int(changed)
+        feature_count += record_feature_count
+        source_feature_count += record_source_count
+
+    sorted_lines = [line for record in sorted_records for line in record]
+    changed = lines != sorted_lines
+    if changed:
+        path.write_text("".join(sorted_lines))
+
+    return {
+        "feature_sort_record_count": len(records),
+        "feature_sort_changed_record_count": changed_records,
+        "feature_sort_feature_count": feature_count,
+        "feature_sort_source_feature_count": source_feature_count,
+        "feature_sort_changed": changed,
     }
 
 
@@ -622,6 +890,25 @@ def append_post_curation_summary(lines, post_curation):
             lines.append(f'- LOCUS topology: changed from "{before}" to "{after}"')
         else:
             lines.append(f'- LOCUS topology: already "{after}"')
+
+    feature_sort = post_curation.get("feature_sort")
+    if feature_sort:
+        record_count = feature_sort["feature_sort_record_count"]
+        feature_count = feature_sort["feature_sort_feature_count"]
+        source_count = feature_sort["feature_sort_source_feature_count"]
+        if feature_sort["feature_sort_changed"]:
+            changed_records = feature_sort["feature_sort_changed_record_count"]
+            lines.append(
+                "- feature table order: sorted "
+                f"{feature_count} feature(s) across {changed_records}/{record_count} "
+                "record(s) by genomic coordinate "
+                f"(kept {source_count} source feature(s) first)"
+            )
+        else:
+            lines.append(
+                "- feature table order: already sorted "
+                f"by genomic coordinate across {record_count} record(s)"
+            )
 
     source_organism = post_curation.get("source_organism")
     if source_organism:

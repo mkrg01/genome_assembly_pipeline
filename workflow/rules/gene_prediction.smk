@@ -420,9 +420,11 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 python3 workflow/scripts/copy_submission_file_to_gzip.py \
                     --input {input.genome:q} \
                     --output {output.genome:q}
-                python3 workflow/scripts/copy_submission_file_to_gzip.py \
+                python3 workflow/scripts/add_organelle_locus_tags_to_genbank.py \
                     --input {input.annotation:q} \
-                    --output {output.annotation:q}
+                    --output {output.annotation:q} \
+                    --species-name {wildcards.assembly_name:q} \
+                    --organelle {wildcards.organelle:q}
                 python3 workflow/scripts/write_organelle_submission_readme.py \
                     --organelle {wildcards.organelle:q} \
                     --annotation-tool {params.annotation_tool:q} \
