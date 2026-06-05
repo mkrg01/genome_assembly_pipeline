@@ -1,7 +1,6 @@
 name: gbdraw
 channels:
   - conda-forge
-  - bioconda
 dependencies:
   - bioconda::gbdraw=0.11.0
   - conda-forge::biopython=1.87

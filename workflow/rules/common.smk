@@ -694,7 +694,10 @@ def organelle_submission_output_paths(assembly_name, assembly_version):
 
 
 def organelle_submission_all_inputs(assembly_name, assembly_version):
-    return organelle_submission_output_paths(assembly_name, assembly_version)
+    return (
+        organelle_visualization_all_inputs(assembly_name)
+        + organelle_submission_output_paths(assembly_name, assembly_version)
+    )
 
 
 def circos_plot_all_inputs(assembly_name, assembly_version):
