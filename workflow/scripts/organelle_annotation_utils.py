@@ -14,6 +14,7 @@ FASTA_CIRCULAR_PATTERN = re.compile(r"(?:^|\s)circular=(true|false)(?=\s|$)", re
 GENBANK_DATE_PATTERN = re.compile(r"\d{2}-[A-Z]{3}-\d{4}")
 GENBANK_MOLECULE_PATTERN = re.compile(r"\b(mRNA|DNA|RNA)\b")
 GENBANK_FEATURE_LINE_PATTERN = re.compile(r"^     (\S+)\s+(.+)")
+GENBANK_QUALIFIER_PATTERN = re.compile(r"^/([^=\s]+)(?:=|$)")
 GENBANK_LOCATION_RANGE_PATTERN = re.compile(r"<?(\d+)\.\.>?(\d+)")
 GENBANK_LOCATION_RANGE_DETAIL_PATTERN = re.compile(r"(<)?(\d+)\.\.(>)?(\d+)")
 GENBANK_LOCATION_POSITION_PATTERN = re.compile(r"(?<![A-Za-z_])<?(\d+)(?![A-Za-z_])")
@@ -33,6 +34,88 @@ FEATURE_SORT_ORDER = {
     "3'UTR": 2,
     "intron": 2,
 }
+STANDARD_GENETIC_CODE = {
+    "TTT": "F",
+    "TTC": "F",
+    "TTA": "L",
+    "TTG": "L",
+    "TCT": "S",
+    "TCC": "S",
+    "TCA": "S",
+    "TCG": "S",
+    "TAT": "Y",
+    "TAC": "Y",
+    "TAA": "*",
+    "TAG": "*",
+    "TGT": "C",
+    "TGC": "C",
+    "TGA": "*",
+    "TGG": "W",
+    "CTT": "L",
+    "CTC": "L",
+    "CTA": "L",
+    "CTG": "L",
+    "CCT": "P",
+    "CCC": "P",
+    "CCA": "P",
+    "CCG": "P",
+    "CAT": "H",
+    "CAC": "H",
+    "CAA": "Q",
+    "CAG": "Q",
+    "CGT": "R",
+    "CGC": "R",
+    "CGA": "R",
+    "CGG": "R",
+    "ATT": "I",
+    "ATC": "I",
+    "ATA": "I",
+    "ATG": "M",
+    "ACT": "T",
+    "ACC": "T",
+    "ACA": "T",
+    "ACG": "T",
+    "AAT": "N",
+    "AAC": "N",
+    "AAA": "K",
+    "AAG": "K",
+    "AGT": "S",
+    "AGC": "S",
+    "AGA": "R",
+    "AGG": "R",
+    "GTT": "V",
+    "GTC": "V",
+    "GTA": "V",
+    "GTG": "V",
+    "GCT": "A",
+    "GCC": "A",
+    "GCA": "A",
+    "GCG": "A",
+    "GAT": "D",
+    "GAC": "D",
+    "GAA": "E",
+    "GAG": "E",
+    "GGT": "G",
+    "GGC": "G",
+    "GGA": "G",
+    "GGG": "G",
+}
+GENETIC_CODES = {
+    "1": STANDARD_GENETIC_CODE,
+    "11": STANDARD_GENETIC_CODE,
+}
+GENETIC_CODE_START_CODONS = {
+    "1": {"TTG", "CTG", "ATG"},
+    "11": {"TTG", "CTG", "ATT", "ATC", "ATA", "ATG", "GTG"},
+}
+GENETIC_CODE_STOP_CODONS = {
+    "1": {"TAA", "TAG", "TGA"},
+    "11": {"TAA", "TAG", "TGA"},
+}
+DNA_COMPLEMENT_TABLE = str.maketrans(
+    "ACGTRYMKSWBDHVNacgtrymkswbdhvn",
+    "TGCAYRKMWSVHDBNtgcayrkmwsvhdbn",
+)
 
 
 @dataclass
@@ -262,6 +345,592 @@ def format_genbank_feature_location_lines(
     newline: str = "\n",
 ):
     return [f"{FEATURE_INDENT}{key:<16}{location}{newline}"]
+
+
+def genbank_qualifier_name(line: str):
+    match = GENBANK_QUALIFIER_PATTERN.match(line.strip())
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def remove_genbank_feature_block_qualifiers(
+    block_lines: list[str],
+    qualifiers: tuple[str, ...],
+):
+    qualifier_set = set(qualifiers)
+    removed_counts = {qualifier: 0 for qualifier in qualifiers}
+    cleaned_lines = []
+    skipping_qualifier = False
+
+    for line in block_lines:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            if qualifier_name in qualifier_set:
+                removed_counts[qualifier_name] += 1
+                skipping_qualifier = True
+                continue
+            skipping_qualifier = False
+            cleaned_lines.append(line)
+            continue
+
+        if skipping_qualifier:
+            continue
+        cleaned_lines.append(line)
+
+    return cleaned_lines, removed_counts
+
+
+def remove_genbank_record_feature_qualifiers(
+    record: list[str],
+    *,
+    feature_keys: tuple[str, ...],
+    qualifiers: tuple[str, ...],
+):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, 0, 0, {qualifier: 0 for qualifier in qualifiers}
+
+    feature_key_set = set(feature_keys)
+    target_feature_count = 0
+    changed_feature_count = 0
+    removed_counts = {qualifier: 0 for qualifier in qualifiers}
+    cleaned_blocks = []
+
+    for block in blocks:
+        if block.key not in feature_key_set:
+            cleaned_blocks.append(block.lines)
+            continue
+
+        target_feature_count += 1
+        cleaned_lines, block_removed_counts = remove_genbank_feature_block_qualifiers(
+            block.lines,
+            qualifiers,
+        )
+        if cleaned_lines != block.lines:
+            changed_feature_count += 1
+        for qualifier, count in block_removed_counts.items():
+            removed_counts[qualifier] += count
+        cleaned_blocks.append(cleaned_lines)
+
+    if changed_feature_count == 0:
+        return record, False, target_feature_count, 0, removed_counts
+
+    cleaned_feature_lines = [line for block in cleaned_blocks for line in block]
+    cleaned_record = [
+        *record[: features_index + 1],
+        *cleaned_feature_lines,
+        *record[origin_index:],
+    ]
+    return (
+        cleaned_record,
+        True,
+        target_feature_count,
+        changed_feature_count,
+        removed_counts,
+    )
+
+
+def remove_genbank_feature_qualifiers(
+    path: Path,
+    *,
+    feature_keys: tuple[str, ...],
+    qualifiers: tuple[str, ...],
+):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    cleaned_records = []
+    changed_records = 0
+    target_feature_count = 0
+    changed_feature_count = 0
+    removed_counts = {qualifier: 0 for qualifier in qualifiers}
+
+    for record in records:
+        (
+            cleaned_record,
+            changed,
+            record_target_feature_count,
+            record_changed_feature_count,
+            record_removed_counts,
+        ) = remove_genbank_record_feature_qualifiers(
+            record,
+            feature_keys=feature_keys,
+            qualifiers=qualifiers,
+        )
+        cleaned_records.append(cleaned_record)
+        changed_records += int(changed)
+        target_feature_count += record_target_feature_count
+        changed_feature_count += record_changed_feature_count
+        for qualifier, count in record_removed_counts.items():
+            removed_counts[qualifier] += count
+
+    cleaned_lines = [line for record in cleaned_records for line in record]
+    changed = lines != cleaned_lines
+    if changed:
+        path.write_text("".join(cleaned_lines))
+
+    return {
+        "qualifier_removal_record_count": len(records),
+        "qualifier_removal_changed_record_count": changed_records,
+        "qualifier_removal_feature_keys": list(feature_keys),
+        "qualifier_removal_qualifiers": list(qualifiers),
+        "qualifier_removal_target_feature_count": target_feature_count,
+        "qualifier_removal_changed_feature_count": changed_feature_count,
+        "qualifier_removal_counts": removed_counts,
+        "qualifier_removal_changed": changed,
+    }
+
+
+def genbank_feature_has_qualifier(block_lines: list[str], qualifier: str):
+    return any(genbank_qualifier_name(line) == qualifier for line in block_lines[1:])
+
+
+def first_genbank_qualifier_value(
+    block_lines: list[str],
+    qualifier: str,
+    default=None,
+):
+    values = genbank_qualifier_values(block_lines, qualifier)
+    if not values:
+        return default
+    return values[0]
+
+
+def genbank_record_origin_sequence(record: list[str]):
+    origin_index = None
+    for index, line in enumerate(record):
+        if line.startswith("ORIGIN"):
+            origin_index = index
+            break
+    if origin_index is None:
+        return ""
+
+    sequence_parts = []
+    for line in record[origin_index + 1 :]:
+        if line.strip() == "//":
+            break
+        sequence_parts.extend(re.findall(r"[A-Za-z]+", line))
+    return "".join(sequence_parts).upper().replace("U", "T")
+
+
+def reverse_complement_dna(sequence: str):
+    return sequence.translate(DNA_COMPLEMENT_TABLE)[::-1]
+
+
+def unwrap_genbank_location_function(location: str):
+    location = location.strip()
+    for function_name in ("complement", "join", "order"):
+        prefix = f"{function_name}("
+        if not location.startswith(prefix) or not location.endswith(")"):
+            continue
+        depth = 0
+        for index, character in enumerate(location[len(function_name) :], start=len(function_name)):
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0 and index != len(location) - 1:
+                    break
+        else:
+            if depth == 0:
+                return function_name, location[len(prefix) : -1]
+    return None, None
+
+
+def split_genbank_location_arguments(location: str):
+    parts = []
+    start = 0
+    depth = 0
+    for index, character in enumerate(location):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+        elif character == "," and depth == 0:
+            parts.append(location[start:index].strip())
+            start = index + 1
+    parts.append(location[start:].strip())
+    return [part for part in parts if part]
+
+
+def clean_genbank_location_position(position: str):
+    return int(position.strip().lstrip("<>"))
+
+
+def extract_genbank_location_sequence(location: str, record_sequence: str):
+    normalized = "".join(location.split())
+    function_name, inner = unwrap_genbank_location_function(normalized)
+    if function_name == "complement":
+        return reverse_complement_dna(
+            extract_genbank_location_sequence(inner, record_sequence)
+        )
+    if function_name in {"join", "order"}:
+        return "".join(
+            extract_genbank_location_sequence(part, record_sequence)
+            for part in split_genbank_location_arguments(inner)
+        )
+
+    if "," in normalized:
+        return "".join(
+            extract_genbank_location_sequence(part, record_sequence)
+            for part in split_genbank_location_arguments(normalized)
+        )
+
+    if ":" in normalized or "^" in normalized:
+        raise ValueError(f"Unsupported GenBank location: {location}")
+
+    range_match = re.fullmatch(r"([<>]?\d+)\.\.([<>]?\d+)", normalized)
+    if range_match:
+        start = clean_genbank_location_position(range_match.group(1))
+        end = clean_genbank_location_position(range_match.group(2))
+        if start < 1 or end < 1 or start > end:
+            raise ValueError(f"Unsupported GenBank location range: {location}")
+        return record_sequence[start - 1 : end]
+
+    position_match = re.fullmatch(r"[<>]?(\d+)", normalized)
+    if position_match:
+        position = int(position_match.group(1))
+        if position < 1:
+            raise ValueError(f"Unsupported GenBank location position: {location}")
+        return record_sequence[position - 1 : position]
+
+    raise ValueError(f"Unsupported GenBank location: {location}")
+
+
+def translate_complete_codons(sequence: str, table_id: str):
+    code = GENETIC_CODES[str(table_id)]
+    normalized = sequence.upper().replace("U", "T")
+    protein = []
+    ambiguous_codons = []
+    for index in range(0, len(normalized) - len(normalized) % 3, 3):
+        codon = normalized[index : index + 3]
+        amino_acid = code.get(codon)
+        if amino_acid is None:
+            amino_acid = "X"
+            ambiguous_codons.append({"codon": codon, "position": index + 1})
+        protein.append(amino_acid)
+    return "".join(protein), ambiguous_codons
+
+
+def validate_complete_cds_translation(sequence: str, table_id: str):
+    table_id = str(table_id)
+    normalized = sequence.upper().replace("U", "T")
+    errors = []
+    warnings = []
+
+    if not normalized:
+        errors.append("empty_cds")
+        return {"valid": False, "errors": errors, "warnings": warnings}
+
+    if len(normalized) % 3 != 0:
+        errors.append("length_not_multiple_of_three")
+
+    codons = [
+        normalized[index : index + 3]
+        for index in range(0, len(normalized) - len(normalized) % 3, 3)
+    ]
+    if not codons:
+        errors.append("no_complete_codon")
+        return {"valid": False, "errors": errors, "warnings": warnings}
+
+    start_codon = codons[0]
+    if start_codon not in GENETIC_CODE_START_CODONS[table_id]:
+        errors.append(f"invalid_start_codon:{start_codon}")
+
+    stop_codon = codons[-1]
+    if stop_codon not in GENETIC_CODE_STOP_CODONS[table_id]:
+        errors.append(f"missing_terminal_stop:{stop_codon}")
+
+    internal_stop_positions = [
+        index + 1
+        for index, codon in enumerate(codons[:-1])
+        if codon in GENETIC_CODE_STOP_CODONS[table_id]
+    ]
+    if internal_stop_positions:
+        positions = ",".join(str(position) for position in internal_stop_positions)
+        errors.append(f"internal_stop_codon:{positions}")
+
+    _, ambiguous_codons = translate_complete_codons(normalized, table_id)
+    if ambiguous_codons:
+        warnings.append(
+            "ambiguous_codon:"
+            + ",".join(
+                f"{item['codon']}@{item['position']}" for item in ambiguous_codons
+            )
+        )
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def make_cds_auto_translation_issue(
+    *,
+    severity: str,
+    code: str,
+    message: str,
+    record_name: str,
+    block: GenBankFeatureBlock,
+    gene: str,
+    details=None,
+):
+    issue = {
+        "severity": severity,
+        "code": code,
+        "message": message,
+        "record": record_name,
+        "feature_index": block.feature_index,
+        "gene": gene,
+        "location": block.location,
+    }
+    if details:
+        issue["details"] = details
+    return issue
+
+
+def validate_genbank_cds_auto_translation(
+    path: Path,
+    *,
+    strict_table: str = "1",
+    comparison_table: str = "11",
+):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    issues = []
+    cds_count = 0
+    checked_cds_count = 0
+    strict_pass_count = 0
+    skipped_exception_count = 0
+    skipped_partial_count = 0
+    skipped_pseudo_count = 0
+    table_compare_match_count = 0
+    table_compare_mismatch_count = 0
+
+    for record_index, record in enumerate(records, start=1):
+        metadata = genbank_record_locus_metadata(record)
+        record_name = metadata["name"] if metadata is not None else f"record_{record_index}"
+        record_sequence = genbank_record_origin_sequence(record)
+        _, _, blocks = parse_genbank_feature_blocks(record)
+
+        for block in blocks:
+            if block.key != "CDS":
+                continue
+            cds_count += 1
+            gene = first_genbank_qualifier_value(block.lines, "gene", "?")
+            exceptions = genbank_qualifier_values(block.lines, "exception")
+            is_pseudo = genbank_feature_has_qualifier(
+                block.lines,
+                "pseudo",
+            ) or genbank_feature_has_qualifier(block.lines, "pseudogene")
+            is_partial = "<" in block.location or ">" in block.location
+
+            if exceptions:
+                skipped_exception_count += 1
+                continue
+            if is_pseudo:
+                skipped_pseudo_count += 1
+                continue
+            if is_partial:
+                skipped_partial_count += 1
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="warning",
+                        code="partial_cds_skipped",
+                        message=(
+                            "CDS has a partial location and was not checked as a "
+                            "complete auto-translated CDS."
+                        ),
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                    )
+                )
+                continue
+
+            checked_cds_count += 1
+            try:
+                cds_sequence = extract_genbank_location_sequence(
+                    block.location,
+                    record_sequence,
+                )
+            except ValueError as error:
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="error",
+                        code="location_parse_error",
+                        message=str(error),
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                    )
+                )
+                continue
+
+            codon_start = first_genbank_qualifier_value(
+                block.lines,
+                "codon_start",
+                "1",
+            )
+            try:
+                codon_start_value = int(codon_start)
+            except (TypeError, ValueError):
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="error",
+                        code="invalid_codon_start",
+                        message=f"Invalid /codon_start value: {codon_start!r}",
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                    )
+                )
+                continue
+            if codon_start_value not in {1, 2, 3}:
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="error",
+                        code="invalid_codon_start",
+                        message=f"Invalid /codon_start value: {codon_start!r}",
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                    )
+                )
+                continue
+
+            coding_sequence = cds_sequence[codon_start_value - 1 :]
+            strict_translation, strict_ambiguous = translate_complete_codons(
+                coding_sequence,
+                strict_table,
+            )
+            comparison_translation, comparison_ambiguous = translate_complete_codons(
+                coding_sequence,
+                comparison_table,
+            )
+            if strict_translation == comparison_translation:
+                table_compare_match_count += 1
+            else:
+                table_compare_mismatch_count += 1
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="error",
+                        code="translation_table_mismatch",
+                        message=(
+                            f"Conceptual translation differs between table "
+                            f"{strict_table} and table {comparison_table}."
+                        ),
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                        details={
+                            f"table_{strict_table}_translation": strict_translation,
+                            f"table_{comparison_table}_translation": (
+                                comparison_translation
+                            ),
+                        },
+                    )
+                )
+
+            strict_validation = validate_complete_cds_translation(
+                coding_sequence,
+                strict_table,
+            )
+            comparison_validation = validate_complete_cds_translation(
+                coding_sequence,
+                comparison_table,
+            )
+            if strict_validation["valid"]:
+                strict_pass_count += 1
+            else:
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="error",
+                        code="strict_cds_translation_failed",
+                        message=(
+                            f"CDS is not valid for complete auto-translation "
+                            f"with table {strict_table}."
+                        ),
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                        details={
+                            f"table_{strict_table}_errors": (
+                                strict_validation["errors"]
+                            ),
+                            f"table_{comparison_table}_valid": (
+                                comparison_validation["valid"]
+                            ),
+                            f"table_{comparison_table}_errors": (
+                                comparison_validation["errors"]
+                            ),
+                        },
+                    )
+                )
+
+            ambiguous = strict_ambiguous or comparison_ambiguous
+            if ambiguous or strict_validation["warnings"]:
+                issues.append(
+                    make_cds_auto_translation_issue(
+                        severity="warning",
+                        code="ambiguous_codon",
+                        message="CDS contains ambiguous codon(s) translated as X.",
+                        record_name=record_name,
+                        block=block,
+                        gene=gene,
+                        details={
+                            "ambiguous_codons": strict_ambiguous,
+                            "warnings": strict_validation["warnings"],
+                        },
+                    )
+                )
+
+    blocking_issues = [issue for issue in issues if issue["severity"] == "error"]
+    warning_issues = [issue for issue in issues if issue["severity"] == "warning"]
+    return {
+        "cds_auto_translation_record_count": len(records),
+        "cds_auto_translation_cds_count": cds_count,
+        "cds_auto_translation_checked_cds_count": checked_cds_count,
+        "cds_auto_translation_strict_table": str(strict_table),
+        "cds_auto_translation_comparison_table": str(comparison_table),
+        "cds_auto_translation_strict_pass_count": strict_pass_count,
+        "cds_auto_translation_table_compare_match_count": table_compare_match_count,
+        "cds_auto_translation_table_compare_mismatch_count": (
+            table_compare_mismatch_count
+        ),
+        "cds_auto_translation_skipped_exception_count": skipped_exception_count,
+        "cds_auto_translation_skipped_partial_count": skipped_partial_count,
+        "cds_auto_translation_skipped_pseudo_count": skipped_pseudo_count,
+        "cds_auto_translation_blocking_issue_count": len(blocking_issues),
+        "cds_auto_translation_warning_count": len(warning_issues),
+        "cds_auto_translation_issues": issues,
+        "cds_auto_translation_passed": not blocking_issues,
+    }
+
+
+def format_cds_auto_translation_validation_errors(validation):
+    blocking_issues = [
+        issue
+        for issue in validation.get("cds_auto_translation_issues", [])
+        if issue.get("severity") == "error"
+    ]
+    issue_lines = []
+    for issue in blocking_issues[:10]:
+        issue_lines.append(
+            "- "
+            f"{issue.get('record')} {issue.get('gene')} "
+            f"({issue.get('code')}): {issue.get('message')} "
+            f"location={issue.get('location')}"
+        )
+    if len(blocking_issues) > 10:
+        issue_lines.append(f"- ... {len(blocking_issues) - 10} more issue(s)")
+    joined_issues = "\n".join(issue_lines)
+    return (
+        "CDS auto-translation validation failed before removing "
+        "/translation and /transl_table from PMGA CDS features.\n"
+        f"{joined_issues}"
+    )
 
 
 def normalize_circular_origin_wrapping_location(
@@ -1057,6 +1726,101 @@ def append_post_curation_summary(lines, post_curation):
                 "- feature table order: already sorted "
                 f"by genomic coordinate across {record_count} record(s)"
             )
+
+    translation_validation = post_curation.get("cds_auto_translation_validation")
+    if translation_validation:
+        checked_count = translation_validation[
+            "cds_auto_translation_checked_cds_count"
+        ]
+        strict_table = translation_validation["cds_auto_translation_strict_table"]
+        comparison_table = translation_validation[
+            "cds_auto_translation_comparison_table"
+        ]
+        strict_pass_count = translation_validation[
+            "cds_auto_translation_strict_pass_count"
+        ]
+        match_count = translation_validation[
+            "cds_auto_translation_table_compare_match_count"
+        ]
+        skipped_exception_count = translation_validation[
+            "cds_auto_translation_skipped_exception_count"
+        ]
+        skipped_partial_count = translation_validation[
+            "cds_auto_translation_skipped_partial_count"
+        ]
+        skipped_pseudo_count = translation_validation[
+            "cds_auto_translation_skipped_pseudo_count"
+        ]
+        blocking_count = translation_validation[
+            "cds_auto_translation_blocking_issue_count"
+        ]
+        warning_count = translation_validation["cds_auto_translation_warning_count"]
+        if translation_validation["cds_auto_translation_passed"]:
+            lines.append(
+                "- CDS auto-translation QC: "
+                f"{strict_pass_count}/{checked_count} non-exception complete CDS "
+                f"passed table {strict_table} validation; "
+                f"{match_count}/{checked_count} matched between table "
+                f"{strict_table} and table {comparison_table}"
+            )
+        else:
+            lines.append(
+                "- CDS auto-translation QC: found "
+                f"{blocking_count} blocking issue(s) and {warning_count} "
+                f"warning(s) among {checked_count} checked CDS"
+            )
+        if skipped_exception_count or skipped_partial_count or skipped_pseudo_count:
+            lines.append(
+                "- CDS auto-translation QC skipped: "
+                f"{skipped_exception_count} CDS with /exception, "
+                f"{skipped_partial_count} partial CDS, "
+                f"{skipped_pseudo_count} pseudo/pseudogene CDS"
+            )
+
+    qualifier_removal = post_curation.get("feature_qualifier_removal")
+    if qualifier_removal:
+        feature_keys = qualifier_removal["qualifier_removal_feature_keys"]
+        qualifiers = qualifier_removal["qualifier_removal_qualifiers"]
+        qualifier_counts = qualifier_removal["qualifier_removal_counts"]
+        record_count = qualifier_removal["qualifier_removal_record_count"]
+        target_feature_count = qualifier_removal[
+            "qualifier_removal_target_feature_count"
+        ]
+        feature_text = "/".join(feature_keys)
+        qualifier_text = ", ".join(f"/{qualifier}" for qualifier in qualifiers)
+        counted_qualifier_text = ", ".join(
+            f"/{qualifier} ({qualifier_counts.get(qualifier, 0)})"
+            for qualifier in qualifiers
+        )
+        if qualifier_removal["qualifier_removal_changed"]:
+            changed_records = qualifier_removal[
+                "qualifier_removal_changed_record_count"
+            ]
+            changed_features = qualifier_removal[
+                "qualifier_removal_changed_feature_count"
+            ]
+            lines.append(
+                f"- {feature_text} qualifiers: removed {counted_qualifier_text} "
+                f"from {changed_features}/{target_feature_count} "
+                f"{feature_text} feature(s) across {changed_records}/{record_count} "
+                "record(s)"
+            )
+            if "transl_table" in qualifiers:
+                lines.append(
+                    "- CDS /transl_table: omitted to use the INSDC default "
+                    "standard genetic code (table 1), equivalent to explicitly "
+                    "setting /transl_table=1"
+                )
+        else:
+            lines.append(
+                f"- {feature_text} qualifiers: no {qualifier_text} qualifier(s) "
+                f"needed removal across {target_feature_count} feature(s)"
+            )
+            if "transl_table" in qualifiers:
+                lines.append(
+                    "- CDS /transl_table: omitted qualifiers remain interpreted "
+                    "as the INSDC default standard genetic code (table 1)"
+                )
 
     source_organism = post_curation.get("source_organism")
     if source_organism:

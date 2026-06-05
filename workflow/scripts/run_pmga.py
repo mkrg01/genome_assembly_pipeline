@@ -9,10 +9,13 @@ from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
     curate_genbank_source_metadata,
+    format_cds_auto_translation_validation_errors,
     normalize_genbank_origin_wrapping_locations,
+    remove_genbank_feature_qualifiers,
     sort_genbank_features_by_location,
     topology_from_fasta_header,
     trim_genbank_to_core_sections,
+    validate_genbank_cds_auto_translation,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -234,6 +237,17 @@ def main():
         post_curation["origin_wrapping_locations"] = (
             normalize_genbank_origin_wrapping_locations(annotation)
         )
+        translation_validation = validate_genbank_cds_auto_translation(annotation)
+        post_curation["cds_auto_translation_validation"] = translation_validation
+        if not translation_validation["cds_auto_translation_passed"]:
+            raise RuntimeError(
+                format_cds_auto_translation_validation_errors(translation_validation)
+            )
+        post_curation["feature_qualifier_removal"] = remove_genbank_feature_qualifiers(
+            annotation,
+            feature_keys=("CDS",),
+            qualifiers=("translation", "transl_table"),
+        )
         post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
         commands = [cmd]
         selected_annotations = [str(selected)]
@@ -292,6 +306,25 @@ def main():
             record_post_curation["locus_topology"] = topology_curation
             record_post_curation["origin_wrapping_locations"] = (
                 normalize_genbank_origin_wrapping_locations(record_annotation)
+            )
+            translation_validation = validate_genbank_cds_auto_translation(
+                record_annotation
+            )
+            record_post_curation["cds_auto_translation_validation"] = (
+                translation_validation
+            )
+            if not translation_validation["cds_auto_translation_passed"]:
+                raise RuntimeError(
+                    format_cds_auto_translation_validation_errors(
+                        translation_validation
+                    )
+                )
+            record_post_curation["feature_qualifier_removal"] = (
+                remove_genbank_feature_qualifiers(
+                    record_annotation,
+                    feature_keys=("CDS",),
+                    qualifiers=("translation", "transl_table"),
+                )
             )
             record_post_curation["feature_sort"] = sort_genbank_features_by_location(
                 record_annotation
