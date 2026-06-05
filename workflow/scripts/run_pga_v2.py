@@ -44,6 +44,7 @@ def input_fasta_topology(path):
     topologies = []
     headers = []
     lengths = []
+    record_ids = []
     current_length = None
     with path.open() as handle:
         for line in handle:
@@ -52,7 +53,13 @@ def input_fasta_topology(path):
                     lengths.append(current_length)
                 current_length = 0
                 header = line[1:].strip()
+                record_id = header.split()[0] if header.split() else ""
+                if not record_id:
+                    raise ValueError(
+                        f"Could not determine a FASTA record ID from {path}."
+                    )
                 headers.append(header)
+                record_ids.append(record_id)
                 topology = topology_from_fasta_header(header)
                 if topology is not None:
                     topologies.append(topology)
@@ -64,7 +71,8 @@ def input_fasta_topology(path):
     unique_topologies = sorted(set(topologies))
     topology = unique_topologies[0] if len(unique_topologies) == 1 else None
     sequence_length = lengths[0] if len(lengths) == 1 else None
-    return topology, headers, sequence_length
+    record_id = record_ids[0] if len(record_ids) == 1 else None
+    return topology, headers, sequence_length, record_id
 
 
 def main():
@@ -119,10 +127,13 @@ def main():
     subprocess.run(cmd, check=True, cwd=run_root)
     selected = copy_first_genbank(raw_output_dir, annotation)
     core_sections = trim_genbank_to_core_sections(annotation)
-    topology, input_headers, sequence_length = input_fasta_topology(input_fasta)
+    topology, input_headers, sequence_length, input_record_id = input_fasta_topology(
+        input_fasta
+    )
     topology_curation = curate_genbank_locus(
         annotation,
         topology=topology,
+        locus_name=input_record_id,
         sequence_length=sequence_length,
     )
     post_curation = curate_genbank_source_metadata(
@@ -148,6 +159,7 @@ def main():
             "reference_dir": str(reference_dir),
             "staged_reference_dir": str(copied_reference_dir),
             "input_record_headers": input_headers,
+            "input_record_id": input_record_id,
             "input_record_length": sequence_length,
             "input_topology": topology,
             "raw_output_dir": str(raw_output_dir),

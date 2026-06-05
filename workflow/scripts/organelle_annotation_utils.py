@@ -213,6 +213,9 @@ def curate_genbank_locus(
     topology = normalize_genbank_topology(topology)
     if topology is None and locus_name is None and sequence_length is None:
         return {
+            "locus_name_before": None,
+            "locus_name_after": None,
+            "locus_name_changed": False,
             "locus_topology_before": None,
             "locus_topology_after": None,
             "locus_topology_changed": False,
@@ -230,6 +233,9 @@ def curate_genbank_locus(
             break
     if locus_index is None:
         return {
+            "locus_name_before": None,
+            "locus_name_after": locus_name,
+            "locus_name_changed": False,
             "locus_topology_before": None,
             "locus_topology_after": topology,
             "locus_topology_changed": False,
@@ -246,7 +252,9 @@ def curate_genbank_locus(
         line_without_newline,
         sequence_length=sequence_length,
     )
+    before_name = before_metadata["name"]
     before = before_metadata["topology"]
+    after_name = locus_name or before_name
     updated_line_without_newline = format_locus_line(
         line_without_newline,
         topology=topology,
@@ -260,6 +268,9 @@ def curate_genbank_locus(
         path.write_text("".join(lines))
 
     return {
+        "locus_name_before": before_name,
+        "locus_name_after": after_name,
+        "locus_name_changed": before_name != after_name,
         "locus_topology_before": before,
         "locus_topology_after": topology or before,
         "locus_topology_changed": before != (topology or before),
@@ -590,6 +601,16 @@ def append_post_curation_summary(lines, post_curation):
 
     locus_topology = post_curation.get("locus_topology")
     if locus_topology:
+        before_name = locus_topology.get("locus_name_before")
+        after_name = locus_topology.get("locus_name_after")
+        if before_name is not None and after_name is not None:
+            if locus_topology.get("locus_name_changed"):
+                lines.append(
+                    f'- LOCUS name: changed from "{before_name}" to "{after_name}"'
+                )
+            else:
+                lines.append(f'- LOCUS name: already "{after_name}"')
+
         before = locus_topology["locus_topology_before"]
         after = locus_topology["locus_topology_after"]
         skipped_reason = locus_topology["locus_topology_skipped_reason"]

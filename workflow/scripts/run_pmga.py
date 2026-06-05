@@ -217,7 +217,7 @@ def main():
         topology_curation = curate_genbank_locus(
             annotation,
             topology=records[0]["topology"],
-            locus_name=args.prefix,
+            locus_name=records[0]["id"],
             sequence_length=len(records[0]["sequence"]),
         )
         post_curation = curate_genbank_source_metadata(
@@ -272,7 +272,7 @@ def main():
             topology_curation = curate_genbank_locus(
                 record_annotation,
                 topology=record["topology"],
-                locus_name=record_prefix,
+                locus_name=record["id"],
                 sequence_length=len(record["sequence"]),
             )
             record_post_curation = curate_genbank_source_metadata(
