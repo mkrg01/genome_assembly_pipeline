@@ -7,6 +7,7 @@ from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
     curate_genbank_source_metadata,
+    normalize_genbank_origin_wrapping_locations,
     sort_genbank_features_by_location,
     topology_from_fasta_header,
     trim_genbank_to_core_sections,
@@ -146,6 +147,9 @@ def main():
     )
     post_curation["core_sections"] = core_sections
     post_curation["locus_topology"] = topology_curation
+    post_curation["origin_wrapping_locations"] = (
+        normalize_genbank_origin_wrapping_locations(annotation)
+    )
     post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
     post_curation_record = write_post_curation_record(
         post_curation_path,

@@ -15,6 +15,7 @@ GENBANK_DATE_PATTERN = re.compile(r"\d{2}-[A-Z]{3}-\d{4}")
 GENBANK_MOLECULE_PATTERN = re.compile(r"\b(mRNA|DNA|RNA)\b")
 GENBANK_FEATURE_LINE_PATTERN = re.compile(r"^     (\S+)\s+(.+)")
 GENBANK_LOCATION_RANGE_PATTERN = re.compile(r"<?(\d+)\.\.>?(\d+)")
+GENBANK_LOCATION_RANGE_DETAIL_PATTERN = re.compile(r"(<)?(\d+)\.\.(>)?(\d+)")
 GENBANK_LOCATION_POSITION_PATTERN = re.compile(r"(?<![A-Za-z_])<?(\d+)(?![A-Za-z_])")
 FEATURE_SORT_ORDER = {
     "gene": 0,
@@ -246,6 +247,136 @@ def parse_genbank_feature_blocks(record: list[str]):
         )
 
     return features_index, origin_index, blocks
+
+
+def genbank_feature_qualifier_start(block_lines: list[str]):
+    for index, line in enumerate(block_lines[1:], start=1):
+        if line.strip().startswith("/"):
+            return index
+    return len(block_lines)
+
+
+def format_genbank_feature_location_lines(
+    key: str,
+    location: str,
+    newline: str = "\n",
+):
+    return [f"{FEATURE_INDENT}{key:<16}{location}{newline}"]
+
+
+def normalize_circular_origin_wrapping_location(
+    location: str,
+    sequence_length: int,
+):
+    replacements = 0
+
+    def replace_range(match):
+        nonlocal replacements
+        start_fuzzy, start_text, end_fuzzy, end_text = match.groups()
+        start = int(start_text)
+        end = int(end_text)
+        if start <= end or start > sequence_length or end < 1:
+            return match.group(0)
+
+        replacements += 1
+        start_prefix = start_fuzzy or ""
+        end_prefix = end_fuzzy or ""
+        return (
+            f"join({start_prefix}{start}..{sequence_length},"
+            f"1..{end_prefix}{end})"
+        )
+
+    normalized = GENBANK_LOCATION_RANGE_DETAIL_PATTERN.sub(replace_range, location)
+    return normalized, replacements
+
+
+def genbank_record_locus_metadata(record: list[str]):
+    for line in record:
+        if line.startswith("LOCUS"):
+            return extract_locus_metadata(line.rstrip("\n"))
+    return None
+
+
+def normalize_genbank_record_origin_wrapping_locations(record: list[str]):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, 0
+
+    metadata = genbank_record_locus_metadata(record)
+    if (
+        metadata is None
+        or metadata["topology"] != "circular"
+        or metadata["length"] is None
+    ):
+        return record, False, 0
+
+    replacement_count = 0
+    normalized_blocks = []
+    for block in blocks:
+        normalized_location, block_replacements = (
+            normalize_circular_origin_wrapping_location(
+                block.location,
+                metadata["length"],
+            )
+        )
+        replacement_count += block_replacements
+        if block_replacements == 0:
+            normalized_blocks.append(block.lines)
+            continue
+
+        qualifier_start = genbank_feature_qualifier_start(block.lines)
+        newline = "\n" if block.lines[0].endswith("\n") else ""
+        normalized_blocks.append(
+            [
+                *format_genbank_feature_location_lines(
+                    block.key,
+                    normalized_location,
+                    newline=newline,
+                ),
+                *block.lines[qualifier_start:],
+            ]
+        )
+
+    if replacement_count == 0:
+        return record, False, 0
+
+    normalized_feature_lines = [
+        line for block_lines in normalized_blocks for line in block_lines
+    ]
+    normalized_record = [
+        *record[: features_index + 1],
+        *normalized_feature_lines,
+        *record[origin_index:],
+    ]
+    return normalized_record, True, replacement_count
+
+
+def normalize_genbank_origin_wrapping_locations(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    normalized_records = []
+    changed_records = 0
+    location_count = 0
+
+    for record in records:
+        normalized_record, changed, record_location_count = (
+            normalize_genbank_record_origin_wrapping_locations(record)
+        )
+        normalized_records.append(normalized_record)
+        changed_records += int(changed)
+        location_count += record_location_count
+
+    normalized_lines = [line for record in normalized_records for line in record]
+    changed = lines != normalized_lines
+    if changed:
+        path.write_text("".join(normalized_lines))
+
+    return {
+        "origin_wrap_record_count": len(records),
+        "origin_wrap_changed_record_count": changed_records,
+        "origin_wrap_location_count": location_count,
+        "origin_wrap_changed": changed,
+    }
 
 
 def match_genbank_gene_feature(
@@ -890,6 +1021,23 @@ def append_post_curation_summary(lines, post_curation):
             lines.append(f'- LOCUS topology: changed from "{before}" to "{after}"')
         else:
             lines.append(f'- LOCUS topology: already "{after}"')
+
+    origin_wrap = post_curation.get("origin_wrapping_locations")
+    if origin_wrap:
+        record_count = origin_wrap["origin_wrap_record_count"]
+        location_count = origin_wrap["origin_wrap_location_count"]
+        if origin_wrap["origin_wrap_changed"]:
+            changed_records = origin_wrap["origin_wrap_changed_record_count"]
+            lines.append(
+                "- feature locations: normalized "
+                f"{location_count} circular origin-spanning location(s) "
+                f"across {changed_records}/{record_count} record(s)"
+            )
+        else:
+            lines.append(
+                "- feature locations: no circular origin-spanning location(s) "
+                f"needed normalization across {record_count} record(s)"
+            )
 
     feature_sort = post_curation.get("feature_sort")
     if feature_sort:
