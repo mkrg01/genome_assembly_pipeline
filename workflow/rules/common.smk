@@ -554,6 +554,21 @@ organelle_annotation_tools = normalize_organelle_annotation_config(
 pga_v2_reference_dir = config.get("pga_v2_reference_dir", "resources/plastid_reference")
 
 
+def pga_v2_hifi_reads_for_sequence_fix(wildcards):
+    if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+        return (
+            "results/hifi_reads/merged/"
+            f"{wildcards.assembly_name}_hifi_reads_curated.fastq.gz"
+        )
+    return []
+
+
+def pga_v2_hifi_reads_arg(_wildcards, input):
+    if not config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+        return ""
+    return f"--hifi-reads {shlex.quote(str(input.hifi_reads))}"
+
+
 def configured_organelle_annotation_tool(organelle):
     organelle = normalize_organelle_name("organelle_annotation", organelle)
     return organelle_annotation_tools.get(organelle)

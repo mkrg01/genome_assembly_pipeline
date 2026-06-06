@@ -176,21 +176,6 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
 
 
 if "chloroplast" in configured_oatk_organelles() and configured_organelle_annotation_tool("chloroplast") == "pga_v2":
-    def pga_v2_hifi_reads_for_sequence_fix(wildcards):
-        if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
-            return (
-                "results/hifi_reads/merged/"
-                f"{wildcards.assembly_name}_hifi_reads_curated.fastq.gz"
-            )
-        return []
-
-
-    def pga_v2_hifi_reads_arg(_wildcards, input):
-        if not config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
-            return ""
-        return f"--hifi-reads {shlex.quote(str(input.hifi_reads))}"
-
-
     rule annotate_chloroplast_pga_v2:
         input:
             genome = organelle_prefixed_genome_path("{assembly_name}", "chloroplast"),
