@@ -112,6 +112,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
             pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"
         output:
             annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.pre_rna_editing.gbk",
+            genome = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.ctg.annotation.fasta",
             manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.manifest.json",
             post_curation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/post_curation.pre_rna_editing.md"
         log:
@@ -131,6 +132,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
                     --pmga-bundle {input.pmga_bundle:q} \
                     --input-fasta {input.genome:q} \
                     --annotation {output.annotation:q} \
+                    --annotation-fasta {output.genome:q} \
                     --manifest {output.manifest:q} \
                     --post-curation {output.post_curation:q} \
                     --db {params.db:q} \
@@ -180,6 +182,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl"
         output:
             annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.pre_rna_editing.gbk",
+            genome = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.ctg.annotation.fasta",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
             post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.pre_rna_editing.md"
         log:
@@ -205,6 +208,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --input-fasta {input.genome:q} \
                     --reference-dir {params.reference_dir:q} \
                     --annotation {output.annotation:q} \
+                    --annotation-fasta {output.genome:q} \
                     --manifest {output.manifest:q} \
                     --post-curation {output.post_curation:q} \
                     --assembly-name {wildcards.assembly_name:q} \

@@ -8,9 +8,13 @@ from organelle_annotation_utils import (
     curate_genbank_locus,
     curate_genbank_source_metadata,
     normalize_genbank_origin_wrapping_locations,
+    parse_fasta_records,
+    rotate_fasta_record,
+    select_circular_origin_rotation_from_genbank,
     sort_genbank_features_by_location,
     topology_from_fasta_header,
     trim_genbank_to_core_sections,
+    write_fasta_records,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -22,6 +26,7 @@ def parse_args():
     parser.add_argument("--input-fasta", type=Path, required=True)
     parser.add_argument("--reference-dir", type=Path, required=True)
     parser.add_argument("--annotation", type=Path, required=True)
+    parser.add_argument("--annotation-fasta", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--post-curation", type=Path, required=True)
     parser.add_argument("--assembly-name", required=True)
@@ -77,10 +82,51 @@ def input_fasta_topology(path):
     return topology, headers, sequence_length, record_id
 
 
+def run_pga_v2(args, script, reference_dir, target_dir, output_dir, run_root):
+    cmd = [
+        "perl",
+        str(script),
+        "-r",
+        str(reference_dir),
+        "-t",
+        str(target_dir),
+        "-i",
+        str(args.ir),
+        "-p",
+        str(args.pidentity),
+        "-l",
+        args.link,
+        "-d",
+        args.redundancy,
+        "-q",
+        args.qcoverage,
+        "-o",
+        str(output_dir),
+        "-f",
+        args.form,
+        "-w",
+        args.warning,
+    ]
+    subprocess.run(cmd, check=True, cwd=run_root)
+    return cmd
+
+
+def curate_preliminary_annotation(annotation, record):
+    trim_genbank_to_core_sections(annotation)
+    curate_genbank_locus(
+        annotation,
+        topology=record["topology"],
+        locus_name=record["id"],
+        sequence_length=len(record["sequence"]),
+    )
+    normalize_genbank_origin_wrapping_locations(annotation)
+
+
 def main():
     args = parse_args()
     script = args.script.resolve()
     input_fasta = args.input_fasta.resolve()
+    annotation_fasta = args.annotation_fasta.resolve()
     reference_dir = args.reference_dir.resolve()
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
@@ -97,40 +143,72 @@ def main():
     copied_reference_dir = run_root / "reference"
     raw_output_dir = run_root / "gb"
     recreate_dir(run_root)
-    target_dir.mkdir(parents=True)
     shutil.copytree(reference_dir, copied_reference_dir)
-    staged_fasta = target_dir / f"{input_fasta.stem}.fa"
-    shutil.copy2(input_fasta, staged_fasta)
 
-    cmd = [
-        "perl",
-        str(script),
-        "-r",
-        str(copied_reference_dir),
-        "-t",
-        str(target_dir),
-        "-i",
-        str(args.ir),
-        "-p",
-        str(args.pidentity),
-        "-l",
-        args.link,
-        "-d",
-        args.redundancy,
-        "-q",
-        args.qcoverage,
-        "-o",
-        str(raw_output_dir),
-        "-f",
-        args.form,
-        "-w",
-        args.warning,
-    ]
-    subprocess.run(cmd, check=True, cwd=run_root)
+    input_records = parse_fasta_records(input_fasta)
+    circular_origin_rotation = {
+        "rotation_applied": False,
+        "rotation_offset": 0,
+        "new_origin_position": 1,
+        "skipped_reason": "input FASTA does not contain exactly one circular record",
+    }
+    annotation_records = input_records
+    preliminary_command = None
+    preliminary_annotation = None
+    preliminary_selected = None
+    if len(input_records) == 1 and input_records[0]["topology"] == "circular":
+        preliminary_target_dir = run_root / "preliminary_target"
+        preliminary_output_dir = run_root / "preliminary_gb"
+        preliminary_target_dir.mkdir(parents=True)
+        preliminary_output_dir.mkdir(parents=True)
+        preliminary_fasta = preliminary_target_dir / f"{input_fasta.stem}.fa"
+        write_fasta_records(input_records, preliminary_fasta)
+        preliminary_command = run_pga_v2(
+            args,
+            script,
+            copied_reference_dir,
+            preliminary_target_dir,
+            preliminary_output_dir,
+            run_root,
+        )
+        preliminary_annotation = run_root / "preliminary.gbk"
+        preliminary_selected = copy_first_genbank(
+            preliminary_output_dir,
+            preliminary_annotation,
+        )
+        curate_preliminary_annotation(preliminary_annotation, input_records[0])
+        circular_origin_rotation = select_circular_origin_rotation_from_genbank(
+            preliminary_annotation
+        )
+        if circular_origin_rotation["rotation_applied"]:
+            annotation_records = [
+                rotate_fasta_record(
+                    input_records[0],
+                    circular_origin_rotation["rotation_offset"],
+                )
+            ]
+    elif len(input_records) == 1:
+        circular_origin_rotation["skipped_reason"] = (
+            f"input record topology is {input_records[0]['topology'] or 'unknown'}"
+        )
+
+    write_fasta_records(annotation_records, annotation_fasta)
+    target_dir.mkdir(parents=True)
+    staged_fasta = target_dir / f"{input_fasta.stem}.fa"
+    shutil.copy2(annotation_fasta, staged_fasta)
+
+    cmd = run_pga_v2(
+        args,
+        script,
+        copied_reference_dir,
+        target_dir,
+        raw_output_dir,
+        run_root,
+    )
     selected = copy_first_genbank(raw_output_dir, annotation)
     core_sections = trim_genbank_to_core_sections(annotation)
-    topology, input_headers, sequence_length, input_record_id = input_fasta_topology(
-        input_fasta
+    topology, annotation_headers, sequence_length, input_record_id = input_fasta_topology(
+        annotation_fasta
     )
     topology_curation = curate_genbank_locus(
         annotation,
@@ -145,6 +223,7 @@ def main():
         organelle="plastid:chloroplast",
         annotation_method="PGA-Plastid Genome Annotator",
     )
+    post_curation["circular_origin_rotation"] = circular_origin_rotation
     post_curation["core_sections"] = core_sections
     post_curation["locus_topology"] = topology_curation
     post_curation["origin_wrapping_locations"] = (
@@ -162,12 +241,22 @@ def main():
             "tool": "pga_v2",
             "script": str(script),
             "input_fasta": str(input_fasta),
+            "annotation_fasta": str(annotation_fasta),
             "reference_dir": str(reference_dir),
             "staged_reference_dir": str(copied_reference_dir),
-            "input_record_headers": input_headers,
+            "input_record_headers": [record["header"] for record in input_records],
             "input_record_id": input_record_id,
             "input_record_length": sequence_length,
             "input_topology": topology,
+            "annotation_record_headers": annotation_headers,
+            "circular_origin_rotation": circular_origin_rotation,
+            "preliminary_command": preliminary_command,
+            "preliminary_selected_annotation": (
+                str(preliminary_selected) if preliminary_selected else None
+            ),
+            "preliminary_annotation": (
+                str(preliminary_annotation) if preliminary_annotation else None
+            ),
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),

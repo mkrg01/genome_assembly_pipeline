@@ -604,6 +604,7 @@ def organelle_annotation_output_paths(assembly_name, organelle):
     if (organelle == "chloroplast" and tool == "pga_v2") or (
         organelle == "mitochondrion" and tool == "pmga"
     ):
+        paths["genome"] = f"{prefix}/{assembly_name}.{organelle}.ctg.annotation.fasta"
         paths["post_curation"] = f"{prefix}/post_curation.md"
     if has_organelle_rna_editing_post_curation(organelle):
         rna_prefix = f"{prefix}/{assembly_name}.{organelle}.rna_editing"
@@ -638,7 +639,7 @@ def organelle_rna_editing_reference_input_paths(assembly_name):
     for organelle in configured_oatk_organelles_with_annotation():
         if not has_organelle_rna_editing_post_curation(organelle):
             continue
-        inputs[OATK_SHORT_ORGANELLE_NAMES[organelle]] = organelle_prefixed_genome_path(
+        inputs[OATK_SHORT_ORGANELLE_NAMES[organelle]] = organelle_annotation_genome_input_for_downstream(
             assembly_name,
             organelle,
         )
@@ -682,6 +683,14 @@ def organelle_annotation_input_for_downstream(assembly_name, organelle):
     return organelle_annotation_output_paths(assembly_name, organelle)["annotation"]
 
 
+def organelle_annotation_genome_input_for_downstream(assembly_name, organelle):
+    paths = organelle_annotation_output_paths(assembly_name, organelle)
+    return paths.get(
+        "genome",
+        organelle_prefixed_genome_path(assembly_name, organelle),
+    )
+
+
 def organelle_visualization_output_paths(assembly_name, organelle):
     organelle = normalize_organelle_name("organelle_annotation", organelle)
     tool = configured_organelle_annotation_tool(organelle)
@@ -712,6 +721,8 @@ def organelle_visualization_all_inputs(assembly_name):
 
 def organelle_submission_genome_input_path(assembly_name, organelle):
     organelle = normalize_organelle_name("oatk_organelle", organelle)
+    if has_configured_organelle_annotation(organelle):
+        return organelle_annotation_genome_input_for_downstream(assembly_name, organelle)
     return organelle_prefixed_genome_path(assembly_name, organelle)
 
 

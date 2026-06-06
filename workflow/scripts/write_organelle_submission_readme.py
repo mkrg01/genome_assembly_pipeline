@@ -65,7 +65,9 @@ def write_readme(args):
         "- The organelle genome was staged from a FASTA derived from the Oatk "
         "assembly output selected by `oatk_organelle` in `config/config.yml`; "
         "record IDs are prefixed consistently for organelle submission and "
-        "annotation."
+        "annotation. When the configured annotation workflow rotates a circular "
+        "record to avoid origin-spanning features, this staged FASTA uses the "
+        "same rotated coordinate system as the GenBank annotation."
     ]
     if annotation_tool and input_annotation and output_annotation:
         provenance_rows.append(

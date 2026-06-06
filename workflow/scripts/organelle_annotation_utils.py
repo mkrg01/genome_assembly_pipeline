@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 GENBANK_SUFFIXES = (".gb", ".gbk", ".gbf")
+FASTA_LINE_WIDTH = 80
 FEATURE_INDENT = "     "
 QUALIFIER_INDENT = "                     "
 SPECIES_PLACEHOLDER = "YOUR_SPECIES"
@@ -128,6 +129,82 @@ class GenBankFeatureBlock:
     location: str
     qualifiers: dict[str, list[str]] = field(default_factory=dict)
     intervals: list[tuple[int, int]] = field(default_factory=list)
+
+
+def fasta_record_id(header: str):
+    record_id = header.split()[0] if header.split() else ""
+    if not record_id:
+        raise ValueError(f"Could not determine a FASTA record ID from: {header!r}")
+    return record_id
+
+
+def make_fasta_record(header: str, sequence_lines: list[str]):
+    return {
+        "header": header,
+        "id": fasta_record_id(header),
+        "sequence": "".join(sequence_lines).upper().replace("U", "T"),
+        "topology": topology_from_fasta_header(header),
+    }
+
+
+def parse_fasta_records(path: Path):
+    records = []
+    header = None
+    sequence_lines = []
+
+    with path.open() as handle:
+        for line_number, line in enumerate(handle, start=1):
+            line = line.rstrip("\n")
+            if line.startswith(">"):
+                if header is not None:
+                    records.append(make_fasta_record(header, sequence_lines))
+                header = line[1:].strip()
+                if not header:
+                    raise ValueError(
+                        f"Empty FASTA header found in {path} at line {line_number}."
+                    )
+                sequence_lines = []
+                continue
+
+            if header is None:
+                if line.strip():
+                    raise ValueError(
+                        f"Sequence data found before the first FASTA header in {path} "
+                        f"at line {line_number}."
+                    )
+                continue
+            sequence_lines.append("".join(line.split()))
+
+    if header is not None:
+        records.append(make_fasta_record(header, sequence_lines))
+    if not records:
+        raise ValueError(f"No FASTA records found in {path}.")
+    return records
+
+
+def write_fasta_records(records: list[dict], path: Path, line_width=FASTA_LINE_WIDTH):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w") as handle:
+        for record in records:
+            handle.write(f">{record['header']}\n")
+            sequence = record["sequence"]
+            for index in range(0, len(sequence), line_width):
+                handle.write(f"{sequence[index:index + line_width]}\n")
+
+
+def rotate_sequence(sequence: str, offset: int):
+    if not sequence:
+        return sequence
+    offset %= len(sequence)
+    if offset == 0:
+        return sequence
+    return sequence[offset:] + sequence[:offset]
+
+
+def rotate_fasta_record(record: dict, offset: int):
+    rotated = dict(record)
+    rotated["sequence"] = rotate_sequence(record["sequence"], offset)
+    return rotated
 
 
 def organism_name_from_assembly_name(assembly_name: str):
@@ -1092,6 +1169,170 @@ def genbank_record_locus_metadata(record: list[str]):
     return None
 
 
+def clamp_genbank_intervals(
+    intervals: list[tuple[int, int]],
+    sequence_length: int,
+):
+    clamped = []
+    for start, end in intervals:
+        start = max(1, min(sequence_length, start))
+        end = max(1, min(sequence_length, end))
+        if start <= end:
+            clamped.append((start, end))
+    return clamped
+
+
+def merge_genbank_intervals(intervals: list[tuple[int, int]]):
+    if not intervals:
+        return []
+
+    merged = []
+    for start, end in sorted(intervals):
+        if not merged or start > merged[-1][1] + 1:
+            merged.append([start, end])
+            continue
+        merged[-1][1] = max(merged[-1][1], end)
+    return [(start, end) for start, end in merged]
+
+
+def genbank_record_non_source_feature_intervals(
+    record: list[str],
+    sequence_length: int,
+):
+    _features_index, _origin_index, blocks = parse_genbank_feature_blocks(record)
+    intervals = []
+    feature_count = 0
+    for block in blocks:
+        if block.key == "source":
+            continue
+        clamped = clamp_genbank_intervals(block.intervals, sequence_length)
+        if not clamped:
+            continue
+        feature_count += 1
+        intervals.extend(clamped)
+    return intervals, feature_count
+
+
+def select_circular_origin_rotation_from_record(record: list[str]):
+    metadata = genbank_record_locus_metadata(record)
+    if metadata is None:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "skipped_reason": "no LOCUS line found in preliminary annotation",
+        }
+
+    sequence_length = metadata.get("length")
+    if metadata.get("topology") != "circular":
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "sequence_length": sequence_length,
+            "skipped_reason": "record is not circular",
+        }
+    if not sequence_length:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "skipped_reason": "could not determine circular sequence length",
+        }
+
+    intervals, feature_count = genbank_record_non_source_feature_intervals(
+        record,
+        sequence_length,
+    )
+    merged_intervals = merge_genbank_intervals(intervals)
+    if len(merged_intervals) < 2:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "sequence_length": sequence_length,
+            "feature_count": feature_count,
+            "feature_interval_count": len(intervals),
+            "merged_feature_interval_count": len(merged_intervals),
+            "skipped_reason": (
+                "fewer than two non-source feature intervals were available "
+                "for internal gap selection"
+            ),
+        }
+
+    candidates = []
+    for (_left_start, left_end), (right_start, _right_end) in zip(
+        merged_intervals,
+        merged_intervals[1:],
+    ):
+        gap_start = left_end + 1
+        gap_end = right_start - 1
+        if gap_start <= gap_end:
+            candidates.append(
+                {
+                    "gap_start": gap_start,
+                    "gap_end": gap_end,
+                    "gap_length": gap_end - gap_start + 1,
+                }
+            )
+
+    if not candidates:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "sequence_length": sequence_length,
+            "feature_count": feature_count,
+            "feature_interval_count": len(intervals),
+            "merged_feature_interval_count": len(merged_intervals),
+            "candidate_gap_count": 0,
+            "skipped_reason": "no internal feature-free gap was found",
+        }
+
+    selected = max(candidates, key=lambda item: item["gap_length"])
+    new_origin_position = (
+        selected["gap_start"] + selected["gap_end"]
+    ) // 2
+    rotation_offset = new_origin_position - 1
+    return {
+        "rotation_applied": rotation_offset > 0,
+        "rotation_offset": rotation_offset,
+        "new_origin_position": new_origin_position,
+        "sequence_length": sequence_length,
+        "feature_count": feature_count,
+        "feature_interval_count": len(intervals),
+        "merged_feature_interval_count": len(merged_intervals),
+        "candidate_gap_count": len(candidates),
+        "selected_gap_start": selected["gap_start"],
+        "selected_gap_end": selected["gap_end"],
+        "selected_gap_length": selected["gap_length"],
+        "skipped_reason": None,
+    }
+
+
+def select_circular_origin_rotation_from_genbank(path: Path):
+    records = split_genbank_records(path.read_text().splitlines(keepends=True))
+    if not records:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "skipped_reason": "no GenBank records found in preliminary annotation",
+        }
+    if len(records) > 1:
+        return {
+            "rotation_applied": False,
+            "rotation_offset": 0,
+            "new_origin_position": 1,
+            "record_count": len(records),
+            "skipped_reason": (
+                "preliminary annotation contained multiple records; "
+                "run circular-origin selection per record"
+            ),
+        }
+    return select_circular_origin_rotation_from_record(records[0])
+
+
 def normalize_genbank_record_origin_wrapping_locations(record: list[str]):
     features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
     if features_index is None or origin_index is None or not blocks:
@@ -1792,6 +2033,24 @@ def append_post_curation_summary(lines, post_curation):
             lines.append(
                 f"- GenBank file: already contained only {sections} section(s)"
             )
+
+    circular_origin_rotation = post_curation.get("circular_origin_rotation")
+    if circular_origin_rotation:
+        skipped_reason = circular_origin_rotation.get("skipped_reason")
+        if circular_origin_rotation.get("rotation_applied"):
+            lines.append(
+                "- circular origin rotation: moved FASTA origin to position "
+                f"{circular_origin_rotation['new_origin_position']} "
+                f"(0-based offset {circular_origin_rotation['rotation_offset']}) "
+                "inside an internal feature-free gap "
+                f"{circular_origin_rotation['selected_gap_start']}.."
+                f"{circular_origin_rotation['selected_gap_end']} "
+                f"({circular_origin_rotation['selected_gap_length']} bp)"
+            )
+        elif skipped_reason:
+            lines.append(f"- circular origin rotation: not applied ({skipped_reason})")
+        else:
+            lines.append("- circular origin rotation: not applied")
 
     locus_topology = post_curation.get("locus_topology")
     if locus_topology:

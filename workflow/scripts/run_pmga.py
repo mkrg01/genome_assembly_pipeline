@@ -13,10 +13,13 @@ from organelle_annotation_utils import (
     normalize_genbank_origin_wrapping_locations,
     normalize_pmga_trans_splicing_qualifiers,
     remove_genbank_feature_qualifiers,
+    rotate_fasta_record,
+    select_circular_origin_rotation_from_genbank,
     sort_genbank_features_by_location,
     topology_from_fasta_header,
     trim_genbank_to_core_sections,
     validate_genbank_cds_auto_translation,
+    write_fasta_records,
     write_post_curation_record,
     write_run_manifest,
 )
@@ -40,6 +43,7 @@ def parse_args():
     parser.add_argument("--pmga-bundle", type=Path, required=True)
     parser.add_argument("--input-fasta", type=Path, required=True)
     parser.add_argument("--annotation", type=Path, required=True)
+    parser.add_argument("--annotation-fasta", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--post-curation", type=Path, required=True)
     parser.add_argument("--db", default="1")
@@ -179,6 +183,85 @@ def run_pmga(runtime, container, cwd, input_fasta, db, prefix, output_dir):
     return cmd
 
 
+def skipped_circular_origin_rotation(record, reason):
+    return {
+        "rotation_applied": False,
+        "rotation_offset": 0,
+        "new_origin_position": 1,
+        "sequence_length": len(record["sequence"]),
+        "skipped_reason": reason,
+    }
+
+
+def curate_preliminary_annotation(annotation, record):
+    trim_genbank_to_core_sections(annotation)
+    curate_genbank_locus(
+        annotation,
+        topology=record["topology"],
+        locus_name=record["id"],
+        sequence_length=len(record["sequence"]),
+    )
+    normalize_genbank_origin_wrapping_locations(annotation)
+
+
+def prepare_record_for_annotation(
+    *,
+    runtime,
+    container,
+    cwd,
+    record,
+    db,
+    record_prefix,
+    preliminary_root,
+    record_dir_name,
+):
+    preliminary_command = None
+    preliminary_selected = None
+    preliminary_annotation = None
+    rotation = skipped_circular_origin_rotation(
+        record,
+        f"input record topology is {record['topology'] or 'unknown'}",
+    )
+
+    if record["topology"] == "circular":
+        preliminary_dir = preliminary_root / record_dir_name
+        preliminary_input = preliminary_dir / "input.fasta"
+        preliminary_output = preliminary_dir / "pmga_raw"
+        preliminary_annotation = preliminary_dir / f"{record_prefix}.preliminary.gbk"
+        write_single_record_fasta(record, preliminary_input)
+        preliminary_command = run_pmga(
+            runtime,
+            container,
+            cwd,
+            preliminary_input.resolve(),
+            db,
+            record_prefix,
+            preliminary_output,
+        )
+        preliminary_selected = copy_first_genbank(
+            preliminary_output,
+            preliminary_annotation,
+        )
+        curate_preliminary_annotation(preliminary_annotation, record)
+        rotation = select_circular_origin_rotation_from_genbank(preliminary_annotation)
+
+    prepared_record = record
+    if rotation["rotation_applied"]:
+        prepared_record = rotate_fasta_record(record, rotation["rotation_offset"])
+
+    return {
+        "record": prepared_record,
+        "circular_origin_rotation": rotation,
+        "preliminary_command": preliminary_command,
+        "preliminary_selected_annotation": (
+            str(preliminary_selected) if preliminary_selected else None
+        ),
+        "preliminary_annotation": (
+            str(preliminary_annotation) if preliminary_annotation else None
+        ),
+    }
+
+
 def concatenate_genbank_files(paths, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w") as out_handle:
@@ -195,6 +278,7 @@ def main():
     runtime = find_container_runtime()
     container = resolve_pmga_container(args.pmga_bundle)
     input_fasta = args.input_fasta.resolve()
+    annotation_fasta = args.annotation_fasta.resolve()
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
     post_curation_path = args.post_curation.resolve()
@@ -202,18 +286,43 @@ def main():
     if raw_output_dir.exists():
         shutil.rmtree(raw_output_dir)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
+    preliminary_root = annotation.parent / "pmga_preliminary"
+    if preliminary_root.exists():
+        shutil.rmtree(preliminary_root)
+    preliminary_root.mkdir(parents=True, exist_ok=True)
 
     cwd = Path.cwd().resolve()
     assembly_name = args.assembly_name or args.prefix
     records = parse_fasta_records(input_fasta)
     record_count = len(records)
+    record_prefixes = unique_pmga_prefixes(args.prefix, records)
+    prepared_records = []
+    record_preparations = []
+    for index, (record, record_prefix) in enumerate(
+        zip(records, record_prefixes),
+        start=1,
+    ):
+        record_dir_name = f"record_{index:03d}_{safe_name(record['id'])}"
+        preparation = prepare_record_for_annotation(
+            runtime=runtime,
+            container=container,
+            cwd=cwd,
+            record=record,
+            db=args.db,
+            record_prefix=record_prefix,
+            preliminary_root=preliminary_root,
+            record_dir_name=record_dir_name,
+        )
+        prepared_records.append(preparation["record"])
+        record_preparations.append(preparation)
+    write_fasta_records(prepared_records, annotation_fasta)
 
     if record_count == 1:
         cmd = run_pmga(
             runtime,
             container,
             cwd,
-            input_fasta,
+            annotation_fasta,
             args.db,
             args.prefix,
             raw_output_dir,
@@ -222,9 +331,9 @@ def main():
         core_sections = trim_genbank_to_core_sections(annotation)
         topology_curation = curate_genbank_locus(
             annotation,
-            topology=records[0]["topology"],
-            locus_name=records[0]["id"],
-            sequence_length=len(records[0]["sequence"]),
+            topology=prepared_records[0]["topology"],
+            locus_name=prepared_records[0]["id"],
+            sequence_length=len(prepared_records[0]["sequence"]),
         )
         post_curation = curate_genbank_source_metadata(
             annotation,
@@ -233,6 +342,9 @@ def main():
             organelle="mitochondrion",
             annotation_method="PMGA-Plant Mitochondrial Genome Annotator",
         )
+        post_curation["circular_origin_rotation"] = record_preparations[0][
+            "circular_origin_rotation"
+        ]
         post_curation["core_sections"] = core_sections
         post_curation["locus_topology"] = topology_curation
         post_curation["origin_wrapping_locations"] = (
@@ -261,7 +373,21 @@ def main():
                 "input_record_header": records[0]["header"],
                 "input_record_length": len(records[0]["sequence"]),
                 "input_record_topology": records[0]["topology"],
+                "annotation_record_header": prepared_records[0]["header"],
+                "annotation_record_length": len(prepared_records[0]["sequence"]),
                 "pmga_prefix": args.prefix,
+                "circular_origin_rotation": record_preparations[0][
+                    "circular_origin_rotation"
+                ],
+                "preliminary_command": record_preparations[0][
+                    "preliminary_command"
+                ],
+                "preliminary_selected_annotation": record_preparations[0][
+                    "preliminary_selected_annotation"
+                ],
+                "preliminary_annotation": record_preparations[0][
+                    "preliminary_annotation"
+                ],
                 "raw_output_dir": str(raw_output_dir),
                 "selected_annotation": str(selected),
             }
@@ -273,13 +399,15 @@ def main():
         record_curations = []
         curated_record_annotations = []
         for index, (record, record_prefix) in enumerate(
-            zip(records, unique_pmga_prefixes(args.prefix, records)),
+            zip(prepared_records, record_prefixes),
             start=1,
         ):
             record_dir = raw_output_dir / f"record_{index:03d}_{safe_name(record['id'])}"
             record_input = record_dir / "input.fasta"
             record_pmga_output = record_dir / "pmga_raw"
             record_annotation = record_dir / f"{record_prefix}.gbk"
+            original_record = records[index - 1]
+            preparation = record_preparations[index - 1]
 
             write_single_record_fasta(record, record_input)
             cmd = run_pmga(
@@ -306,6 +434,9 @@ def main():
                 organelle="mitochondrion",
                 annotation_method="PMGA-Plant Mitochondrial Genome Annotator",
             )
+            record_post_curation["circular_origin_rotation"] = preparation[
+                "circular_origin_rotation"
+            ]
             record_post_curation["core_sections"] = core_sections
             record_post_curation["locus_topology"] = topology_curation
             record_post_curation["origin_wrapping_locations"] = (
@@ -342,11 +473,21 @@ def main():
             curated_record_annotations.append(record_annotation)
             record_manifests.append(
                 {
-                    "input_record_id": record["id"],
-                    "input_record_header": record["header"],
-                    "input_record_length": len(record["sequence"]),
-                    "input_record_topology": record["topology"],
+                    "input_record_id": original_record["id"],
+                    "input_record_header": original_record["header"],
+                    "input_record_length": len(original_record["sequence"]),
+                    "input_record_topology": original_record["topology"],
+                    "annotation_record_header": record["header"],
+                    "annotation_record_length": len(record["sequence"]),
                     "pmga_prefix": record_prefix,
+                    "circular_origin_rotation": preparation[
+                        "circular_origin_rotation"
+                    ],
+                    "preliminary_command": preparation["preliminary_command"],
+                    "preliminary_selected_annotation": preparation[
+                        "preliminary_selected_annotation"
+                    ],
+                    "preliminary_annotation": preparation["preliminary_annotation"],
                     "split_input_fasta": str(record_input),
                     "raw_output_dir": str(record_pmga_output),
                     "selected_annotation": str(selected),
@@ -355,7 +496,7 @@ def main():
             )
             record_curations.append(
                 {
-                    "input_record_id": record["id"],
+                    "input_record_id": original_record["id"],
                     "annotation": str(record_annotation),
                     "post_curation": record_post_curation,
                 }
@@ -377,6 +518,7 @@ def main():
             "pmga_bundle": str(args.pmga_bundle.resolve()),
             "pmga_container": str(container),
             "input_fasta": str(input_fasta),
+            "annotation_fasta": str(annotation_fasta),
             "input_record_count": record_count,
             "records": record_manifests,
             "raw_output_dir": str(raw_output_dir),
