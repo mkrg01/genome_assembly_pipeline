@@ -62,8 +62,10 @@ def write_readme(args):
         )
     ]
     notes = [
-        "- The organelle genome was staged from the Oatk assembly output selected by "
-        "`oatk_organelle` in `config/config.yml`."
+        "- The organelle genome was staged from a FASTA derived from the Oatk "
+        "assembly output selected by `oatk_organelle` in `config/config.yml`; "
+        "record IDs are prefixed consistently for organelle submission and "
+        "annotation."
     ]
     if annotation_tool and input_annotation and output_annotation:
         provenance_rows.append(

@@ -10,6 +10,47 @@ PGA_V2_SCRIPT_URL = (
     f"{PGA_V2_COMMIT}/scripts/1.2.PGA_v2.pl"
 )
 
+
+if configured_oatk_organelles():
+    rule prefix_organelle_fasta_record_ids:
+        input:
+            lambda wildcards: organelle_oatk_genome_path(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )
+        output:
+            fasta = (
+                "results/organelle_annotation/{organelle}/prefixed/{assembly_name}/"
+                "{assembly_name}.{organelle}.ctg.fasta"
+            ),
+            manifest = (
+                "results/organelle_annotation/{organelle}/prefixed/{assembly_name}/"
+                "{assembly_name}.{organelle}.ctg.manifest.json"
+            )
+        log:
+            out = "logs/prefix_organelle_fasta_record_ids_{organelle}_{assembly_name}.out",
+            err = "logs/prefix_organelle_fasta_record_ids_{organelle}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "|".join(configured_oatk_organelles())
+        params:
+            prefix = lambda wildcards: ORGANELLE_FASTA_ID_PREFIXES[
+                normalize_organelle_name("oatk_organelle", wildcards.organelle)
+            ]
+        shell:
+            """
+            (
+                python3 workflow/scripts/prefix_fasta_record_ids.py \
+                    --input {input:q} \
+                    --output {output.fasta:q} \
+                    --manifest {output.manifest:q} \
+                    --prefix {params.prefix:q} \
+                    --label {wildcards.organelle:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
 rule download_pmga:
     output:
         archive = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/{PMGA_ARCHIVE_NAME}",
@@ -67,12 +108,12 @@ rule download_pga_v2_script:
 if "mitochondrion" in configured_oatk_organelles() and configured_organelle_annotation_tool("mitochondrion") == "pmga":
     rule annotate_mitochondrion_pmga:
         input:
-            genome = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta",
+            genome = organelle_prefixed_genome_path("{assembly_name}", "mitochondrion"),
             pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"
         output:
-            annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.gbk",
+            annotation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.pre_rna_editing.gbk",
             manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.manifest.json",
-            post_curation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/post_curation.md"
+            post_curation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/post_curation.pre_rna_editing.md"
         log:
             out = "logs/annotate_mitochondrion_pmga_{assembly_name}.out",
             err = "logs/annotate_mitochondrion_pmga_{assembly_name}.err"
@@ -103,7 +144,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
 if "mitochondrion" in configured_oatk_organelles() and configured_organelle_annotation_tool("mitochondrion") == "mitoz":
     rule annotate_mitochondrion_mitoz:
         input:
-            genome = "results/oatk/oatk/{assembly_name}.mito.ctg.fasta"
+            genome = organelle_prefixed_genome_path("{assembly_name}", "mitochondrion")
         output:
             annotation = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.gbk",
             manifest = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.manifest.json"
@@ -135,12 +176,12 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
 if "chloroplast" in configured_oatk_organelles() and configured_organelle_annotation_tool("chloroplast") == "pga_v2":
     rule annotate_chloroplast_pga_v2:
         input:
-            genome = "results/oatk/oatk/{assembly_name}.pltd.ctg.fasta",
+            genome = organelle_prefixed_genome_path("{assembly_name}", "chloroplast"),
             script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl"
         output:
-            annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.gbk",
+            annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.pre_rna_editing.gbk",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
-            post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.md"
+            post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.pre_rna_editing.md"
         log:
             out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
             err = "logs/annotate_chloroplast_pga_v2_{assembly_name}.err"
@@ -179,12 +220,221 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             """
 
 
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule build_organelle_rna_editing_reference:
+        input:
+            unpack(
+                lambda wildcards: organelle_rna_editing_reference_input_paths(
+                    wildcards.assembly_name
+                )
+            )
+        output:
+            **organelle_rna_editing_reference_paths("{assembly_name}")
+        log:
+            out = "logs/build_organelle_rna_editing_reference_{assembly_name}.out",
+            err = "logs/build_organelle_rna_editing_reference_{assembly_name}.err"
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        params:
+            organelles = lambda wildcards, input: " ".join(
+                f"--organelle {name}={shlex.quote(str(input[key]))}"
+                for key, name in (
+                    ("mito", "mitochondrion"),
+                    ("pltd", "chloroplast"),
+                )
+                if key in input.keys()
+            )
+        shell:
+            """
+            (
+                python3 workflow/scripts/build_organelle_rna_editing_reference.py \
+                    --nuclear {input.nuclear:q} \
+                    {params.organelles} \
+                    --reference {output.reference:q} \
+                    --manifest {output.manifest:q}
+                samtools faidx {output.reference:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule map_hifi_reads_to_organelle_rna_editing_reference:
+        input:
+            reference = organelle_rna_editing_reference_paths("{assembly_name}")["reference"],
+            reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
+        output:
+            **organelle_rna_editing_hifi_bam_paths("{assembly_name}")
+        log:
+            out = "logs/map_hifi_reads_to_organelle_rna_editing_reference_{assembly_name}.out",
+            err = "logs/map_hifi_reads_to_organelle_rna_editing_reference_{assembly_name}.err"
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        threads:
+            max(1, int(workflow.cores * 0.5))
+        shell:
+            """
+            (
+                minimap2 \
+                    -a \
+                    -x map-hifi \
+                    {input.reference:q} \
+                    {input.reads:q} \
+                    -t {threads} \
+                | samtools sort \
+                    -m 2G \
+                    -@ {threads} \
+                    -o {output.bam:q}
+                samtools index {output.bam:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule map_rnaseq_reads_to_organelle_rna_editing_reference:
+        input:
+            reference = organelle_rna_editing_reference_paths("{assembly_name}")["reference"],
+            rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
+            rnaseq_2 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_2.fastq"
+        output:
+            bam = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam"
+            ),
+            bai = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam.bai"
+            )
+        log:
+            out = (
+                "logs/map_rnaseq_reads_to_organelle_rna_editing_reference_"
+                "{rnaseq_sample_id}_{assembly_name}.out"
+            ),
+            err = (
+                "logs/map_rnaseq_reads_to_organelle_rna_editing_reference_"
+                "{rnaseq_sample_id}_{assembly_name}.err"
+            )
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        threads:
+            max(1, int(workflow.cores * 0.3))
+        wildcard_constraints:
+            rnaseq_sample_id = r".+"
+        shell:
+            """
+            (
+                minimap2 \
+                    -a \
+                    -x sr \
+                    {input.reference:q} \
+                    {input.rnaseq_1:q} \
+                    {input.rnaseq_2:q} \
+                    -t {threads} \
+                | samtools sort \
+                    -m 2G \
+                    -@ {threads} \
+                    -o {output.bam:q}
+                samtools index {output.bam:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule curate_organelle_rna_editing:
+        input:
+            annotation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.pre_rna_editing.gbk"
+            ),
+            post_curation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "post_curation.pre_rna_editing.md"
+            ),
+            rna_bams = organelle_rna_editing_rnaseq_bam_paths,
+            rna_bais = lambda wildcards: [
+                f"{path}.bai"
+                for path in organelle_rna_editing_rnaseq_bam_paths(wildcards)
+            ],
+            dna_bam = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bam"],
+            dna_bai = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bai"]
+        output:
+            annotation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.gbk"
+            ),
+            evidence = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.rna_editing.evidence.tsv"
+            ),
+            decisions = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.rna_editing.decisions.json"
+            ),
+            summary = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.rna_editing.summary.tsv"
+            ),
+            post_curation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "post_curation.md"
+            )
+        log:
+            out = "logs/curate_organelle_rna_editing_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/curate_organelle_rna_editing_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast",
+            tool = "pmga|pga_v2"
+        params:
+            transl_table = lambda wildcards: "11" if wildcards.organelle == "chloroplast" else "1",
+            min_rna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["min_rna_depth"],
+            min_edited_reads = ORGANELLE_RNA_EDITING_THRESHOLDS["min_edited_reads"],
+            min_edit_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["min_edit_fraction"],
+            moderate_min_rna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_rna_depth"],
+            moderate_min_edited_reads = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_edited_reads"],
+            moderate_min_edit_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_edit_fraction"],
+            min_base_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_base_quality"],
+            min_mapping_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_mapping_quality"],
+            min_dna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["min_dna_depth"],
+            max_dna_alt_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["max_dna_alt_fraction"]
+        shell:
+            """
+            (
+                python3 workflow/scripts/curate_organelle_rna_editing.py \
+                    --input-gbk {input.annotation:q} \
+                    --output-gbk {output.annotation:q} \
+                    --evidence-tsv {output.evidence:q} \
+                    --decisions-json {output.decisions:q} \
+                    --summary-tsv {output.summary:q} \
+                    --input-post-curation {input.post_curation:q} \
+                    --output-post-curation {output.post_curation:q} \
+                    --organelle {wildcards.organelle:q} \
+                    --tool {wildcards.tool:q} \
+                    --transl-table {params.transl_table:q} \
+                    --rna-bam {input.rna_bams:q} \
+                    --dna-bam {input.dna_bam:q} \
+                    --min-rna-depth {params.min_rna_depth} \
+                    --min-edited-reads {params.min_edited_reads} \
+                    --min-edit-fraction {params.min_edit_fraction} \
+                    --moderate-min-rna-depth {params.moderate_min_rna_depth} \
+                    --moderate-min-edited-reads {params.moderate_min_edited_reads} \
+                    --moderate-min-edit-fraction {params.moderate_min_edit_fraction} \
+                    --min-base-quality {params.min_base_quality} \
+                    --min-mapping-quality {params.min_mapping_quality} \
+                    --min-dna-depth {params.min_dna_depth} \
+                    --max-dna-alt-fraction {params.max_dna_alt_fraction}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
 if configured_oatk_organelles_with_annotation():
     rule plot_organelle_pycirclize:
         input:
             annotation = (
-                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
-                "{assembly_name}.{organelle}.gbk"
+                lambda wildcards: organelle_annotation_input_for_downstream(
+                    wildcards.assembly_name,
+                    wildcards.organelle,
+                )
             )
         output:
             (
@@ -211,8 +461,10 @@ if configured_oatk_organelles_with_annotation():
     rule plot_organelle_gbdraw:
         input:
             annotation = (
-                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
-                "{assembly_name}.{organelle}.gbk"
+                lambda wildcards: organelle_annotation_input_for_downstream(
+                    wildcards.assembly_name,
+                    wildcards.organelle,
+                )
             )
         output:
             (

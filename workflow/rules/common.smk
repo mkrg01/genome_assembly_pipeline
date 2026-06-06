@@ -75,11 +75,28 @@ OATK_SHORT_ORGANELLE_NAMES = {
     "mitochondrion": "mito",
     "chloroplast": "pltd",
 }
+ORGANELLE_FASTA_ID_PREFIXES = {
+    "mitochondrion": "mt_",
+    "chloroplast": "cp_",
+}
+ORGANELLE_RNA_EDITING_THRESHOLDS = {
+    "min_rna_depth": 20,
+    "min_edited_reads": 5,
+    "min_edit_fraction": 0.20,
+    "moderate_min_rna_depth": 10,
+    "moderate_min_edited_reads": 3,
+    "moderate_min_edit_fraction": 0.10,
+    "min_base_quality": 30,
+    "min_mapping_quality": 30,
+    "min_dna_depth": 10,
+    "max_dna_alt_fraction": 0.05,
+}
 
 VALID_ORGANELLE_ANNOTATION_TOOLS = {
     "mitochondrion": ("pmga", "mitoz"),
     "chloroplast": ("pga_v2",),
 }
+ORGANELLE_RNA_EDITING_SUPPORTED_TOOLS = {"pmga", "pga_v2"}
 
 HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS = {
     "default": {
@@ -291,6 +308,7 @@ if not set(submission_assemblies).issubset(selected_assemblies):
 
 selected_assembly_pattern = "|".join(selected_assemblies)
 submission_assembly_pattern = "|".join(submission_assemblies)
+organelle_rna_editing_nuclear_assembly = submission_assemblies[0]
 
 hic_reads_r1 = normalize_optional_path_list(
     "hic_reads_r1",
@@ -545,10 +563,22 @@ def has_configured_organelle_annotation(organelle):
     return configured_organelle_annotation_tool(organelle) is not None
 
 
+def has_organelle_rna_editing_post_curation(organelle):
+    tool = configured_organelle_annotation_tool(organelle)
+    return tool in ORGANELLE_RNA_EDITING_SUPPORTED_TOOLS
+
+
 def configured_oatk_organelles_with_annotation():
     return [
         organelle for organelle in configured_oatk_organelles()
         if has_configured_organelle_annotation(organelle)
+    ]
+
+
+def configured_oatk_organelles_with_rna_editing_post_curation():
+    return [
+        organelle for organelle in configured_oatk_organelles_with_annotation()
+        if has_organelle_rna_editing_post_curation(organelle)
     ]
 
 
@@ -575,7 +605,81 @@ def organelle_annotation_output_paths(assembly_name, organelle):
         organelle == "mitochondrion" and tool == "pmga"
     ):
         paths["post_curation"] = f"{prefix}/post_curation.md"
+    if has_organelle_rna_editing_post_curation(organelle):
+        rna_prefix = f"{prefix}/{assembly_name}.{organelle}.rna_editing"
+        paths["pre_rna_editing_annotation"] = (
+            f"{prefix}/{assembly_name}.{organelle}.pre_rna_editing.gbk"
+        )
+        paths["pre_rna_editing_post_curation"] = (
+            f"{prefix}/post_curation.pre_rna_editing.md"
+        )
+        paths["rna_editing_evidence"] = f"{rna_prefix}.evidence.tsv"
+        paths["rna_editing_decisions"] = f"{rna_prefix}.decisions.json"
+        paths["rna_editing_summary"] = f"{rna_prefix}.summary.tsv"
     return paths
+
+
+def organelle_rna_editing_reference_paths(assembly_name):
+    prefix = f"results/organelle_annotation/rna_editing/{assembly_name}"
+    return {
+        "reference": f"{prefix}/{assembly_name}.nuclear_organelle.fa",
+        "manifest": f"{prefix}/{assembly_name}.nuclear_organelle.manifest.json",
+    }
+
+
+def organelle_rna_editing_reference_input_paths(assembly_name):
+    inputs = {
+        "nuclear": (
+            "results/repeatmasker/"
+            f"{organelle_rna_editing_nuclear_assembly}/"
+            f"{assembly_name}.fa.masked"
+        ),
+    }
+    for organelle in configured_oatk_organelles_with_annotation():
+        if not has_organelle_rna_editing_post_curation(organelle):
+            continue
+        inputs[OATK_SHORT_ORGANELLE_NAMES[organelle]] = organelle_prefixed_genome_path(
+            assembly_name,
+            organelle,
+        )
+    return inputs
+
+
+def organelle_rna_editing_hifi_bam_paths(assembly_name):
+    prefix = f"results/organelle_annotation/rna_editing/{assembly_name}/hifi"
+    return {
+        "bam": f"{prefix}/{assembly_name}.hifi_to_nuclear_organelle.bam",
+        "bai": f"{prefix}/{assembly_name}.hifi_to_nuclear_organelle.bam.bai",
+    }
+
+
+def organelle_rna_editing_rnaseq_bam_path(assembly_name, rnaseq_sample_id):
+    prefix = f"results/organelle_annotation/rna_editing/{assembly_name}/rnaseq"
+    return (
+        f"{prefix}/{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam"
+    )
+
+
+def organelle_rna_editing_rnaseq_bam_paths(wildcards):
+    sample_ids = require_sample_ids(
+        rnaseq_sample_ids,
+        "RNA-Seq samples",
+        [
+            *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
+            rnaseq_fastp_search_path,
+        ],
+    )
+    return [
+        organelle_rna_editing_rnaseq_bam_path(
+            wildcards.assembly_name,
+            rnaseq_sample_id,
+        )
+        for rnaseq_sample_id in sample_ids
+    ]
+
+
+def organelle_annotation_input_for_downstream(assembly_name, organelle):
+    return organelle_annotation_output_paths(assembly_name, organelle)["annotation"]
 
 
 def organelle_visualization_output_paths(assembly_name, organelle):
@@ -608,12 +712,23 @@ def organelle_visualization_all_inputs(assembly_name):
 
 def organelle_submission_genome_input_path(assembly_name, organelle):
     organelle = normalize_organelle_name("oatk_organelle", organelle)
+    return organelle_prefixed_genome_path(assembly_name, organelle)
+
+
+def organelle_oatk_genome_path(assembly_name, organelle):
+    organelle = normalize_organelle_name("oatk_organelle", organelle)
     oatk_short_name = OATK_SHORT_ORGANELLE_NAMES[organelle]
     return f"results/oatk/oatk/{assembly_name}.{oatk_short_name}.ctg.fasta"
 
 
+def organelle_prefixed_genome_path(assembly_name, organelle):
+    organelle = normalize_organelle_name("oatk_organelle", organelle)
+    prefix = f"results/organelle_annotation/{organelle}/prefixed/{assembly_name}"
+    return f"{prefix}/{assembly_name}.{organelle}.ctg.fasta"
+
+
 def organelle_submission_annotation_input_path(assembly_name, organelle):
-    return organelle_annotation_output_paths(assembly_name, organelle)["annotation"]
+    return organelle_annotation_input_for_downstream(assembly_name, organelle)
 
 
 def organelle_submission_input_paths(assembly_name, organelle):
