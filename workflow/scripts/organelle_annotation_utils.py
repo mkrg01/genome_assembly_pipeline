@@ -485,6 +485,132 @@ def genbank_feature_has_qualifier(block_lines: list[str], qualifier: str):
     return any(genbank_qualifier_name(line) == qualifier for line in block_lines[1:])
 
 
+def normalize_pmga_trans_splicing_feature_block(block_lines: list[str]):
+    cleaned_lines = []
+    removed_exception_count = 0
+    skipping_qualifier = False
+
+    for line in block_lines:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            skipping_qualifier = False
+            if qualifier_name == "exception":
+                values = genbank_qualifier_values([block_lines[0], line], "exception")
+                if values and values[0].lower() == "trans-splicing":
+                    removed_exception_count += 1
+                    skipping_qualifier = True
+                    continue
+            cleaned_lines.append(line)
+            continue
+
+        if skipping_qualifier:
+            continue
+        cleaned_lines.append(line)
+
+    added_trans_splicing = False
+    if removed_exception_count and not genbank_feature_has_qualifier(
+        cleaned_lines,
+        "trans_splicing",
+    ):
+        cleaned_lines.append(f"{QUALIFIER_INDENT}/trans_splicing\n")
+        added_trans_splicing = True
+
+    return cleaned_lines, removed_exception_count, added_trans_splicing
+
+
+def normalize_pmga_trans_splicing_record(
+    record: list[str],
+    *,
+    feature_keys: tuple[str, ...] = ("CDS",),
+):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, 0, 0, 0
+
+    feature_key_set = set(feature_keys)
+    changed_feature_count = 0
+    removed_exception_count = 0
+    added_trans_splicing_count = 0
+    cleaned_blocks = []
+
+    for block in blocks:
+        if block.key not in feature_key_set:
+            cleaned_blocks.append(block.lines)
+            continue
+
+        cleaned_lines, block_removed_count, block_added = (
+            normalize_pmga_trans_splicing_feature_block(block.lines)
+        )
+        if cleaned_lines != block.lines:
+            changed_feature_count += 1
+        removed_exception_count += block_removed_count
+        added_trans_splicing_count += int(block_added)
+        cleaned_blocks.append(cleaned_lines)
+
+    if changed_feature_count == 0:
+        return record, False, 0, removed_exception_count, added_trans_splicing_count
+
+    cleaned_feature_lines = [line for block in cleaned_blocks for line in block]
+    cleaned_record = [
+        *record[: features_index + 1],
+        *cleaned_feature_lines,
+        *record[origin_index:],
+    ]
+    return (
+        cleaned_record,
+        True,
+        changed_feature_count,
+        removed_exception_count,
+        added_trans_splicing_count,
+    )
+
+
+def normalize_pmga_trans_splicing_qualifiers(
+    path: Path,
+    *,
+    feature_keys: tuple[str, ...] = ("CDS",),
+):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    cleaned_records = []
+    changed_record_count = 0
+    changed_feature_count = 0
+    removed_exception_count = 0
+    added_trans_splicing_count = 0
+
+    for record in records:
+        (
+            cleaned_record,
+            changed,
+            record_changed_feature_count,
+            record_removed_exception_count,
+            record_added_trans_splicing_count,
+        ) = normalize_pmga_trans_splicing_record(
+            record,
+            feature_keys=feature_keys,
+        )
+        cleaned_records.append(cleaned_record)
+        changed_record_count += int(changed)
+        changed_feature_count += record_changed_feature_count
+        removed_exception_count += record_removed_exception_count
+        added_trans_splicing_count += record_added_trans_splicing_count
+
+    cleaned_lines = [line for record in cleaned_records for line in record]
+    changed = lines != cleaned_lines
+    if changed:
+        path.write_text("".join(cleaned_lines))
+
+    return {
+        "pmga_trans_splicing_record_count": len(records),
+        "pmga_trans_splicing_changed_record_count": changed_record_count,
+        "pmga_trans_splicing_feature_keys": list(feature_keys),
+        "pmga_trans_splicing_changed_feature_count": changed_feature_count,
+        "pmga_trans_splicing_removed_exception_count": removed_exception_count,
+        "pmga_trans_splicing_added_qualifier_count": added_trans_splicing_count,
+        "pmga_trans_splicing_changed": changed,
+    }
+
+
 def first_genbank_qualifier_value(
     block_lines: list[str],
     qualifier: str,
@@ -1775,6 +1901,34 @@ def append_post_curation_summary(lines, post_curation):
                 f"{skipped_exception_count} CDS with /exception, "
                 f"{skipped_partial_count} partial CDS, "
                 f"{skipped_pseudo_count} pseudo/pseudogene CDS"
+            )
+
+    trans_splicing = post_curation.get("pmga_trans_splicing")
+    if trans_splicing:
+        record_count = trans_splicing["pmga_trans_splicing_record_count"]
+        feature_keys = trans_splicing.get("pmga_trans_splicing_feature_keys", ["CDS"])
+        feature_text = "/".join(feature_keys)
+        changed_features = trans_splicing["pmga_trans_splicing_changed_feature_count"]
+        removed_count = trans_splicing[
+            "pmga_trans_splicing_removed_exception_count"
+        ]
+        added_count = trans_splicing["pmga_trans_splicing_added_qualifier_count"]
+        if trans_splicing["pmga_trans_splicing_changed"]:
+            changed_records = trans_splicing[
+                "pmga_trans_splicing_changed_record_count"
+            ]
+            lines.append(
+                "- PMGA trans-splicing qualifiers: converted "
+                f'{removed_count} /exception="trans-splicing" qualifier(s) '
+                f"to {added_count} /trans_splicing qualifier(s) on "
+                f"{changed_features} {feature_text} feature(s) across "
+                f"{changed_records}/{record_count} record(s)"
+            )
+        else:
+            lines.append(
+                "- PMGA trans-splicing qualifiers: no "
+                f'/exception="trans-splicing" qualifier(s) needed normalization '
+                f"across {record_count} record(s)"
             )
 
     qualifier_removal = post_curation.get("feature_qualifier_removal")

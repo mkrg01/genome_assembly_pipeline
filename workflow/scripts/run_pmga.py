@@ -11,6 +11,7 @@ from organelle_annotation_utils import (
     curate_genbank_source_metadata,
     format_cds_auto_translation_validation_errors,
     normalize_genbank_origin_wrapping_locations,
+    normalize_pmga_trans_splicing_qualifiers,
     remove_genbank_feature_qualifiers,
     sort_genbank_features_by_location,
     topology_from_fasta_header,
@@ -237,6 +238,9 @@ def main():
         post_curation["origin_wrapping_locations"] = (
             normalize_genbank_origin_wrapping_locations(annotation)
         )
+        post_curation["pmga_trans_splicing"] = (
+            normalize_pmga_trans_splicing_qualifiers(annotation)
+        )
         translation_validation = validate_genbank_cds_auto_translation(annotation)
         post_curation["cds_auto_translation_validation"] = translation_validation
         if not translation_validation["cds_auto_translation_passed"]:
@@ -306,6 +310,9 @@ def main():
             record_post_curation["locus_topology"] = topology_curation
             record_post_curation["origin_wrapping_locations"] = (
                 normalize_genbank_origin_wrapping_locations(record_annotation)
+            )
+            record_post_curation["pmga_trans_splicing"] = (
+                normalize_pmga_trans_splicing_qualifiers(record_annotation)
             )
             translation_validation = validate_genbank_cds_auto_translation(
                 record_annotation
