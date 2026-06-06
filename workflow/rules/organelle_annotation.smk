@@ -176,20 +176,40 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
 
 
 if "chloroplast" in configured_oatk_organelles() and configured_organelle_annotation_tool("chloroplast") == "pga_v2":
+    def pga_v2_hifi_reads_for_sequence_fix(wildcards):
+        if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+            return (
+                "results/hifi_reads/merged/"
+                f"{wildcards.assembly_name}_hifi_reads_curated.fastq.gz"
+            )
+        return []
+
+
+    def pga_v2_hifi_reads_arg(_wildcards, input):
+        if not config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+            return ""
+        return f"--hifi-reads {shlex.quote(str(input.hifi_reads))}"
+
+
     rule annotate_chloroplast_pga_v2:
         input:
             genome = organelle_prefixed_genome_path("{assembly_name}", "chloroplast"),
-            script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl"
+            script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl",
+            hifi_reads = pga_v2_hifi_reads_for_sequence_fix
         output:
             annotation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.pre_rna_editing.gbk",
             genome = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.ctg.annotation.fasta",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
-            post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.pre_rna_editing.md"
+            post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.pre_rna_editing.md",
+            cds_qc = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.cds_qc.tsv",
+            cds_frameshift_candidates = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.cds_frameshift_candidates.json"
         log:
             out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
             err = "logs/annotate_chloroplast_pga_v2_{assembly_name}.err"
         conda:
             "../envs/pga_v2.yml"
+        threads:
+            max(1, int(workflow.cores * 0.5))
         params:
             reference_dir = pga_v2_reference_dir,
             form = config.get("pga_v2_form", "circular"),
@@ -199,7 +219,13 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             redundancy = config.get("pga_v2_redundancy", "N"),
             qcoverage = config.get("pga_v2_qcoverage", "0.5,2.0"),
             warning = config.get("pga_v2_warning", "warning"),
-            taxid = taxid or ""
+            taxid = taxid or "",
+            hifi_reads_arg = pga_v2_hifi_reads_arg,
+            fix_sequence_frameshifts_arg = (
+                "--fix-chloroplast-sequence-frameshifts"
+                if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False)
+                else ""
+            )
         shell:
             """
             (
@@ -211,6 +237,8 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --annotation-fasta {output.genome:q} \
                     --manifest {output.manifest:q} \
                     --post-curation {output.post_curation:q} \
+                    --cds-qc {output.cds_qc:q} \
+                    --cds-frameshift-candidates {output.cds_frameshift_candidates:q} \
                     --assembly-name {wildcards.assembly_name:q} \
                     --form {params.form:q} \
                     --ir {params.ir:q} \
@@ -219,7 +247,10 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --redundancy {params.redundancy:q} \
                     --qcoverage {params.qcoverage:q} \
                     --warning {params.warning:q} \
-                    --taxid {params.taxid:q}
+                    --taxid {params.taxid:q} \
+                    --threads {threads} \
+                    {params.hifi_reads_arg} \
+                    {params.fix_sequence_frameshifts_arg}
             ) > {log.out:q} 2> {log.err:q}
             """
 

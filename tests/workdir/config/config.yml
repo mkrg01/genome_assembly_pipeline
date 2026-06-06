@@ -16,6 +16,7 @@ organelle_annotation:
 mitoz_clade: null
 mitoz_genetic_code: null
 pga_v2_reference_dir: "resources/plastid_reference"
+pga_v2_fix_chloroplast_sequence_frameshifts: false
 fcs_gx_taxid: "122299"
 busco_lineage_dataset: "embryophyta_odb12"
 tidk_clade: "Caryophyllales"

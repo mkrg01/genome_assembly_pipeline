@@ -606,6 +606,12 @@ def organelle_annotation_output_paths(assembly_name, organelle):
     ):
         paths["genome"] = f"{prefix}/{assembly_name}.{organelle}.ctg.annotation.fasta"
         paths["post_curation"] = f"{prefix}/post_curation.md"
+    if organelle == "chloroplast" and tool == "pga_v2":
+        paths["cds_qc"] = f"{prefix}/{assembly_name}.{organelle}.cds_qc.tsv"
+        paths["cds_frameshift_candidates"] = (
+            f"{prefix}/{assembly_name}.{organelle}."
+            "cds_frameshift_candidates.json"
+        )
     if has_organelle_rna_editing_post_curation(organelle):
         rna_prefix = f"{prefix}/{assembly_name}.{organelle}.rna_editing"
         paths["pre_rna_editing_annotation"] = (

@@ -2112,6 +2112,42 @@ def append_post_curation_summary(lines, post_curation):
                 f"by genomic coordinate across {record_count} record(s)"
             )
 
+    pga_cds_qc = post_curation.get("pga_v2_cds_qc")
+    if pga_cds_qc:
+        row_count = pga_cds_qc["pga_v2_cds_qc_row_count"]
+        alignment_count = pga_cds_qc[
+            "pga_v2_cds_qc_alignment_candidate_count"
+        ]
+        fix_count = pga_cds_qc["pga_v2_cds_qc_candidate_fix_count"]
+        lines.append(
+            "- PGA v2 CDS length QC: checked "
+            f"{row_count} CDS feature(s); {alignment_count} short/warning "
+            f"candidate(s) were aligned to reference CDS; found {fix_count} "
+            "read-support-testable frameshift fix candidate(s)"
+        )
+
+    pga_sequence_fix = post_curation.get("pga_v2_sequence_frameshift_fix")
+    if pga_sequence_fix:
+        if pga_sequence_fix["enabled"]:
+            applied_count = pga_sequence_fix["applied_fix_count"]
+            if pga_sequence_fix["rerun_applied"]:
+                lines.append(
+                    "- PGA v2 chloroplast sequence frameshift fixes: applied "
+                    f"{applied_count} high-confidence read-supported FASTA "
+                    "sequence fix(es) and reran PGA v2"
+                )
+            else:
+                lines.append(
+                    "- PGA v2 chloroplast sequence frameshift fixes: enabled, "
+                    "but no high-confidence read-supported FASTA sequence fixes "
+                    "were applied"
+                )
+        else:
+            lines.append(
+                "- PGA v2 chloroplast sequence frameshift fixes: disabled "
+                "(reported candidates only)"
+            )
+
     translation_validation = post_curation.get("cds_auto_translation_validation")
     if translation_validation:
         checked_count = translation_validation[
