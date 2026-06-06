@@ -1,6 +1,6 @@
 FROM condaforge/miniforge3:26.1.1-3
 LABEL io.github.snakemake.containerized="true"
-LABEL io.github.snakemake.conda_env_hash="8330d473c1fe41500a185829d169d1b7bb3646449e7dd35a06421d4fbd79e014"
+LABEL io.github.snakemake.conda_env_hash="16b544a9980278b253afb7ed783b986cac494e858bbcab64f98ad589818605b9"
 
 # Step 2: Retrieve conda environments
 
@@ -197,8 +197,23 @@ RUN mkdir -p /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8
 COPY workflow/envs/omark.yml /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8/environment.yaml
 
 # Conda environment:
+#   source: workflow/envs/organelle_rna_editing.yml
+#   prefix: /conda-envs/fb6ecba479117c702a8b1957392a2977
+#   name: organelle_rna_editing
+#   channels:
+#     - conda-forge
+#   dependencies:
+#     - python=3.12
+#     - biopython=1.87
+#     - bioconda::minimap2=2.30
+#     - bioconda::samtools=1.22.1
+#     - bioconda::pysam=0.23.3
+RUN mkdir -p /conda-envs/fb6ecba479117c702a8b1957392a2977
+COPY workflow/envs/organelle_rna_editing.yml /conda-envs/fb6ecba479117c702a8b1957392a2977/environment.yaml
+
+# Conda environment:
 #   source: workflow/envs/pga_v2.yml
-#   prefix: /conda-envs/b0980675450ab88834823f3a431b8261
+#   prefix: /conda-envs/9dca33ec204b5fb664572b4a54cfcc27
 #   name: pga_v2
 #   channels:
 #     - conda-forge
@@ -206,8 +221,9 @@ COPY workflow/envs/omark.yml /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8/enviro
 #     - python=3.13.7
 #     - perl=5.32.1
 #     - bioconda::blast=2.16.0
-RUN mkdir -p /conda-envs/b0980675450ab88834823f3a431b8261
-COPY workflow/envs/pga_v2.yml /conda-envs/b0980675450ab88834823f3a431b8261/environment.yaml
+#     - bioconda::minimap2=2.30
+RUN mkdir -p /conda-envs/9dca33ec204b5fb664572b4a54cfcc27
+COPY workflow/envs/pga_v2.yml /conda-envs/9dca33ec204b5fb664572b4a54cfcc27/environment.yaml
 
 # Conda environment:
 #   source: workflow/envs/pybase.yml
@@ -288,7 +304,8 @@ RUN conda env create --prefix /conda-envs/a7401219cb36035d7c6438fc301a8525 --fil
     conda env create --prefix /conda-envs/b36f6158ce0b17af5a10b61984e0eba7 --file /conda-envs/b36f6158ce0b17af5a10b61984e0eba7/environment.yaml && \
     conda env create --prefix /conda-envs/18f814805861521fcafda0f4d20eab60 --file /conda-envs/18f814805861521fcafda0f4d20eab60/environment.yaml && \
     conda env create --prefix /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8 --file /conda-envs/1767be13a2e7b9afacdae6bfe22ff2d8/environment.yaml && \
-    conda env create --prefix /conda-envs/b0980675450ab88834823f3a431b8261 --file /conda-envs/b0980675450ab88834823f3a431b8261/environment.yaml && \
+    conda env create --prefix /conda-envs/fb6ecba479117c702a8b1957392a2977 --file /conda-envs/fb6ecba479117c702a8b1957392a2977/environment.yaml && \
+    conda env create --prefix /conda-envs/9dca33ec204b5fb664572b4a54cfcc27 --file /conda-envs/9dca33ec204b5fb664572b4a54cfcc27/environment.yaml && \
     conda env create --prefix /conda-envs/bead3b563712171459da71c1afdbe74b --file /conda-envs/bead3b563712171459da71c1afdbe74b/environment.yaml && \
     conda env create --prefix /conda-envs/9054477bf5f407be79e52f91bfe426fc --file /conda-envs/9054477bf5f407be79e52f91bfe426fc/environment.yaml && \
     conda env create --prefix /conda-envs/2eace2598424741072f07c109da9f230 --file /conda-envs/2eace2598424741072f07c109da9f230/environment.yaml && \
