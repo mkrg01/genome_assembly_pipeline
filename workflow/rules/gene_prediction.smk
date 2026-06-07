@@ -1,4 +1,5 @@
 import os
+import re
 
 rnaseq_raw_pattern_suffix_pairs = make_pattern_suffix_pairs(
     "raw_data/*_1{suffix}",
@@ -6,10 +7,15 @@ rnaseq_raw_pattern_suffix_pairs = make_pattern_suffix_pairs(
     RAW_FASTQ_SUFFIXES,
 )
 rnaseq_fastp_search_path = "results/rnaseq_reads/fastp/*_1.fastq"
-rnaseq_sample_ids = discover_sample_ids([
-    *rnaseq_raw_pattern_suffix_pairs,
+rnaseq_raw_sample_ids = discover_sample_ids(rnaseq_raw_pattern_suffix_pairs)
+rnaseq_fastp_sample_ids = discover_sample_ids([
     (rnaseq_fastp_search_path, "_1.fastq"),
 ])
+rnaseq_sample_ids = sorted(set(rnaseq_raw_sample_ids) | set(rnaseq_fastp_sample_ids))
+rnaseq_raw_sample_id_pattern = "|".join(
+    re.escape(rnaseq_sample_id)
+    for rnaseq_sample_id in rnaseq_raw_sample_ids
+) or r"(?!)"
 wildcard_constraints:
     assembly_name = config["assembly_name"],
     selected_assembly = selected_assembly_pattern
@@ -30,6 +36,8 @@ rule fastp_rnaseq_sample:
         "../envs/fastp.yml"
     threads:
         max(1, int(workflow.cores * 0.1))
+    wildcard_constraints:
+        rnaseq_sample_id = rnaseq_raw_sample_id_pattern
     shell:
         "fastp \
             --in1 {input.rnaseq_1} \
