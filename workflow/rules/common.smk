@@ -721,10 +721,29 @@ def organelle_rna_editing_hifi_bam_paths(assembly_name):
     }
 
 
+def organelle_rna_editing_hifi_organelle_bam_paths(assembly_name, organelle):
+    prefix = f"results/organelle_annotation/rna_editing/{assembly_name}/hifi"
+    return {
+        "bam": f"{prefix}/{assembly_name}.{organelle}.hifi_to_organelle.bam",
+        "bai": f"{prefix}/{assembly_name}.{organelle}.hifi_to_organelle.bam.bai",
+    }
+
+
 def organelle_rna_editing_rnaseq_bam_path(assembly_name, rnaseq_sample_id):
     prefix = f"results/organelle_annotation/rna_editing/{assembly_name}/rnaseq"
     return (
         f"{prefix}/{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam"
+    )
+
+
+def organelle_rna_editing_rnaseq_organelle_bam_path(
+    assembly_name,
+    rnaseq_sample_id,
+    organelle,
+):
+    prefix = f"results/organelle_annotation/rna_editing/{assembly_name}/rnaseq"
+    return (
+        f"{prefix}/{rnaseq_sample_id}.{organelle}.rnaseq_to_organelle.bam"
     )
 
 
@@ -741,6 +760,25 @@ def organelle_rna_editing_rnaseq_bam_paths(wildcards):
         organelle_rna_editing_rnaseq_bam_path(
             wildcards.assembly_name,
             rnaseq_sample_id,
+        )
+        for rnaseq_sample_id in sample_ids
+    ]
+
+
+def organelle_rna_editing_rnaseq_organelle_bam_paths(wildcards):
+    sample_ids = require_sample_ids(
+        rnaseq_sample_ids,
+        "RNA-Seq samples",
+        [
+            *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
+            rnaseq_fastp_search_path,
+        ],
+    )
+    return [
+        organelle_rna_editing_rnaseq_organelle_bam_path(
+            wildcards.assembly_name,
+            rnaseq_sample_id,
+            wildcards.organelle,
         )
         for rnaseq_sample_id in sample_ids
     ]

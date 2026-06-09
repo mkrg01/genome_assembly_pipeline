@@ -333,6 +333,83 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule extract_hifi_organelle_bam_for_rna_editing:
+        input:
+            manifest = organelle_rna_editing_reference_paths("{assembly_name}")["manifest"],
+            source_bam = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bam"],
+            source_bai = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bai"]
+        output:
+            **organelle_rna_editing_hifi_organelle_bam_paths(
+                "{assembly_name}",
+                "{organelle}",
+            )
+        log:
+            out = "logs/extract_hifi_organelle_bam_for_rna_editing_{organelle}_{assembly_name}.out",
+            err = "logs/extract_hifi_organelle_bam_for_rna_editing_{organelle}_{assembly_name}.err"
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast"
+        shell:
+            """
+            (
+                python3 workflow/scripts/extract_organelle_bam.py \
+                    --manifest {input.manifest:q} \
+                    --organelle {wildcards.organelle:q} \
+                    --input-bam {input.source_bam:q} \
+                    --output-bam {output.bam:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule extract_rnaseq_organelle_bam_for_rna_editing:
+        input:
+            manifest = organelle_rna_editing_reference_paths("{assembly_name}")["manifest"],
+            source_bam = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam"
+            ),
+            source_bai = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.rnaseq_to_nuclear_organelle.bam.bai"
+            )
+        output:
+            bam = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.{organelle}.rnaseq_to_organelle.bam"
+            ),
+            bai = (
+                "results/organelle_annotation/rna_editing/{assembly_name}/rnaseq/"
+                "{rnaseq_sample_id}.{organelle}.rnaseq_to_organelle.bam.bai"
+            )
+        log:
+            out = (
+                "logs/extract_rnaseq_organelle_bam_for_rna_editing_"
+                "{rnaseq_sample_id}_{organelle}_{assembly_name}.out"
+            ),
+            err = (
+                "logs/extract_rnaseq_organelle_bam_for_rna_editing_"
+                "{rnaseq_sample_id}_{organelle}_{assembly_name}.err"
+            )
+        conda:
+            "../envs/organelle_rna_editing.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast",
+            rnaseq_sample_id = r".+"
+        shell:
+            """
+            (
+                python3 workflow/scripts/extract_organelle_bam.py \
+                    --manifest {input.manifest:q} \
+                    --organelle {wildcards.organelle:q} \
+                    --input-bam {input.source_bam:q} \
+                    --output-bam {output.bam:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
     rule curate_organelle_rna_editing:
         input:
             annotation = (
@@ -343,13 +420,19 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                 "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
                 "post_curation.pre_rna_editing.md"
             ),
-            rna_bams = organelle_rna_editing_rnaseq_bam_paths,
+            rna_bams = organelle_rna_editing_rnaseq_organelle_bam_paths,
             rna_bais = lambda wildcards: [
                 f"{path}.bai"
-                for path in organelle_rna_editing_rnaseq_bam_paths(wildcards)
+                for path in organelle_rna_editing_rnaseq_organelle_bam_paths(wildcards)
             ],
-            dna_bam = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bam"],
-            dna_bai = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bai"]
+            dna_bam = lambda wildcards: organelle_rna_editing_hifi_organelle_bam_paths(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )["bam"],
+            dna_bai = lambda wildcards: organelle_rna_editing_hifi_organelle_bam_paths(
+                wildcards.assembly_name,
+                wildcards.organelle,
+            )["bai"]
         output:
             annotation = (
                 "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"

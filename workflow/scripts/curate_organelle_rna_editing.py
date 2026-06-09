@@ -291,6 +291,168 @@ def pileup_base_counts(bams, contig, pos0, *, min_base_quality, min_mapping_qual
     }
 
 
+class PileupBatchCounter:
+    def __init__(self, bams, *, min_base_quality, min_mapping_quality):
+        self.bams = bams
+        self.min_base_quality = min_base_quality
+        self.min_mapping_quality = min_mapping_quality
+        self.reference_sets = [set(bam.references) for bam in bams]
+        self.cache = {}
+
+    def _new_position_state(self):
+        return {
+            "counts": empty_counts(),
+            "baseq_sum": 0,
+            "mapq_sum": 0,
+            "quality_count": 0,
+            "sample_depths": [0 for _bam in self.bams],
+            "sample_counts": [empty_counts() for _bam in self.bams],
+        }
+
+    def _windows(self, positions0, *, full_span):
+        positions0 = sorted(positions0)
+        if not positions0:
+            return []
+        if full_span:
+            return [(positions0[0], positions0[-1])]
+
+        windows = []
+        start = positions0[0]
+        end = start
+        max_gap = 100
+        for position in positions0[1:]:
+            if position - end <= max_gap:
+                end = position
+                continue
+            windows.append((start, end))
+            start = position
+            end = position
+        windows.append((start, end))
+        return windows
+
+    def preload(self, contig, positions0, *, full_span=False):
+        positions0 = sorted({int(position) for position in positions0})
+        if not positions0:
+            return
+        contig_cache = self.cache.setdefault(contig, {})
+        missing = [position for position in positions0 if position not in contig_cache]
+        if not missing:
+            return
+        for position in missing:
+            contig_cache[position] = self._new_position_state()
+
+        requested = set(missing)
+        for bam_index, bam in enumerate(self.bams):
+            if contig not in self.reference_sets[bam_index]:
+                continue
+            for start, end in self._windows(missing, full_span=full_span):
+                for column in bam.pileup(
+                    contig,
+                    start,
+                    end + 1,
+                    truncate=True,
+                    stepper="all",
+                    max_depth=1_000_000,
+                ):
+                    if column.reference_pos not in requested:
+                        continue
+                    state = contig_cache[column.reference_pos]
+                    per_sample_counts = state["sample_counts"][bam_index]
+                    for pileup_read in column.pileups:
+                        if (
+                            pileup_read.is_del
+                            or pileup_read.is_refskip
+                            or pileup_read.query_position is None
+                        ):
+                            continue
+                        alignment = pileup_read.alignment
+                        if (
+                            alignment.is_unmapped
+                            or alignment.is_secondary
+                            or alignment.is_supplementary
+                            or alignment.is_qcfail
+                        ):
+                            continue
+                        if alignment.mapping_quality < self.min_mapping_quality:
+                            continue
+                        query_position = pileup_read.query_position
+                        base = alignment.query_sequence[query_position].upper()
+                        if base not in state["counts"]:
+                            continue
+                        if alignment.query_qualities is None:
+                            base_quality = 0
+                        else:
+                            base_quality = alignment.query_qualities[query_position]
+                        if base_quality < self.min_base_quality:
+                            continue
+                        state["counts"][base] += 1
+                        per_sample_counts[base] += 1
+                        state["sample_depths"][bam_index] += 1
+                        state["baseq_sum"] += base_quality
+                        state["mapq_sum"] += alignment.mapping_quality
+                        state["quality_count"] += 1
+
+    def counts(self, contig, pos0):
+        if pos0 not in self.cache.get(contig, {}):
+            self.preload(contig, [pos0])
+        state = self.cache[contig][pos0]
+        depth = sum(state["counts"].values())
+        quality_count = state["quality_count"]
+        return {
+            "counts": dict(state["counts"]),
+            "depth": depth,
+            "mean_baseq": (
+                state["baseq_sum"] / quality_count if quality_count else 0.0
+            ),
+            "mean_mapq": (
+                state["mapq_sum"] / quality_count if quality_count else 0.0
+            ),
+            "sample_depths": list(state["sample_depths"]),
+            "sample_counts": [dict(counts) for counts in state["sample_counts"]],
+        }
+
+
+def rna_meets_accept_candidate_thresholds(
+    *,
+    rna_depth,
+    edited_reads,
+    edit_fraction,
+    rna_mean_baseq,
+    rna_mean_mapq,
+    args,
+):
+    return (
+        rna_depth >= args.min_rna_depth
+        and edited_reads >= args.min_edited_reads
+        and edit_fraction >= args.min_edit_fraction
+        and rna_mean_baseq >= args.min_base_quality
+        and rna_mean_mapq >= args.min_mapping_quality
+    )
+
+
+def classify_rna_only_decision(
+    *,
+    rna_depth,
+    edited_reads,
+    edit_fraction,
+    rna_mean_baseq,
+    rna_mean_mapq,
+    args,
+):
+    if rna_depth == 0:
+        return "insufficient_coverage"
+    if rna_meets_accept_candidate_thresholds(
+        rna_depth=rna_depth,
+        edited_reads=edited_reads,
+        edit_fraction=edit_fraction,
+        rna_mean_baseq=rna_mean_baseq,
+        rna_mean_mapq=rna_mean_mapq,
+        args=args,
+    ):
+        return "pending_dna"
+    return "reject"
+
+
 def classify_decision(
     *,
     rna_depth,
@@ -334,6 +496,7 @@ def has_essential_rescue_support(site, args):
         site["rna_depth"] >= args.essential_rescue_min_rna_depth
         and site["rna_edited_reads"] >= args.essential_rescue_min_edited_reads
         and site["rna_edit_fraction"] >= args.essential_rescue_min_edit_fraction
+        and site["dna_depth"] is not None
         and site["dna_depth"] >= args.min_dna_depth
         and site["dna_alt_fraction"] <= args.essential_rescue_max_dna_alt_fraction
     )
@@ -404,6 +567,7 @@ def site_was_applied(site):
 def has_reference_inferred_support(site, args):
     return (
         not site_was_applied(site)
+        and site["dna_depth"] is not None
         and site["dna_depth"] >= args.min_dna_depth
         and site["dna_alt_fraction"] <= args.max_dna_alt_fraction
     )
@@ -797,14 +961,179 @@ def make_accepted_site(site, *, decision, rescue_reason="", reference=None, metr
     return accepted_site
 
 
+def apply_dna_counts_to_site(site, dna_counts):
+    edited_aligned_base = site["edited_aligned_base"]
+    dna_depth = dna_counts["depth"]
+    dna_alt_reads = dna_counts["counts"][edited_aligned_base]
+    dna_alt_fraction = dna_alt_reads / dna_depth if dna_depth > 0 else 1.0
+    site["dna_depth"] = dna_depth
+    site["dna_alt_reads"] = dna_alt_reads
+    site["dna_alt_fraction"] = dna_alt_fraction
+    site["dna_checked"] = True
+    evidence_row = site["evidence_row"]
+    evidence_row["dna_depth"] = dna_depth
+    evidence_row["dna_alt_reads"] = dna_alt_reads
+    evidence_row["dna_alt_fraction"] = f"{dna_alt_fraction:.6f}"
+
+
+def ensure_dna_counts_for_sites(sites, *, dna_pileups, record_name):
+    sites_to_load = [site for site in sites if not site.get("dna_checked")]
+    if not sites_to_load:
+        return
+    dna_pileups.preload(
+        record_name,
+        [site["genomic_pos"] - 1 for site in sites_to_load],
+    )
+    for site in sites_to_load:
+        dna_counts = dna_pileups.counts(record_name, site["genomic_pos"] - 1)
+        apply_dna_counts_to_site(site, dna_counts)
+
+
+def has_essential_rescue_rna_support(site, args):
+    return (
+        site["rna_depth"] >= args.essential_rescue_min_rna_depth
+        and site["rna_edited_reads"] >= args.essential_rescue_min_edited_reads
+        and site["rna_edit_fraction"] >= args.essential_rescue_min_edit_fraction
+    )
+
+
+def essential_rescue_dna_candidate_sites(
+    validation_errors,
+    site_records,
+    terminal_codon_index,
+    args,
+):
+    candidates = []
+    internal_stop_positions = set()
+    needs_start_rescue = False
+    needs_terminal_stop_rescue = False
+
+    for error in validation_errors:
+        if error.startswith("invalid_start_codon:"):
+            needs_start_rescue = True
+        elif error.startswith("missing_terminal_stop:"):
+            needs_terminal_stop_rescue = True
+        elif error.startswith("internal_stop_codon:"):
+            internal_stop_positions.update(internal_stop_positions_from_error(error))
+
+    for site in site_records:
+        if not has_essential_rescue_rna_support(site, args):
+            continue
+        if (
+            needs_start_rescue
+            and site["codon_index"] == 1
+            and site["effect"] == "start_gain"
+        ):
+            candidates.append(site)
+        elif (
+            needs_terminal_stop_rescue
+            and site["codon_index"] == terminal_codon_index
+            and site["effect"] == "stop_gain"
+        ):
+            candidates.append(site)
+        elif (
+            site["codon_index"] in internal_stop_positions
+            and site["effect"] == "premature_stop_rescue"
+        ):
+            candidates.append(site)
+
+    return candidates
+
+
+def reference_inferred_dna_candidate_sites(
+    validation_errors,
+    site_records,
+    terminal_codon_index,
+):
+    candidates = []
+    internal_stop_positions = set()
+
+    for error in validation_errors:
+        if error.startswith("invalid_start_codon:"):
+            candidates.extend(
+                site
+                for site in site_records
+                if site["codon_index"] == 1 and site["effect"] == "start_gain"
+            )
+        elif error.startswith("missing_terminal_stop:"):
+            candidates.extend(
+                site
+                for site in site_records
+                if site["codon_index"] == terminal_codon_index
+                and site["effect"] == "stop_gain"
+            )
+        elif error.startswith("internal_stop_codon:"):
+            internal_stop_positions.update(internal_stop_positions_from_error(error))
+        elif error not in {"length_not_multiple_of_three"}:
+            return []
+
+    for codon_index in sorted(internal_stop_positions):
+        candidates.extend(
+            site
+            for site in site_records
+            if site["codon_index"] == codon_index
+            and site["effect"] == "premature_stop_rescue"
+        )
+
+    return candidates
+
+
+def candidate_positions_for_cds_block(block, record_sequence):
+    is_pseudo = genbank_feature_has_qualifier(
+        block.lines,
+        "pseudo",
+    ) or genbank_feature_has_qualifier(block.lines, "pseudogene")
+    if is_pseudo:
+        return []
+    try:
+        cds_sequence = extract_genbank_location_sequence(
+            block.location,
+            record_sequence,
+        )
+        genomic_positions = extract_location_positions(block.location)
+    except ValueError:
+        return []
+    if len(cds_sequence) != len(genomic_positions):
+        return []
+
+    codon_start_text = first_genbank_qualifier_value(block.lines, "codon_start", "1")
+    try:
+        codon_offset = int(codon_start_text) - 1
+    except (TypeError, ValueError):
+        codon_offset = 0
+    if codon_offset not in {0, 1, 2}:
+        codon_offset = 0
+    complete_coding_length = len(cds_sequence[codon_offset:])
+    complete_coding_length -= complete_coding_length % 3
+    coding_end = codon_offset + complete_coding_length
+
+    positions = []
+    for cds_index in range(codon_offset, coding_end):
+        if cds_sequence[cds_index].upper() != "C":
+            continue
+        genomic_pos = genomic_positions[cds_index]
+        genomic_base = record_sequence[genomic_pos - 1].upper()
+        if genomic_base in {"C", "G"}:
+            positions.append(genomic_pos - 1)
+    return positions
+
+
+def candidate_positions_for_record(blocks, record_sequence):
+    positions = []
+    for block in blocks:
+        if block.key == "CDS":
+            positions.extend(candidate_positions_for_cds_block(block, record_sequence))
+    return positions
+
+
 def evaluate_cds_feature(
     *,
     record_name,
     record_sequence,
     block,
     args,
-    rna_bams,
-    dna_bams,
+    rna_pileups,
+    dna_pileups,
     references_by_gene=None,
     references_by_product=None,
 ):
@@ -906,6 +1235,7 @@ def evaluate_cds_feature(
     complete_coding_length = len(cds_sequence[codon_offset:])
     complete_coding_length -= complete_coding_length % 3
     coding_end = codon_offset + complete_coding_length
+    normal_dna_candidate_sites = []
 
     for cds_index in range(codon_offset, coding_end):
         transcript_base = cds_sequence[cds_index].upper()
@@ -933,48 +1263,20 @@ def evaluate_cds_feature(
             edited_codon=edited_codon,
             table_id=table_id,
         )
-        rna_counts = pileup_base_counts(
-            rna_bams,
-            record_name,
-            genomic_pos - 1,
-            min_base_quality=args.min_base_quality,
-            min_mapping_quality=args.min_mapping_quality,
-        )
-        if dna_bams:
-            dna_counts = pileup_base_counts(
-                dna_bams,
-                record_name,
-                genomic_pos - 1,
-                min_base_quality=args.min_base_quality,
-                min_mapping_quality=args.min_mapping_quality,
-            )
-        else:
-            dna_counts = {
-                "counts": empty_counts(),
-                "depth": 0,
-                "mean_baseq": 0.0,
-                "mean_mapq": 0.0,
-                "sample_depths": [],
-            }
+        rna_counts = rna_pileups.counts(record_name, genomic_pos - 1)
         rna_depth = rna_counts["depth"]
         rna_edited_reads = rna_counts["counts"][edited_aligned_base]
         rna_edit_fraction = (
             rna_edited_reads / rna_depth if rna_depth > 0 else 0.0
         )
-        dna_depth = dna_counts["depth"]
-        dna_alt_reads = dna_counts["counts"][edited_aligned_base]
-        dna_alt_fraction = dna_alt_reads / dna_depth if dna_depth > 0 else 1.0
-        decision = classify_decision(
+        decision = classify_rna_only_decision(
             rna_depth=rna_depth,
             edited_reads=rna_edited_reads,
             edit_fraction=rna_edit_fraction,
             rna_mean_baseq=rna_counts["mean_baseq"],
             rna_mean_mapq=rna_counts["mean_mapq"],
-            dna_depth=dna_depth,
-            dna_alt_fraction=dna_alt_fraction,
             args=args,
         )
-        applied = decision == "accept"
         site = {
             "cds_index": cds_index,
             "genomic_pos": genomic_pos,
@@ -987,33 +1289,25 @@ def evaluate_cds_feature(
             "rna_depth": rna_depth,
             "rna_edited_reads": rna_edited_reads,
             "rna_edit_fraction": rna_edit_fraction,
-            "dna_depth": dna_depth,
-            "dna_alt_fraction": dna_alt_fraction,
+            "rna_mean_baseq": rna_counts["mean_baseq"],
+            "rna_mean_mapq": rna_counts["mean_mapq"],
+            "dna_depth": None,
+            "dna_alt_reads": None,
+            "dna_alt_fraction": None,
+            "dna_checked": False,
+            "edited_aligned_base": edited_aligned_base,
         }
-        if applied:
-            edited_cds[cds_index] = "T"
-            applied_indices.add(cds_index)
-            editing_effects.append(effect)
-            applied_decisions.append(decision)
-            feature_decision["accepted_sites"].append(
-                make_accepted_site(site, decision=decision)
-            )
 
         rna_depths.append(rna_depth)
         summary["candidate_c_sites"] += 1
-        summary["accepted_sites"] += int(decision == "accept")
-        summary["applied_sites"] += int(applied)
-        summary["likely_genomic_variant_sites"] += int(
-            decision == "likely_genomic_variant"
-        )
         summary["candidate_sites_with_min_depth"] += int(
             rna_depth >= args.min_rna_depth
         )
         note = ""
-        if decision == "likely_genomic_variant":
+        if decision == "reject":
             note = (
-                "DNA/HiFi alternate fraction exceeds the RNA-editing "
-                "threshold; review genomic sequence or variant."
+                "DNA/HiFi pileup was not evaluated because RNA support did "
+                "not pass normal RNA-editing candidate thresholds."
             )
         evidence_row = {
             "record": record_name,
@@ -1048,9 +1342,9 @@ def evaluate_cds_feature(
                 for sample_counts in rna_counts["sample_counts"]
                 if sample_counts[edited_aligned_base] > 0
             ),
-            "dna_depth": dna_depth,
-            "dna_alt_reads": dna_alt_reads,
-            "dna_alt_fraction": f"{dna_alt_fraction:.6f}",
+            "dna_depth": "",
+            "dna_alt_reads": "",
+            "dna_alt_fraction": "",
             "decision": decision,
             "original_decision": "",
             "rescue_reason": "",
@@ -1061,12 +1355,60 @@ def evaluate_cds_feature(
             "reference_inference": "",
             "protein_identity": "",
             "protein_coverage": "",
-            "applied": applied,
+            "applied": False,
             "note": note,
         }
         evidence_rows.append(evidence_row)
         site["evidence_row"] = evidence_row
         site_records.append(site)
+        if decision == "pending_dna":
+            normal_dna_candidate_sites.append(site)
+
+    ensure_dna_counts_for_sites(
+        normal_dna_candidate_sites,
+        dna_pileups=dna_pileups,
+        record_name=record_name,
+    )
+    for site in normal_dna_candidate_sites:
+        decision = classify_decision(
+            rna_depth=site["rna_depth"],
+            edited_reads=site["rna_edited_reads"],
+            edit_fraction=site["rna_edit_fraction"],
+            rna_mean_baseq=site["rna_mean_baseq"],
+            rna_mean_mapq=site["rna_mean_mapq"],
+            dna_depth=site["dna_depth"],
+            dna_alt_fraction=site["dna_alt_fraction"],
+            args=args,
+        )
+        site["evidence_row"]["decision"] = decision
+        applied = decision == "accept"
+        site["evidence_row"]["applied"] = applied
+        if decision == "likely_genomic_variant":
+            site["evidence_row"]["note"] = (
+                "DNA/HiFi alternate fraction exceeds the RNA-editing "
+                "threshold; review genomic sequence or variant."
+            )
+        elif decision == "insufficient_dna_coverage":
+            site["evidence_row"]["note"] = (
+                "RNA support passed normal candidate thresholds, but DNA/HiFi "
+                "coverage was below the configured minimum."
+            )
+        else:
+            site["evidence_row"]["note"] = ""
+
+        summary["accepted_sites"] += int(decision == "accept")
+        summary["applied_sites"] += int(applied)
+        summary["likely_genomic_variant_sites"] += int(
+            decision == "likely_genomic_variant"
+        )
+        if applied:
+            edited_cds[site["cds_index"]] = "T"
+            applied_indices.add(site["cds_index"])
+            editing_effects.append(site["effect"])
+            applied_decisions.append(decision)
+            feature_decision["accepted_sites"].append(
+                make_accepted_site(site, decision=decision)
+            )
 
     if rna_depths:
         summary["mean_candidate_rna_depth"] = f"{statistics.fmean(rna_depths):.3f}"
@@ -1101,6 +1443,16 @@ def evaluate_cds_feature(
         feature_decision["translation_status"] = summary["translation_status"]
         return updated_lines, evidence_rows, summary, feature_decision
 
+    ensure_dna_counts_for_sites(
+        essential_rescue_dna_candidate_sites(
+            validation["errors"],
+            site_records,
+            complete_coding_length // 3,
+            args,
+        ),
+        dna_pileups=dna_pileups,
+        record_name=record_name,
+    )
     rescue_sites = essential_rescue_sites(
         validation["errors"],
         site_records,
@@ -1165,6 +1517,16 @@ def evaluate_cds_feature(
             feature_decision["translation_status"] = summary["translation_status"]
             return updated_lines, evidence_rows, summary, feature_decision
 
+    if references_by_gene:
+        ensure_dna_counts_for_sites(
+            reference_inferred_dna_candidate_sites(
+                validation["errors"],
+                site_records,
+                complete_coding_length // 3,
+            ),
+            dna_pileups=dna_pileups,
+            record_name=record_name,
+        )
     reference_rescue = reference_inferred_rescue(
         validation_errors=validation["errors"],
         site_records=site_records,
@@ -1260,6 +1622,16 @@ def curate_records(args, rna_bams, dna_bams):
     evidence_rows = []
     summary_rows = []
     feature_decisions = []
+    rna_pileups = PileupBatchCounter(
+        rna_bams,
+        min_base_quality=args.min_base_quality,
+        min_mapping_quality=args.min_mapping_quality,
+    )
+    dna_pileups = PileupBatchCounter(
+        dna_bams,
+        min_base_quality=args.min_base_quality,
+        min_mapping_quality=args.min_mapping_quality,
+    )
     references_by_gene = None
     references_by_product = None
     if args.reference_dir is not None:
@@ -1284,6 +1656,11 @@ def curate_records(args, rna_bams, dna_bams):
             curated_records.append(record)
             continue
 
+        rna_pileups.preload(
+            record_name,
+            candidate_positions_for_record(blocks, record_sequence),
+            full_span=True,
+        )
         curated_blocks = []
         existing_site_features = existing_rna_editing_site_features(blocks)
         for block in blocks:
@@ -1300,8 +1677,8 @@ def curate_records(args, rna_bams, dna_bams):
                 record_sequence=record_sequence,
                 block=block,
                 args=args,
-                rna_bams=rna_bams,
-                dna_bams=dna_bams,
+                rna_pileups=rna_pileups,
+                dna_pileups=dna_pileups,
                 references_by_gene=references_by_gene,
                 references_by_product=references_by_product,
             )
@@ -1425,7 +1802,8 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "CDS-essential rescue sites that restore a valid start codon, "
             "terminal stop codon, or internal premature-stop rescue, and "
             "reference-inferred sites that rescue otherwise invalid CDS "
-            "translation."
+            "translation. DNA/HiFi pileup is evaluated only for sites with "
+            "normal RNA-editing candidate support or CDS-rescue relevance."
         ),
         (
             "- RNA editing CDS-essential rescue thresholds: RNA depth >= "
