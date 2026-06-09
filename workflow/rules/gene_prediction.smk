@@ -17,7 +17,7 @@ rnaseq_raw_sample_id_pattern = "|".join(
     for rnaseq_sample_id in rnaseq_raw_sample_ids
 ) or r"(?!)"
 wildcard_constraints:
-    assembly_name = config["assembly_name"],
+    assembly_name = organism_name,
     selected_assembly = selected_assembly_pattern
 
 rule fastp_rnaseq_sample:
@@ -348,21 +348,21 @@ rule format_for_submission:
         longest_cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
         longest_gff3 = "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     output:
-        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}.fa.gz",
-        isoform_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.cds.fa.gz",
-        isoform_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_isoforms.gff3.gz",
-        longest_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_representative.cds.fa.gz",
-        longest_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_representative.gff3.gz",
-        readme = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{config['assembly_version']}_README.md"
+        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}.fa.gz",
+        isoform_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_isoforms.cds.fa.gz",
+        isoform_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_isoforms.gff3.gz",
+        longest_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_representative.cds.fa.gz",
+        longest_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_representative.gff3.gz",
+        readme = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_README.md"
     log:
         out = "logs/format_for_submission_{selected_assembly}_{assembly_name}.out",
         err = "logs/format_for_submission_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
     wildcard_constraints:
-        selected_assembly = submission_assembly_pattern
+        selected_assembly = selected_assembly_pattern
     params:
-        assembly_version = config["assembly_version"]
+        genome_version = genome_version
     shell:
         """
         (
@@ -379,7 +379,7 @@ rule format_for_submission:
                 --output-longest-gff3 {output.longest_gff3}
             python3 workflow/scripts/write_submission_readme.py \
                 --assembly-name "{wildcards.assembly_name}" \
-                --assembly-version "{params.assembly_version}" \
+                --genome-version "{params.genome_version}" \
                 --input-assembly {input.assembly} \
                 --input-isoform-cds {input.isoform_cds} \
                 --input-isoform-gff3 {input.isoform_gff3} \
@@ -407,9 +407,9 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["annotation"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.fa.gz",
-            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.gbk.gz",
-            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
+            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.gbk.gz",
+            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.out",
             err = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.err"
@@ -418,7 +418,7 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
         wildcard_constraints:
             organelle = "|".join(configured_oatk_organelles_with_annotation())
         params:
-            assembly_version = config["assembly_version"],
+            genome_version = genome_version,
             annotation_tool = lambda wildcards: configured_organelle_annotation_tool(
                 wildcards.organelle
             )
@@ -437,7 +437,7 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                     --organelle {wildcards.organelle:q} \
                     --annotation-tool {params.annotation_tool:q} \
                     --assembly-name {wildcards.assembly_name:q} \
-                    --assembly-version {params.assembly_version:q} \
+                    --genome-version {params.genome_version:q} \
                     --input-genome {input.genome:q} \
                     --input-annotation {input.annotation:q} \
                     --output-genome {output.genome:q} \
@@ -454,8 +454,8 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["genome"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}.fa.gz",
-            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{config['assembly_version']}_{{organelle}}_README.md"
+            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
+            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.out",
             err = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.err"
@@ -464,7 +464,7 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
         wildcard_constraints:
             organelle = "|".join(configured_oatk_organelles_without_annotation())
         params:
-            assembly_version = config["assembly_version"]
+            genome_version = genome_version
         shell:
             """
             (
@@ -474,7 +474,7 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 python3 workflow/scripts/write_organelle_submission_readme.py \
                     --organelle {wildcards.organelle:q} \
                     --assembly-name {wildcards.assembly_name:q} \
-                    --assembly-version {params.assembly_version:q} \
+                    --genome-version {params.genome_version:q} \
                     --input-genome {input.genome:q} \
                     --output-genome {output.genome:q} \
                     --output-readme {output.readme:q}

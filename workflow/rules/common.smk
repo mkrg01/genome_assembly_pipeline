@@ -1,6 +1,9 @@
 import glob
 import os
+import re
 import shlex
+
+PIPELINE_IMAGE = "docker://aurelia01/genome_assembly_pipeline"
 
 RAW_FASTQ_SUFFIXES = (
     ".fastq.gz",
@@ -178,6 +181,91 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def normalize_pipeline_version_config():
+    value = config.get("pipeline_version", None)
+    if value is None:
+        raise ValueError(
+            "'pipeline_version' in config.yml is required and must be an image tag "
+            "such as 'v0.6.15'."
+        )
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            "'pipeline_version' in config.yml must be a non-empty string image tag "
+            "such as 'v0.6.15'."
+        )
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", value):
+        raise ValueError(
+            "'pipeline_version' in config.yml must contain only the image tag, "
+            "such as 'v0.6.15', not a full container URI."
+        )
+    return value
+
+
+def normalize_organism_name_config():
+    value = config.get("organism_name", None)
+    legacy_value = config.get("assembly_name", None)
+    if value is not None and legacy_value is not None:
+        if str(value).strip() != str(legacy_value).strip():
+            raise ValueError(
+                "'organism_name' replaces legacy 'assembly_name' in config.yml. "
+                "Please keep only 'organism_name', or set both keys to the same "
+                "value during migration."
+            )
+    if value is None:
+        value = legacy_value
+    if value is None:
+        raise ValueError(
+            "'organism_name' in config.yml is required and must be a filesystem-safe "
+            "organism label such as 'Dioncophyllum_thollonii'."
+        )
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            "'organism_name' in config.yml must be a non-empty string such as "
+            "'Dioncophyllum_thollonii'."
+        )
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", value):
+        raise ValueError(
+            "'organism_name' in config.yml must be filesystem-safe because it is "
+            "used in output paths. Use only letters, numbers, underscores, dots, "
+            "and hyphens, and use underscores instead of spaces. For example: "
+            "'Dioncophyllum_thollonii'."
+        )
+    return value
+
+
+def normalize_genome_version_config():
+    value = config.get("genome_version", None)
+    legacy_value = config.get("assembly_version", None)
+    if value is not None and legacy_value is not None:
+        if str(value).strip() != str(legacy_value).strip():
+            raise ValueError(
+                "'genome_version' replaces legacy 'assembly_version' in config.yml. "
+                "Please keep only 'genome_version', or set both keys to the same "
+                "value during migration."
+            )
+    if value is None:
+        value = legacy_value
+    if value is None:
+        raise ValueError(
+            "'genome_version' in config.yml is required and must be a version label "
+            "such as 'v1.0'."
+        )
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            "'genome_version' in config.yml must be a non-empty string such as 'v1.0'."
+        )
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", value):
+        raise ValueError(
+            "'genome_version' in config.yml must be filesystem-safe because it is "
+            "used in output paths. Use only letters, numbers, underscores, dots, "
+            "and hyphens."
+        )
+    return value
+
+
 def normalize_taxid_config():
     value = config.get("taxid", config.get("fcs_gx_taxid", None))
     if value is None:
@@ -265,24 +353,20 @@ def normalize_organelle_annotation_config(values):
     return normalized
 
 
+pipeline_version = normalize_pipeline_version_config()
+pipeline_image_uri = f"{PIPELINE_IMAGE}:{pipeline_version}"
+organism_name = normalize_organism_name_config()
+assembly_name = organism_name
+genome_version = normalize_genome_version_config()
+
 selected_assemblies = validate_choice_list(
     "selected_assemblies",
     config.get("selected_assemblies", ["primary"]),
     VALID_SELECTED_ASSEMBLIES,
 )
-submission_assemblies = validate_choice_list(
-    "submission_assemblies",
-    config.get("submission_assemblies", ["primary"]),
-    VALID_SELECTED_ASSEMBLIES,
-)
-if not set(submission_assemblies).issubset(selected_assemblies):
-    raise ValueError(
-        "'submission_assemblies' in config.yml must be a subset of 'selected_assemblies'."
-    )
 
 selected_assembly_pattern = "|".join(selected_assemblies)
-submission_assembly_pattern = "|".join(submission_assemblies)
-organelle_rna_editing_nuclear_assembly = submission_assemblies[0]
+organelle_rna_editing_nuclear_assembly = selected_assemblies[0]
 
 hic_reads_r1 = normalize_optional_path_list(
     "hic_reads_r1",
@@ -479,7 +563,7 @@ def softmask_all_inputs(assembly_name):
     )
 
 
-def gene_prediction_all_inputs(assembly_name, assembly_version):
+def gene_prediction_all_inputs(assembly_name, genome_version):
     inputs = softmask_all_inputs(assembly_name)
     for pattern in (
         "results/isoforms/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
@@ -491,19 +575,18 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     for pattern in (
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_README.md",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_README.md",
     ):
         inputs.extend(
             expand_selected_assembly_paths(
                 pattern,
                 assembly_name,
-                assemblies=submission_assemblies,
-                assembly_version=assembly_version,
+                genome_version=genome_version,
             )
         )
     return inputs
@@ -859,11 +942,11 @@ def organelle_submission_input_paths(assembly_name, organelle):
     return inputs
 
 
-def organelle_submission_output_paths_by_organelle(assembly_name, assembly_version, organelle):
+def organelle_submission_output_paths_by_organelle(assembly_name, genome_version, organelle):
     organelle = normalize_organelle_name("oatk_organelle", organelle)
     prefix = (
         f"results/submission/organelle/{organelle}/"
-        f"{assembly_name}_{assembly_version}_{organelle}"
+        f"{assembly_name}_{genome_version}_{organelle}"
     )
     outputs = {
         "genome": f"{prefix}.fa.gz",
@@ -874,24 +957,24 @@ def organelle_submission_output_paths_by_organelle(assembly_name, assembly_versi
     return outputs
 
 
-def organelle_submission_output_paths_with_annotation(assembly_name, assembly_version):
+def organelle_submission_output_paths_with_annotation(assembly_name, genome_version):
     outputs = []
     for organelle in configured_oatk_organelles_with_annotation():
         paths = organelle_submission_output_paths_by_organelle(
             assembly_name,
-            assembly_version,
+            genome_version,
             organelle,
         )
         outputs.extend(paths.values())
     return outputs
 
 
-def organelle_submission_output_paths_without_annotation(assembly_name, assembly_version):
+def organelle_submission_output_paths_without_annotation(assembly_name, genome_version):
     outputs = []
     for organelle in configured_oatk_organelles_without_annotation():
         paths = organelle_submission_output_paths_by_organelle(
             assembly_name,
-            assembly_version,
+            genome_version,
             organelle,
         )
         outputs.extend(paths.values())
@@ -911,29 +994,29 @@ def organelle_submission_input_paths_without_annotation(assembly_name, organelle
     }
 
 
-def organelle_submission_output_paths(assembly_name, assembly_version):
+def organelle_submission_output_paths(assembly_name, genome_version):
     outputs = []
     for organelle in configured_oatk_organelles():
         outputs.extend(
             organelle_submission_output_paths_by_organelle(
                 assembly_name,
-                assembly_version,
+                genome_version,
                 organelle,
             ).values()
         )
     return outputs
 
 
-def organelle_submission_all_inputs(assembly_name, assembly_version):
+def organelle_submission_all_inputs(assembly_name, genome_version):
     return (
         organelle_visualization_all_inputs(assembly_name)
-        + organelle_submission_output_paths(assembly_name, assembly_version)
+        + organelle_submission_output_paths(assembly_name, genome_version)
     )
 
 
-def circos_plot_all_inputs(assembly_name, assembly_version):
+def circos_plot_all_inputs(assembly_name, genome_version):
     return gene_prediction_all_inputs(
-        assembly_name, assembly_version
+        assembly_name, genome_version
     ) + expand_selected_assembly_paths(
         "results/circos_plot/{selected_assembly}/{assembly_name}_{plot_kind}.pdf",
         assembly_name,

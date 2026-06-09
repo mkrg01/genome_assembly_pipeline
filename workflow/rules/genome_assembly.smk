@@ -4,7 +4,7 @@ hifi_sample_ids = discover_sample_ids([
 ])
 
 wildcard_constraints:
-    assembly_name = config["assembly_name"],
+    assembly_name = organism_name,
     organelle = "(mito|pltd)",
     selected_assembly = selected_assembly_pattern
 

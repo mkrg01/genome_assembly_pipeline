@@ -1,9 +1,6 @@
 configfile: "config/config.yml"
-containerized: config["pipeline_container"]
 include: "rules/common.smk"
-
-assembly_name = config["assembly_name"]
-assembly_version = config["assembly_version"]
+containerized: pipeline_image_uri
 
 include: "rules/genome_assembly.smk"
 include: "rules/organelle_annotation.smk"
@@ -13,8 +10,8 @@ include: "rules/circos_plot.smk"
 
 rule all:
     input:
-        *circos_plot_all_inputs(assembly_name, assembly_version),
-        *organelle_submission_all_inputs(assembly_name, assembly_version)
+        *circos_plot_all_inputs(assembly_name, genome_version),
+        *organelle_submission_all_inputs(assembly_name, genome_version)
 
 rule assembly_all:
     input:
@@ -38,11 +35,11 @@ rule softmask_all:
 
 rule gene_prediction_all:
     input:
-        *gene_prediction_all_inputs(assembly_name, assembly_version)
+        *gene_prediction_all_inputs(assembly_name, genome_version)
 
 rule circos_plot_all:
     input:
-        *circos_plot_all_inputs(assembly_name, assembly_version)
+        *circos_plot_all_inputs(assembly_name, genome_version)
 
 rule organelle_annotation_all:
     input:
@@ -54,4 +51,4 @@ rule organelle_visualization_all:
 
 rule organelle_submission_all:
     input:
-        *organelle_submission_all_inputs(assembly_name, assembly_version)
+        *organelle_submission_all_inputs(assembly_name, genome_version)

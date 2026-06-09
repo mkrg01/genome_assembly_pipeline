@@ -1,30 +1,32 @@
-assembly_name: "Testus_example"
-assembly_version: "v0.0.0"
-pipeline_container: "docker://aurelia01/genome_assembly_pipeline:v0.6.5"
+pipeline_version: "v0.6.15"
+organism_name: "Testus_example"
+genome_version: "v0.0.0"
+external_assembly: null
+
 selected_assemblies: ["primary"]
-submission_assemblies: ["primary"]
 ont_reads: null
 hic_reads_r1: null
 hic_reads_r2: null
 yahs_restriction_enzymes: null
+
 oatk_lineage: "magnoliopsida"
 oatk_organelle: "mitochondrion_and_chloroplast"
 oatk_minimum_kmer_coverage: "250"
-organelle_annotation:
-  mitochondrion: "pmga"
-  chloroplast: "pga_v2"
-pga_v2_reference_dir: "resources/plastid_reference"
-pga_v2_fix_chloroplast_sequence_frameshifts: false
-fcs_gx_taxid: "122299"
+
+taxid: "122299"
+
 busco_lineage_dataset: "embryophyta_odb12"
 tidk_clade: "Caryophyllales"
 tidk_telomeric_repeat_unit: "AAACCCT"
+
 dfam_version: "3.9"
 dfam_partitions: "0,5,6"
 dfam_lineage_name: "Viridiplantae"
+
 orthodb_version: "12"
 orthodb_lineage: "Viridiplantae"
 orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587"
+
 min_long_contig_length: 1000000
 circos_plot_tracks:
   - {id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500000}
@@ -36,3 +38,14 @@ circos_plot_tracks:
   - {id: "tidk", label: "Telomeric repeat", color: "#DD8452", window_size: 10000}
 circos_plot_x_major_tick_interval: 10000000
 circos_plot_x_minor_tick_interval: 5000000
+
+organelle_annotation:
+  mitochondrion: "pmga"
+  chloroplast: "pga_v2"
+organelle_reference_cds_qc:
+  chloroplast:
+    reference_dir: "resources/plastid_reference"
+    fix_hifi_frameshifts: false
+  mitochondrion:
+    reference_dir: null
+    fix_hifi_frameshifts: false

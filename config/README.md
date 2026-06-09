@@ -38,44 +38,90 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 ## 2. Configuration File (`config/config.yml`)
 
 Edit `config/config.yml` to match your dataset and analysis requirements.  
-Below are the available parameters:
+The sections below follow the order of `config/config.yml`.
 
-| Parameter               | Description                                                  | Example                                    |
-| ----------------------- | ------------------------------------------------------------ | ------------------------------------------ |
-| `assembly_name`         | Name used for output files | `"Dioncophyllum_thollonii"` |
-| `assembly_version`         | Version used for output files | `"v1.0"` |
-| `pipeline_container` | Container image used by the top-level Snakemake workflow. All entrypoint Snakefiles read this value. | `"docker://aurelia01/genome_assembly_pipeline:v0.6.5"` |
-| `selected_assemblies`   | One or more assemblies to process after hifiasm. Allowed values: `{"primary", "hap1", "hap2"}`. Downstream outputs are written under assembly-specific subdirectories such as `results/fcs/assembly/<selected_assembly>/...` or `results/submission/<selected_assembly>/...`. When Hi-C integration is enabled, these correspond to hifiasm `hic.p_ctg`, `hic.hap1.p_ctg`, and `hic.hap2.p_ctg` outputs, which are then scaffolded with YaHS, exported as Juicebox-ready contact-map files under `results/juicebox/<selected_assembly>/...`, and written under `results/yahs/assembly/<selected_assembly>/...` before RepeatMasker and later steps. Organelle submission assets are staged separately under `results/submission/organelle/...` according to `oatk_organelle` and `organelle_annotation`. | `["primary", "hap1", "hap2"]` |
-| `submission_assemblies` | One or more assemblies to package for submission. Must be a subset of `selected_assemblies`. | `["primary"]` |
+### Runtime
+
+| Parameter | Description | Example |
+| --- | --- | --- |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.6.15"` |
+| `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
+| `genome_version` | Filesystem-safe version label for this genome release. Used for naming submission/output files; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
+
+### Hifiasm Genome Assembly
+
+| Parameter | Description | Example |
+| --- | --- | --- |
+| `selected_assemblies`   | One or more assemblies to process after hifiasm. Allowed values: `{"primary", "hap1", "hap2"}`. Downstream outputs are written under assembly-specific subdirectories such as `results/fcs/assembly/<selected_assembly>/...` or `results/submission/<selected_assembly>/...`. Submission-ready outputs are produced for every selected assembly. When Hi-C integration is enabled, these correspond to hifiasm `hic.p_ctg`, `hic.hap1.p_ctg`, and `hic.hap2.p_ctg` outputs, which are then scaffolded with YaHS, exported as Juicebox-ready contact-map files under `results/juicebox/<selected_assembly>/...`, and written under `results/yahs/assembly/<selected_assembly>/...` before RepeatMasker and later steps. Organelle submission assets are staged separately under `results/submission/organelle/...` according to `oatk_organelle` and `organelle_annotation`. | `["primary", "hap1", "hap2"]` |
 | `hifiasm_dual_scaf`    | Optional: Enable hifiasm self-scaffolding by adding `--dual-scaf`. `{true, false}` | `false` |
 | `ont_reads`             | Optional: Path to ultra-long ONT reads in FASTQ format (`.fastq.gz`, `.fq.gz`, `.fastq`, or `.fq`). Set to `null` to disable ONT integration. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) | `null` |
 | `hic_reads_r1`          | Optional: Hi-C read 1 input for hifiasm phasing, YaHS scaffolding, and Juicebox-ready contact maps. Set to `null` to disable Hi-C integration, or provide one or more FASTQ paths as a YAML list. Must be paired with `hic_reads_r2`. [See hifiasm docs](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#hi-c-integration) | `["raw_data/hic_R1.fastq.gz"]` |
 | `hic_reads_r2`          | Optional: Hi-C read 2 input for hifiasm phasing, YaHS scaffolding, and Juicebox-ready contact maps. Must match `hic_reads_r1` in length and order. | `["raw_data/hic_R2.fastq.gz"]` |
-| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding. Set to `null` to use YaHS defaults. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
+
+### Oatk Organelle Assembly
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
 | `oatk_organelle`        | Organelle to assemble. `{"mitochondrion", "chloroplast", "mitochondrion_and_chloroplast"}`. Legacy aliases `mito`, `pltd`, and `mito_and_pltd` are still accepted. | `"mitochondrion_and_chloroplast"` |
 | `oatk_minimum_kmer_coverage`| Minimum kmer coverage used for Oatk. [Instructions](https://github.com/c-zhou/oatk)  | `"250"` |
-| `organelle_annotation` | Annotation tools for Oatk-assembled organelle genomes. Mitochondrion: `{"pmga", null}`. Chloroplast: `{"pga_v2", null}`. Omitted keys, per-organelle `null`, or top-level `organelle_annotation: null` skip annotation. Legacy keys `mito` and `pltd` are still accepted. Oatk organelle FASTA record IDs are prefixed before annotation/submission (`mt_` for mitochondrion, `cp_` for chloroplast) so GenBank LOCUS names and submission FASTA headers stay unique and consistent. For PMGA/PGA, circular single-record inputs are first annotated once to choose an internal feature-free origin, then rotated before final annotation so origin-spanning genes are less likely to be missed; the rotated annotation FASTA is used for RNA-editing evidence mapping and submission. PMGA/PGA GenBank outputs are then post-curated with RNA-seq and HiFi evidence to add CDS `/translation` and accepted `/exception="RNA editing"` qualifiers. Normal RNA-editing calls use accept thresholds of RNA depth >= 10, edited reads >= 3, edit fraction >= 0.10, base quality >= 30, mapping quality >= 30, DNA/HiFi depth >= 10, and DNA/HiFi alternate fraction <= 0.10; CDS-essential rescue sites that restore a valid start codon, terminal stop codon, or premature-stop rescue may use a separate one-read rescue threshold with DNA/HiFi alternate fraction <= 0.10. Sites with DNA/HiFi alternate support above the threshold are retained as `likely_genomic_variant` evidence and summarized for genome sequence or variant review. PMGA and PGA v2.0 are downloaded automatically only when selected. | `{mitochondrion: "pmga", chloroplast: "pga_v2"}` |
-| `organelle_reference_cds_qc` | Optional reference CDS/protein QC for PMGA/PGA annotations. Set an organelle `reference_dir` to `null` to skip reference QC and reference-inferred RNA-editing rescue for that organelle. When `reference_dir` is set, the pipeline emits pre/post RNA-editing QC tables and conservatively tries closely related reference CDS/protein evidence for residual invalid CDS after RNA-seq curation. `fix_hifi_frameshifts: true` is allowed only for chloroplast/PGA and may correct well-supported HiFi read-supported frameshift indels before rerunning PGA. Chloroplast/PGA requires a reference directory because PGA v2 itself is reference-based. | `{chloroplast: {reference_dir: "plastid_reference", fix_hifi_frameshifts: false}, mitochondrion: {reference_dir: null, fix_hifi_frameshifts: false}}` |
+
+### Contamination Screening
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `taxid`          | NCBI Taxonomy ID for the target organism. Used by FCS-GX screening and organelle GenBank source `db_xref`. Legacy `fcs_gx_taxid` is still accepted as a fallback. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
+
+### YaHS Scaffolding
+
+| Parameter | Description | Example |
+| --- | --- | --- |
+| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding after FCS cleanup. Set to `null` to use YaHS defaults. This parameter is used only when both `hic_reads_r1` and `hic_reads_r2` are set. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
+
+### Quality Assessment
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `tidk_clade`            | Clade for [tidk find](https://github.com/tolkit/telomeric-identifier). [Lineage list](https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find) | `"Caryophyllales"`|
 | `tidk_telomeric_repeat_unit` | A telomeric repeat unit for [tidk search](https://github.com/tolkit/telomeric-identifier). [A Telomeric Repeat Database](https://github.com/tolkit/a-telomeric-repeat-database) | `"AAACCCT"`|
+
+### Softmasking
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
 | `dfam_partitions`       | Dfam partitions. See [README.txt](https://www.dfam.org/releases/current/families/FamDB/README.txt). | `"0,5,6"` (Viridiplantae)                      |
 | `dfam_lineage_name`     | Name of the Dfam lineage to use.                             | `"Viridiplantae"`                          |
+
+### Gene Prediction
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `orthodb_version`       | Version of the OrthoDB database (used by Braker3). [ProtHint instructions](https://github.com/gatech-genemark/ProtHint#protein-database-preparation) | `"12"`                                     |
 | `orthodb_lineage`       | OrthoDB lineage dataset to use. [Lineage list](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"Viridiplantae"`                          |
 | `orthodb_md5sum`        | MD5 checksum of the OrthoDB database. [Checksums](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"34c1f027a1a7b10f225b69fbd5500587"`       |
+
+### Visualization
+
+| Parameter | Description | Example |
+| --- | --- | --- |
 | `min_long_contig_length` | Minimum contig length to be considered a "long contig" for downstream visualization (e.g., Circos plots). | `1_000_000` |
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
-### Choosing Organelle Reference CDS QC References
+### Organelle Annotation
 
-When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb`, `.gbk`, or `.gbff`) in `organelle_reference_cds_qc.chloroplast.reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming.
+| Parameter | Description | Example |
+| --- | --- | --- |
+| `organelle_annotation` | Annotation tools for Oatk-assembled organelle genomes. Mitochondrion: `{"pmga", null}`. Chloroplast: `{"pga_v2", null}`. Omitted keys, per-organelle `null`, or top-level `organelle_annotation: null` skip annotation. Legacy keys `mito` and `pltd` are still accepted. Oatk organelle FASTA record IDs are prefixed before annotation/submission (`mt_` for mitochondrion, `cp_` for chloroplast) so GenBank LOCUS names and submission FASTA headers stay unique and consistent. For PMGA/PGA, circular single-record inputs are first annotated once to choose an internal feature-free origin, then rotated before final annotation so origin-spanning genes are less likely to be missed; the rotated annotation FASTA is used for RNA-editing evidence mapping and submission. PMGA/PGA GenBank outputs are then post-curated with RNA-seq and HiFi evidence to add CDS `/translation` and accepted `/exception="RNA editing"` qualifiers. Normal RNA-editing calls use accept thresholds of RNA depth >= 10, edited reads >= 3, edit fraction >= 0.10, base quality >= 30, mapping quality >= 30, DNA/HiFi depth >= 10, and DNA/HiFi alternate fraction <= 0.10; CDS-essential rescue sites that restore a valid start codon, terminal stop codon, or premature-stop rescue may use a separate one-read rescue threshold with DNA/HiFi alternate fraction <= 0.10. Sites with DNA/HiFi alternate support above the threshold are retained as `likely_genomic_variant` evidence and summarized for genome sequence or variant review. PMGA and PGA v2.0 are downloaded automatically only when selected. | `{mitochondrion: "pmga", chloroplast: "pga_v2"}` |
+| `organelle_reference_cds_qc` | Optional reference CDS/protein QC for PMGA/PGA annotations. Set an organelle `reference_dir` to `null` to skip reference QC and reference-inferred RNA-editing rescue for that organelle. When `reference_dir` is set, the pipeline emits pre/post RNA-editing QC tables and conservatively tries closely related reference CDS/protein evidence for residual invalid CDS after RNA-seq curation. `fix_hifi_frameshifts: true` is allowed only for chloroplast/PGA and may correct well-supported HiFi read-supported frameshift indels before rerunning PGA. Chloroplast/PGA requires a reference directory because PGA v2 itself is reference-based. | `{chloroplast: {reference_dir: "plastid_reference", fix_hifi_frameshifts: false}, mitochondrion: {reference_dir: null, fix_hifi_frameshifts: false}}` |
+
+#### Choosing Organelle Reference CDS QC References
+
+When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb`, `.gbk`, or `.gbff`) in `organelle_reference_cds_qc.chloroplast.reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming. The same references are also used for chloroplast CDS/protein QC and reference-inferred RNA-editing rescue.
 
 For PMGA/mitochondrion, `organelle_reference_cds_qc.mitochondrion.reference_dir` is optional. If provided, the pipeline writes reference CDS/protein QC tables before and after RNA-editing curation, plus a manual RNA-editing review candidate table. After RNA-seq curation, residual CDS with invalid start codons, missing terminal stops, or internal stop codons are conservatively checked for C-to-U RNA-editing sites inferred from closely related reference CDS/proteins. Applied reference-inferred sites are recorded separately from RNA-seq-supported calls in the RNA-editing evidence sidecars and GenBank `/inference` qualifiers.
 

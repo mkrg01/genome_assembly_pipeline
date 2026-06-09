@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument("--organelle", required=True)
     parser.add_argument("--annotation-tool")
     parser.add_argument("--assembly-name", required=True)
-    parser.add_argument("--assembly-version", required=True)
+    parser.add_argument("--genome-version", required=True)
     parser.add_argument("--input-genome", type=Path, required=True)
     parser.add_argument("--input-annotation", type=Path)
     parser.add_argument("--output-genome", type=Path, required=True)
@@ -94,7 +94,7 @@ def write_readme(args):
 
     content = f"""# Organelle Submission Files
 
-This directory contains files staged for submission of the {label} genome for `{args.assembly_name}` (version `{args.assembly_version}`).
+This directory contains files staged for submission of the {label} genome for `{args.assembly_name}` genome release `{args.genome_version}`.
 
 ## File Provenance
 

@@ -3,7 +3,7 @@ circos_id2tracks = {track["id"]: track for track in config["circos_plot_tracks"]
 repeat_classes = [circos_id for circos_id in circos_ids if circos_id in ["LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite"]]
 
 wildcard_constraints:
-    assembly_name = config["assembly_name"],
+    assembly_name = organism_name,
     selected_assembly = selected_assembly_pattern,
     repeat_class = "|".join(["LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite"])
 

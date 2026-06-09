@@ -1,5 +1,5 @@
 wildcard_constraints:
-    assembly_name = config["assembly_name"],
+    assembly_name = organism_name,
     selected_assembly = selected_assembly_pattern
 
 rule build_repeatmodeler_database:

@@ -30,7 +30,8 @@ cd genome_assembly_pipeline
 
 ### 2. Prepare Input Files and Configure Settings
 
-See [`config/README.md`](https://github.com/mkrg01/genome_assembly_pipeline/blob/main/config/README.md) for details on preparing input files and adjusting configuration parameters.
+See [`config/README.md`](config/README.md) for details on preparing input files and adjusting configuration parameters.
+The configuration guide follows the same section order as `config/config.yml`, from runtime settings through assembly, contamination screening, YaHS scaffolding, QC, visualization, and organelle annotation options.
 
 ### 3. Execute the Workflow
 

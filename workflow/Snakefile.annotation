@@ -4,13 +4,11 @@
 # workflow. Set `external_assembly` in config/config.yml to the input FASTA path.
 
 configfile: "config/config.yml"
-containerized: config["pipeline_container"]
 include: "rules/common.smk"
+containerized: pipeline_image_uri
 
 enable_organelle_submission = False
 
-assembly_name = config["assembly_name"]
-assembly_version = config["assembly_version"]
 downstream_assembly_name = "external"
 
 
@@ -58,7 +56,7 @@ def softmask_all_inputs(assembly_name):
     )
 
 
-def gene_prediction_all_inputs(assembly_name, assembly_version):
+def gene_prediction_all_inputs(assembly_name, genome_version):
     inputs = softmask_all_inputs(assembly_name)
     for pattern in (
         "results/isoforms/busco_proteins/{selected_assembly}/BUSCO_{assembly_name}_aa.fa",
@@ -70,27 +68,26 @@ def gene_prediction_all_inputs(assembly_name, assembly_version):
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     for pattern in (
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_isoforms.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_representative.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{assembly_version}_README.md",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.cds.fa.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.gff3.gz",
+        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_README.md",
     ):
         inputs.extend(
             expand_selected_assembly_paths(
                 pattern,
                 assembly_name,
-                assemblies=submission_assemblies,
-                assembly_version=assembly_version,
+                genome_version=genome_version,
             )
         )
     return inputs
 
 
-def circos_plot_all_inputs(assembly_name, assembly_version):
+def circos_plot_all_inputs(assembly_name, genome_version):
     return gene_prediction_all_inputs(
-        assembly_name, assembly_version
+        assembly_name, genome_version
     ) + expand_selected_assembly_paths(
         "results/circos_plot/{selected_assembly}/{assembly_name}_{plot_kind}.pdf",
         assembly_name,
@@ -169,7 +166,7 @@ rule download_busco_database:
 
 rule all:
     input:
-        *circos_plot_all_inputs(assembly_name, assembly_version)
+        *circos_plot_all_inputs(assembly_name, genome_version)
 
 
 rule external_assembly_all:
@@ -184,9 +181,9 @@ rule softmask_all:
 
 rule gene_prediction_all:
     input:
-        *gene_prediction_all_inputs(assembly_name, assembly_version)
+        *gene_prediction_all_inputs(assembly_name, genome_version)
 
 
 rule circos_plot_all:
     input:
-        *circos_plot_all_inputs(assembly_name, assembly_version)
+        *circos_plot_all_inputs(assembly_name, genome_version)

@@ -1,39 +1,43 @@
-pipeline_container: "docker://aurelia01/genome_assembly_pipeline:v0.6.15" # Container image used by the entrypoint Snakefiles.
-assembly_name: "Dioncophyllum_thollonii" # Used for naming output files.
-assembly_version: "v1.0" # Version of the assembly. Used for naming output files.
-selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
-submission_assemblies: ["primary"] # One or more assemblies to prepare for submission. Must be a subset of `selected_assemblies`.
+# Runtime
+pipeline_version: "v0.6.15" # Container image tag used by the entrypoint Snakefiles.
+organism_name: "Dioncophyllum_thollonii" # Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces.
+genome_version: "v1.0" # Version label for this genome release. Used for naming submission/output files.
 external_assembly: null # Required only with workflow/Snakefile.annotation. Use a FASTA path string such as "raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna".
+
+# Hifiasm genome assembly
+selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
 hifiasm_dual_scaf: false # Optional: Set to `true` to add `--dual-scaf` and enable hifiasm self-scaffolding. This can improve contiguity for diploid haplotype-resolved assemblies.
 ont_reads: null # Optional: Path to ultra-long ONT reads in FASTQ format (e.g., "raw_data/ont_reads.fastq.gz", "raw_data/ont_reads.fq.gz", "raw_data/ont_reads.fastq", or "raw_data/ont_reads.fq"). If null, hifiasm will run without ONT integration. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration
 hic_reads_r1: null # Optional: Hi-C read 1 FASTQ path(s) for hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps. Use a YAML list such as ["raw_data/hic_R1.fastq.gz"] or set to null to disable. See: https://github.com/chhylp123/hifiasm?tab=readme-ov-file#hi-c-integration
 hic_reads_r2: null # Optional: Hi-C read 2 FASTQ path(s) matching `hic_reads_r1` in length and order for hifiasm Hi-C phasing, YaHS scaffolding, and Juicebox-ready contact maps. Use a YAML list or set to null to disable.
-yahs_restriction_enzymes: null # Optional: Restriction enzyme motif(s) for YaHS Hi-C scaffolding, e.g. "GATC" or "GATC,GANTC". Set to null to use YaHS defaults. See: https://github.com/c-zhou/yahs
+
+# Oatk organelle assembly
 oatk_lineage: "magnoliopsida" # Lineage of the Oatk HMM profile database to download. See: https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID
 oatk_organelle: "mitochondrion_and_chloroplast" # {"mitochondrion", "chloroplast", "mitochondrion_and_chloroplast"} - specify which organelle HMM profiles to include for Oatk. "mitochondrion_and_chloroplast" includes both mitochondrial and chloroplast/plastid profiles.
 oatk_minimum_kmer_coverage: "250" # Minimum kmer coverage for Oatk. Syncmers with coverages below the threshold will be excluded from the assembly graph. As an empirical instruction, this parameter can be set as 5-10 times the value of nuclear sequence coverage. See: https://github.com/c-zhou/oatk
-organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. Set an organelle or this whole key to null, or omit an organelle key, to skip annotation. Mitochondrion: {"pmga", null}. Chloroplast: {"pga_v2", null}.
-  mitochondrion: "pmga"
-  chloroplast: "pga_v2"
-mitoz_clade: null # Required when organelle_annotation.mitochondrion is "mitoz". Passed to `mitoz annotate --clade`, e.g. "Arthropoda".
-mitoz_genetic_code: null # Required when organelle_annotation.mitochondrion is "mitoz". NCBI translation table number passed to `mitoz annotate --genetic_code`, e.g. 5 for invertebrate mitochondrial code.
-organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle annotations. Set reference_dir to null to skip. fix_hifi_frameshifts is chloroplast/PGA only.
-  chloroplast:
-    reference_dir: "plastid_reference"
-    fix_hifi_frameshifts: false
-  mitochondrion:
-    reference_dir: null
-    fix_hifi_frameshifts: false
+
+# Contamination screening
 taxid: "122299" # NCBI Taxonomy ID for the target organism. Used by FCS-GX and organelle GenBank source db_xref. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
+
+# YaHS scaffolding
+yahs_restriction_enzymes: null # Optional: Restriction enzyme motif(s) for YaHS Hi-C scaffolding, e.g. "GATC" or "GATC,GANTC". Set to null to use YaHS defaults. See: https://github.com/c-zhou/yahs
+
+# Quality assessment
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 tidk_clade: "Caryophyllales" # Clade to use for tidk (Telomere Identification Toolkit). See: https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find
 tidk_telomeric_repeat_unit: "AAACCCT" # Telomeric repeat unit to search for with tidk (Telomere Identification Toolkit). See [the telomeric repeat database](https://github.com/tolkit/a-telomeric-repeat-database) or results from `tidk explore`.
+
+# Softmasking
 dfam_version: "3.9" # Version of the Dfam database to download (used by RepeatMasker). See: https://www.dfam.org
 dfam_partitions: "0,5,6" # Dfam partitions (https://www.dfam.org/releases/current/families/FamDB/README.txt). Use comma to separate multiple partitions. "root" (partition 0) is necessary. For Viridiplantae, rosids (partition 5) should also be downloaded (https://github.com/Dfam-consortium/FamDB/issues/25).
 dfam_lineage_name: "Viridiplantae" # Name of the Dfam lineage to use.
+
+# Gene prediction
 orthodb_version: "12" # Version of OrthoDB to download (used by Braker3). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
 orthodb_lineage: "Viridiplantae" # OrthoDB lineage dataset to use. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
 orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587" # MD5 checksum of the OrthoDB database. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
+
+# Visualization
 min_long_contig_length: 1_000_000 # Minimum contig length to be considered a "long contig" for visualization (e.g., Circos plots).
 circos_plot_tracks: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite", "tidk"} - configurations for circos plots
   - {id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}
@@ -45,3 +49,15 @@ circos_plot_tracks: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_tra
   - {id: "tidk", label: "Telomeric repeat", color: "#DD8452", window_size: 10_000} # The default window size for tidk is 10,000 bp (https://github.com/tolkit/telomeric-identifier). Detection of telomeric repeats is based on `tidk_telomeric_repeat_unit`.
 circos_plot_x_major_tick_interval: 10_000_000 # Major tick interval (in bp) for the x-axis in Circos plots.
 circos_plot_x_minor_tick_interval: 5_000_000 # Minor tick interval (in bp) for the x-axis in Circos plots.
+
+# Organelle annotation
+organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. Set an organelle or this whole key to null, or omit an organelle key, to skip annotation.
+  mitochondrion: "pmga" # {"pmga", null}
+  chloroplast: "pga_v2" # {"pga_v2", null}
+organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle annotations. Set reference_dir to null to skip. fix_hifi_frameshifts is chloroplast/PGA only.
+  chloroplast:
+    reference_dir: "plastid_reference" # Required for chloroplast "pga_v2"; GenBank references are used for annotation transfer (pga_v2), CDS/protein QC, and reference-inferred RNA-editing rescue.
+    fix_hifi_frameshifts: false
+  mitochondrion:
+    reference_dir: null # Optional for mitochondrion "pmga"; GenBank references enable CDS/protein QC and reference-inferred RNA-editing rescue.
+    fix_hifi_frameshifts: false

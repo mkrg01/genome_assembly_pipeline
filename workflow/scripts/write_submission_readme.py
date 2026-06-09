@@ -9,7 +9,7 @@ def parse_args():
         description="Write a README.md describing submission file provenance."
     )
     parser.add_argument("--assembly-name", required=True)
-    parser.add_argument("--assembly-version", required=True)
+    parser.add_argument("--genome-version", required=True)
     parser.add_argument("--input-assembly", type=Path, required=True)
     parser.add_argument("--input-isoform-cds", type=Path, required=True)
     parser.add_argument("--input-isoform-gff3", type=Path, required=True)
@@ -34,7 +34,7 @@ def write_readme(args):
 
     content = f"""# Submission Files
 
-This directory contains files prepared by the `format_for_submission` rule for the assembly `{args.assembly_name}` (version `{args.assembly_version}`).
+This directory contains files prepared by the `format_for_submission` rule for `{args.assembly_name}` genome release `{args.genome_version}`.
 
 ## ID Naming Scheme
 

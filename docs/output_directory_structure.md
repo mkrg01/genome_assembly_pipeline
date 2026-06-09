@@ -9,10 +9,10 @@ The exact set of directories depends on the target you run and on the configurat
 | Placeholder | Meaning |
 | --- | --- |
 | `{selected_assembly}` | One of the assemblies listed in `selected_assemblies` in `config/config.yml`: `primary`, `hap1`, or `hap2`. |
-| `{assembly_name}` | The value of `assembly_name` in `config/config.yml`. |
+| `{organism_name}` | The value of `organism_name` in `config/config.yml`. |
 | `{organelle}` | One of the organelle types selected by `oatk_organelle`: `mitochondrion` or `chloroplast`. |
 
-- `results/submission/{selected_assembly}/` is created only for assemblies listed in `submission_assemblies`.
+- `results/submission/{selected_assembly}/` is created for assemblies listed in `selected_assemblies`.
 - `results/submission/organelle/` depends on `oatk_organelle` and `organelle_annotation`; genome FASTA files are populated from Oatk outputs, and annotation files are populated only for organelles with configured annotation tools.
 - `results/ont_reads/` is created only when `ont_reads` is set.
 - `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
@@ -23,9 +23,9 @@ The exact set of directories depends on the target you run and on the configurat
 
 Several downstream steps use a single "final" assembly after contamination removal:
 
-- Without Hi-C reads, the downstream assembly is `results/fcs/assembly/{selected_assembly}/{assembly_name}.fa`.
-- With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{assembly_name}.fa`.
-- With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{assembly_name}.fa`.
+- Without Hi-C reads, the downstream assembly is `results/fcs/assembly/{selected_assembly}/{organism_name}.fa`.
+- With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{organism_name}.fa`.
+- With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
 This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, submission formatting, and Circos/linear plots.
 
@@ -33,7 +33,7 @@ This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, submission for
 
 BRAKER3 working directories for the RepeatMasker soft-masked downstream assemblies.
 
-- `results/braker3/{selected_assembly}/{assembly_name}/`
+- `results/braker3/{selected_assembly}/{organism_name}/`
   Main tracked outputs include `braker.gff3`, `braker.gtf`, `braker.codingseq`, `braker.aa`, and `augustus_config/`.
   Additional BRAKER3-generated files may also appear in the same directory.
 
@@ -225,11 +225,11 @@ Organelle assembly outputs generated from HiFi reads.
 
 Annotations and visualizations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`. The GenBank, manifest, and supported-tool `post_curation.md` files are produced by `organelle_annotation_all`; pyCirclize and gbdraw PDFs are produced separately by `organelle_visualization_all` so the GenBank files can be manually curated first.
 
-- `mitochondrion/pmga/{assembly_name}/`
+- `mitochondrion/pmga/{organism_name}/`
   PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, the FASTA actually used for final annotation (`*.mitochondrion.ctg.annotation.fasta`), a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), a JSON manifest (`*.mitochondrion.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/taxon/LOCUS metadata post-curation and provides space for user-written manual curation notes after the workflow run. Circular records are preliminarily annotated once to choose a non-origin internal feature-free gap and are rotated before final annotation when a suitable gap is found. When the mitochondrial input FASTA contains multiple records, PMGA is run separately for each record to avoid PMGA's built-in contig concatenation behavior; the curated record-level GenBank outputs are then concatenated into the canonical multi-record `*.mitochondrion.gbk`. The manifest records the per-record PMGA output directories. The canonical GenBank file is trimmed to `LOCUS`, `FEATURES`, and `ORIGIN` sections. GenBank `LOCUS` topology is corrected from the input FASTA `circular=true/false` flag after PMGA finishes. PMGA-derived `/exception="trans-splicing"` CDS qualifiers are normalized to DDBJ-style `/trans_splicing` qualifiers and recorded in `post_curation.md`.
 
   For multi-record GenBank inputs, gbdraw writes the first record to the canonical `*.gbdraw.pdf` and additional records to sibling files named like `*.gbdraw.record02_<record>.pdf`.
-- `chloroplast/pga_v2/{assembly_name}/`
+- `chloroplast/pga_v2/{organism_name}/`
   PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, the FASTA actually used for final annotation (`*.chloroplast.ctg.annotation.fasta`), a canonical GenBank file (`*.chloroplast.gbk`), pyCirclize and gbdraw circular maps (`*.chloroplast.pycirclize.pdf`, `*.chloroplast.gbdraw.pdf`), a JSON manifest (`*.chloroplast.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/taxon/LOCUS metadata post-curation and provides space for user-written manual curation notes after the workflow run. Circular single-record inputs are preliminarily annotated once to choose a non-origin internal feature-free gap and are rotated before final annotation when a suitable gap is found. The canonical GenBank file is trimmed to `LOCUS`, `FEATURES`, and `ORIGIN` sections. GenBank `LOCUS` topology is corrected from the input FASTA `circular=true/false` flag after PGA v2.0 finishes.
 
 ## `results/ont_reads/`
@@ -291,7 +291,7 @@ RNA-seq preprocessing outputs.
 
 ## `results/submission/`
 
-Submission-ready files produced for assemblies listed in `submission_assemblies`, plus organelle submission assets staged from Oatk assemblies.
+Submission-ready files produced for assemblies listed in `selected_assemblies`, plus organelle submission assets staged from Oatk assemblies.
 
 - `{selected_assembly}/`
   Gzipped genome FASTA, isoform CDS/GFF3 files, representative CDS/GFF3 files, and a generated README for submission.
@@ -315,5 +315,5 @@ Created only when Hi-C reads are configured.
   YaHS AGP files.
 - `bin/{selected_assembly}/`
   YaHS binary output files.
-- `run/{selected_assembly}/{assembly_name}/`
+- `run/{selected_assembly}/{organism_name}/`
   YaHS working directory containing raw run outputs copied into the tracked result locations above.
