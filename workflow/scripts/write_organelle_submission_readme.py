@@ -14,7 +14,7 @@ ORGANELLE_LABELS = {
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Write a README.md describing organelle submission file provenance."
+        description="Write a README.md describing organelle release file provenance."
     )
     parser.add_argument("--organelle", required=True)
     parser.add_argument("--annotation-tool")
@@ -92,13 +92,13 @@ def write_readme(args):
             "configured for this organelle."
         )
 
-    content = f"""# Organelle Submission Files
+    content = f"""# Organelle Release Files
 
-This directory contains files staged for submission of the {label} genome for `{args.assembly_name}` genome release `{args.genome_version}`.
+This directory contains organelle release files staged for the {label} genome for `{args.assembly_name}` genome release `{args.genome_version}`.
 
 ## File Provenance
 
-| Submission file | Source file | How the submission file was generated |
+| Release file | Source file | How the release file was generated |
 | --- | --- | --- |
 {chr(10).join(provenance_rows)}
 

@@ -575,12 +575,12 @@ def gene_prediction_all_inputs(assembly_name, genome_version):
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     for pattern in (
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_isoforms.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.cds.fa.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_representative.gff3.gz",
-        "results/submission/{selected_assembly}/{assembly_name}_{genome_version}_README.md",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}.fa.gz",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}_isoforms.cds.fa.gz",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}_isoforms.gff3.gz",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}_representative.cds.fa.gz",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}_representative.gff3.gz",
+        "results/release/{genome_version}/nuclear/{selected_assembly}/{assembly_name}_{genome_version}_{selected_assembly}_README.md",
     ):
         inputs.extend(
             expand_selected_assembly_paths(
@@ -945,7 +945,7 @@ def organelle_submission_input_paths(assembly_name, organelle):
 def organelle_submission_output_paths_by_organelle(assembly_name, genome_version, organelle):
     organelle = normalize_organelle_name("oatk_organelle", organelle)
     prefix = (
-        f"results/submission/organelle/{organelle}/"
+        f"results/release/{genome_version}/organelle/{organelle}/"
         f"{assembly_name}_{genome_version}_{organelle}"
     )
     outputs = {

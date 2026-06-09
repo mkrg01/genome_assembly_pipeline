@@ -348,12 +348,12 @@ rule format_for_submission:
         longest_cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
         longest_gff3 = "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     output:
-        assembly = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}.fa.gz",
-        isoform_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_isoforms.cds.fa.gz",
-        isoform_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_isoforms.gff3.gz",
-        longest_cds = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_representative.cds.fa.gz",
-        longest_gff3 = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_representative.gff3.gz",
-        readme = f"results/submission/{{selected_assembly}}/{{assembly_name}}_{genome_version}_README.md"
+        assembly = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}.fa.gz",
+        isoform_cds = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}_isoforms.cds.fa.gz",
+        isoform_gff3 = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}_isoforms.gff3.gz",
+        longest_cds = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}_representative.cds.fa.gz",
+        longest_gff3 = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}_representative.gff3.gz",
+        readme = f"results/release/{genome_version}/nuclear/{{selected_assembly}}/{{assembly_name}}_{genome_version}_{{selected_assembly}}_README.md"
     log:
         out = "logs/format_for_submission_{selected_assembly}_{assembly_name}.out",
         err = "logs/format_for_submission_{selected_assembly}_{assembly_name}.err"
@@ -407,9 +407,9 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["annotation"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
-            annotation = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.gbk.gz",
-            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
+            genome = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
+            annotation = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.gbk.gz",
+            readme = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.out",
             err = "logs/format_organelle_for_submission_{organelle}_{assembly_name}.err"
@@ -454,8 +454,8 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
                 wildcards.organelle,
             )["genome"]
         output:
-            genome = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
-            readme = f"results/submission/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
+            genome = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
+            readme = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}_README.md"
         log:
             out = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.out",
             err = "logs/format_organelle_without_annotation_for_submission_{organelle}_{assembly_name}.err"

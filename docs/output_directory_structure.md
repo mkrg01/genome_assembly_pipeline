@@ -10,10 +10,11 @@ The exact set of directories depends on the target you run and on the configurat
 | --- | --- |
 | `{selected_assembly}` | One of the assemblies listed in `selected_assemblies` in `config/config.yml`: `primary`, `hap1`, or `hap2`. |
 | `{organism_name}` | The value of `organism_name` in `config/config.yml`. |
+| `{genome_version}` | The value of `genome_version` in `config/config.yml`, such as `v1.0`. |
 | `{organelle}` | One of the organelle types selected by `oatk_organelle`: `mitochondrion` or `chloroplast`. |
 
-- `results/submission/{selected_assembly}/` is created for assemblies listed in `selected_assemblies`.
-- `results/submission/organelle/` depends on `oatk_organelle` and `organelle_annotation`; genome FASTA files are populated from Oatk outputs, and annotation files are populated only for organelles with configured annotation tools.
+- `results/release/{genome_version}/nuclear/{selected_assembly}/` is created for assemblies listed in `selected_assemblies`.
+- `results/release/{genome_version}/organelle/` depends on `oatk_organelle` and `organelle_annotation`; genome FASTA files are populated from Oatk outputs, and annotation files are populated only for organelles with configured annotation tools.
 - `results/ont_reads/` is created only when `ont_reads` is set.
 - `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
 - Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mitochondrion`, `chloroplast`, or `mitochondrion_and_chloroplast`). Raw Oatk files still use Oatk's native `mito` and `pltd` suffixes.
@@ -27,7 +28,7 @@ Several downstream steps use a single "final" assembly after contamination remov
 - With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{organism_name}.fa`.
 - With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
-This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, submission formatting, and Circos/linear plots.
+This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, release formatting, and Circos/linear plots.
 
 ## `results/braker3/`
 
@@ -214,7 +215,7 @@ Organelle assembly outputs generated from HiFi reads.
 
 - `oatk/`
   Raw Oatk outputs.
-  Depending on `oatk_organelle`, this directory can include mitochondrial and/or chloroplast/plastid GFA files, BED files, and contig FASTA files. Oatk writes these raw files with its native `mito` and `pltd` suffixes. Oatk annotation files are not used by the submission path.
+  Depending on `oatk_organelle`, this directory can include mitochondrial and/or chloroplast/plastid GFA files, BED files, and contig FASTA files. Oatk writes these raw files with its native `mito` and `pltd` suffixes. Oatk annotation files are not used directly by the release path.
 - `concatemer/`
   Concatenated organelle references.
   `*.concatemer.all.fa` is always produced; organelle-specific `*.concatemer.mitochondrion.fa` and/or `*.concatemer.chloroplast.fa` are produced when applicable.
@@ -289,14 +290,14 @@ RNA-seq preprocessing outputs.
 - `fastp/`
   Filtered paired-end RNA-seq FASTQ files and the corresponding fastp HTML/JSON reports.
 
-## `results/submission/`
+## `results/release/{genome_version}/`
 
-Submission-ready files produced for assemblies listed in `selected_assemblies`, plus organelle submission assets staged from Oatk assemblies.
+Final formatted release files produced for assemblies listed in `selected_assemblies`, plus organelle release assets staged from Oatk assemblies.
 
-- `{selected_assembly}/`
-  Gzipped genome FASTA, isoform CDS/GFF3 files, representative CDS/GFF3 files, and a generated README for submission.
+- `nuclear/{selected_assembly}/`
+  Gzipped nuclear genome FASTA, isoform CDS/GFF3 files, representative CDS/GFF3 files, and a generated README. File names include `{organism_name}`, `{genome_version}`, and `{selected_assembly}`.
 - `organelle/{organelle}/`
-  Organelle-specific submission files. Each organelle subdirectory contains a gzipped genome FASTA and a generated README describing file provenance. A gzipped GenBank annotation file is included only when `organelle_annotation` configures a non-null annotation tool for that organelle.
+  Organelle-specific release files. Each organelle subdirectory contains a gzipped genome FASTA and a generated README describing file provenance. A gzipped GenBank annotation file is included only when `organelle_annotation` configures a non-null annotation tool for that organelle.
 
 ## `results/yahs/`
 
@@ -308,7 +309,7 @@ Created only when Hi-C reads are configured.
   Deduplicated Hi-C BAM files and BAM indices.
 - `assembly/{selected_assembly}/`
   Final scaffolded assemblies produced by YaHS.
-  These assemblies become the downstream input for RepeatModeler, RepeatMasker, BRAKER3, submission formatting, and plotting when Hi-C is enabled.
+  These assemblies become the downstream input for RepeatModeler, RepeatMasker, BRAKER3, release formatting, and plotting when Hi-C is enabled.
 - `assembly_long_contigs/{selected_assembly}/`
   Long contigs extracted from the YaHS assemblies for downstream plotting.
 - `agp/{selected_assembly}/`

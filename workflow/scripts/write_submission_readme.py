@@ -6,7 +6,7 @@ from rename_submission_gene_models import make_submission_prefix
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Write a README.md describing submission file provenance."
+        description="Write a README.md describing release file provenance."
     )
     parser.add_argument("--assembly-name", required=True)
     parser.add_argument("--genome-version", required=True)
@@ -32,9 +32,9 @@ def write_readme(args):
     prefix = make_submission_prefix(args.assembly_name)
     args.output_readme.parent.mkdir(parents=True, exist_ok=True)
 
-    content = f"""# Submission Files
+    content = f"""# Release Files
 
-This directory contains files prepared by the `format_for_submission` rule for `{args.assembly_name}` genome release `{args.genome_version}`.
+This directory contains nuclear genome release files prepared by the `format_for_submission` rule for `{args.assembly_name}` genome release `{args.genome_version}`.
 
 ## ID Naming Scheme
 
@@ -48,7 +48,7 @@ The submission annotation files use gene and transcript IDs derived from the ass
 
 ## File Provenance
 
-| Submission file | Source file | How the submission file was generated |
+| Release file | Source file | How the release file was generated |
 | --- | --- | --- |
 | {quote_path(args.output_assembly)} | {quote_path(args.input_assembly)} | The RepeatMasker-masked genome FASTA was copied without sequence changes and compressed with `gzip`. |
 | {quote_path(args.output_isoform_cds)} | {quote_path(args.input_isoform_cds)} | The CDS sequences were kept unchanged, but each FASTA header was renamed from the original BRAKER transcript ID to the submission ID scheme described above. The result was then compressed with `gzip`. |
@@ -58,7 +58,7 @@ The submission annotation files use gene and transcript IDs derived from the ass
 
 ## Notes
 
-- The submission-ready annotation files were generated with `workflow/scripts/rename_submission_gene_models.py`.
+- The release annotation files were generated with `workflow/scripts/rename_submission_gene_models.py`.
 - This README was generated automatically by `workflow/scripts/write_submission_readme.py`.
 """
 

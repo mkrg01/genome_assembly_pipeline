@@ -24,8 +24,8 @@ class WriteOrganelleSubmissionReadmeTest(unittest.TestCase):
                 genome_version="v1.0",
                 input_genome=Path("results/oatk/oatk/Testus_example.mito.ctg.fasta"),
                 input_annotation=Path("results/organelle_annotation/mitochondrion/pmga/Testus_example/Testus_example.mitochondrion.annotation.gbk"),
-                output_genome=Path("results/submission/organelle/mitochondrion/Testus_example_v1.0_mitochondrion_genome.fa.gz"),
-                output_annotation=Path("results/submission/organelle/mitochondrion/Testus_example_v1.0_mitochondrion_annotation.gbk.gz"),
+                output_genome=Path("results/release/v1.0/organelle/mitochondrion/Testus_example_v1.0_mitochondrion.fa.gz"),
+                output_annotation=Path("results/release/v1.0/organelle/mitochondrion/Testus_example_v1.0_mitochondrion.gbk.gz"),
                 output_readme=output_readme,
             )
 
@@ -48,7 +48,7 @@ class WriteOrganelleSubmissionReadmeTest(unittest.TestCase):
                 genome_version="v1.0",
                 input_genome=Path("results/oatk/oatk/Testus_example.pltd.ctg.fasta"),
                 input_annotation=None,
-                output_genome=Path("results/submission/organelle/chloroplast/Testus_example_v1.0_chloroplast_genome.fa.gz"),
+                output_genome=Path("results/release/v1.0/organelle/chloroplast/Testus_example_v1.0_chloroplast.fa.gz"),
                 output_annotation=None,
                 output_readme=output_readme,
             )
