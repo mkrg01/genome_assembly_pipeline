@@ -13,8 +13,6 @@ oatk_minimum_kmer_coverage: "250"
 organelle_annotation:
   mitochondrion: "pmga"
   chloroplast: "pga_v2"
-mitoz_clade: null
-mitoz_genetic_code: null
 pga_v2_reference_dir: "resources/plastid_reference"
 pga_v2_fix_chloroplast_sequence_frameshifts: false
 fcs_gx_taxid: "122299"

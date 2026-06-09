@@ -143,38 +143,6 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
             """
 
 
-if "mitochondrion" in configured_oatk_organelles() and configured_organelle_annotation_tool("mitochondrion") == "mitoz":
-    rule annotate_mitochondrion_mitoz:
-        input:
-            genome = organelle_prefixed_genome_path("{assembly_name}", "mitochondrion")
-        output:
-            annotation = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.gbk",
-            manifest = "results/organelle_annotation/mitochondrion/mitoz/{assembly_name}/{assembly_name}.mitochondrion.manifest.json"
-        log:
-            out = "logs/annotate_mitochondrion_mitoz_{assembly_name}.out",
-            err = "logs/annotate_mitochondrion_mitoz_{assembly_name}.err"
-        conda:
-            "../envs/mitoz.yml"
-        threads:
-            max(1, int(workflow.cores * 0.5))
-        params:
-            clade = required_mitoz_config_value("mitoz_clade"),
-            genetic_code = required_mitoz_genetic_code()
-        shell:
-            """
-            (
-                python3 workflow/scripts/run_mitoz.py \
-                    --input-fasta {input.genome:q} \
-                    --annotation {output.annotation:q} \
-                    --manifest {output.manifest:q} \
-                    --prefix {wildcards.assembly_name:q} \
-                    --clade {params.clade:q} \
-                    --genetic-code {params.genetic_code:q} \
-                    --threads {threads}
-            ) > {log.out:q} 2> {log.err:q}
-            """
-
-
 if "chloroplast" in configured_oatk_organelles() and configured_organelle_annotation_tool("chloroplast") == "pga_v2":
     rule annotate_chloroplast_pga_v2:
         input:
@@ -555,7 +523,7 @@ if configured_oatk_organelles_with_annotation():
             "../envs/pycirclize.yml"
         wildcard_constraints:
             organelle = "mitochondrion|chloroplast",
-            tool = "pmga|mitoz|pga_v2"
+            tool = "pmga|pga_v2"
         params:
             assembly_name = lambda wildcards: wildcards.assembly_name,
             organelle = lambda wildcards: wildcards.organelle,
@@ -585,7 +553,7 @@ if configured_oatk_organelles_with_annotation():
             "../envs/gbdraw.yml"
         wildcard_constraints:
             organelle = "mitochondrion|chloroplast",
-            tool = "pmga|mitoz|pga_v2"
+            tool = "pmga|pga_v2"
         params:
             output_prefix = lambda wildcards: (
                 "results/organelle_annotation/"

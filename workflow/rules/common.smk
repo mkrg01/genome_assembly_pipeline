@@ -94,7 +94,7 @@ ORGANELLE_RNA_EDITING_THRESHOLDS = {
 }
 
 VALID_ORGANELLE_ANNOTATION_TOOLS = {
-    "mitochondrion": ("pmga", "mitoz"),
+    "mitochondrion": ("pmga",),
     "chloroplast": ("pga_v2",),
 }
 ORGANELLE_RNA_EDITING_SUPPORTED_TOOLS = {"pmga", "pga_v2"}
@@ -199,34 +199,6 @@ def required_taxid_config(tool_name):
             "Legacy 'fcs_gx_taxid' is still accepted as a fallback."
         )
     return taxid
-
-
-def required_mitoz_config_value(config_key):
-    value = config.get(config_key, None)
-    if value is None:
-        raise ValueError(
-            f"'{config_key}' in config.yml is required when "
-            "'organelle_annotation.mitochondrion' is set to 'mitoz'."
-        )
-    if isinstance(value, bool):
-        raise ValueError(f"'{config_key}' in config.yml must not be a boolean.")
-    value = str(value).strip()
-    if not value:
-        raise ValueError(
-            f"'{config_key}' in config.yml must not be empty when "
-            "'organelle_annotation.mitochondrion' is set to 'mitoz'."
-        )
-    return value
-
-
-def required_mitoz_genetic_code():
-    value = required_mitoz_config_value("mitoz_genetic_code")
-    if not value.isdigit() or int(value) < 1:
-        raise ValueError(
-            "'mitoz_genetic_code' in config.yml must be a positive integer "
-            "NCBI translation table number."
-        )
-    return value
 
 
 def normalize_organelle_name(config_key, value):
