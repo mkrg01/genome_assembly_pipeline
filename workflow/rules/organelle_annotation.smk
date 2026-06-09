@@ -12,7 +12,7 @@ PGA_V2_SCRIPT_URL = (
 
 
 if configured_oatk_organelles():
-    rule prefix_organelle_fasta_record_ids:
+    rule prefix_organelle_fasta_ids:
         input:
             lambda wildcards: organelle_oatk_genome_path(
                 wildcards.assembly_name,
@@ -28,8 +28,8 @@ if configured_oatk_organelles():
                 "{assembly_name}.{organelle}.ctg.manifest.json"
             )
         log:
-            out = "logs/prefix_organelle_fasta_record_ids_{organelle}_{assembly_name}.out",
-            err = "logs/prefix_organelle_fasta_record_ids_{organelle}_{assembly_name}.err"
+            out = "logs/prefix_organelle_fasta_ids_{organelle}_{assembly_name}.out",
+            err = "logs/prefix_organelle_fasta_ids_{organelle}_{assembly_name}.err"
         conda:
             "../envs/pybase.yml"
         wildcard_constraints:
@@ -51,14 +51,14 @@ if configured_oatk_organelles():
             """
 
 
-rule download_pmga:
+rule download_pmga_bundle:
     output:
         archive = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/{PMGA_ARCHIVE_NAME}",
         bundle = directory(f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"),
         manifest = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/manifest.json"
     log:
-        out = "logs/download_pmga.out",
-        err = "logs/download_pmga.err"
+        out = "logs/download_pmga_bundle.out",
+        err = "logs/download_pmga_bundle.err"
     conda:
         "../envs/pybase.yml"
     params:
@@ -106,7 +106,7 @@ rule download_pga_v2_script:
 
 
 if "mitochondrion" in configured_oatk_organelles() and configured_organelle_annotation_tool("mitochondrion") == "pmga":
-    rule annotate_mitochondrion_pmga:
+    rule annotate_mitochondrion_with_pmga:
         input:
             genome = organelle_prefixed_genome_path("{assembly_name}", "mitochondrion"),
             pmga_bundle = f"results/downloads/pmga/v{PMGA_FIGSHARE_VERSION}/PMGA"
@@ -116,8 +116,8 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
             manifest = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/{assembly_name}.mitochondrion.manifest.json",
             post_curation = "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/post_curation.pre_rna_editing.md"
         log:
-            out = "logs/annotate_mitochondrion_pmga_{assembly_name}.out",
-            err = "logs/annotate_mitochondrion_pmga_{assembly_name}.err"
+            out = "logs/annotate_mitochondrion_with_pmga_{assembly_name}.out",
+            err = "logs/annotate_mitochondrion_with_pmga_{assembly_name}.err"
         conda:
             "../envs/pybase.yml"
         container:
@@ -144,7 +144,7 @@ if "mitochondrion" in configured_oatk_organelles() and configured_organelle_anno
 
 
 if "chloroplast" in configured_oatk_organelles() and configured_organelle_annotation_tool("chloroplast") == "pga_v2":
-    rule annotate_chloroplast_pga_v2:
+    rule annotate_chloroplast_with_pga_v2:
         input:
             genome = organelle_prefixed_genome_path("{assembly_name}", "chloroplast"),
             script = f"results/downloads/pga_v2/{PGA_V2_COMMIT}/1.2.PGA_v2.pl",
@@ -163,8 +163,8 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                 "{assembly_name}.chloroplast.reference_cds_qc.frameshift_candidates.json"
             )
         log:
-            out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
-            err = "logs/annotate_chloroplast_pga_v2_{assembly_name}.err"
+            out = "logs/annotate_chloroplast_with_pga_v2_{assembly_name}.out",
+            err = "logs/annotate_chloroplast_with_pga_v2_{assembly_name}.err"
         conda:
             "../envs/pga_v2.yml"
         threads:
@@ -215,7 +215,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule build_organelle_rna_editing_reference:
+    rule build_reference_for_organelle_rna_editing:
         input:
             unpack(
                 lambda wildcards: organelle_rna_editing_reference_input_paths(
@@ -225,8 +225,8 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
         output:
             **organelle_rna_editing_reference_paths("{assembly_name}")
         log:
-            out = "logs/build_organelle_rna_editing_reference_{assembly_name}.out",
-            err = "logs/build_organelle_rna_editing_reference_{assembly_name}.err"
+            out = "logs/build_reference_for_organelle_rna_editing_{assembly_name}.out",
+            err = "logs/build_reference_for_organelle_rna_editing_{assembly_name}.err"
         conda:
             "../envs/organelle_rna_editing.yml"
         params:
@@ -252,15 +252,15 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule map_hifi_reads_to_organelle_rna_editing_reference:
+    rule map_hifi_reads_to_reference_for_organelle_rna_editing:
         input:
             reference = organelle_rna_editing_reference_paths("{assembly_name}")["reference"],
             reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
         output:
             **organelle_rna_editing_hifi_bam_paths("{assembly_name}")
         log:
-            out = "logs/map_hifi_reads_to_organelle_rna_editing_reference_{assembly_name}.out",
-            err = "logs/map_hifi_reads_to_organelle_rna_editing_reference_{assembly_name}.err"
+            out = "logs/map_hifi_reads_to_reference_for_organelle_rna_editing_{assembly_name}.out",
+            err = "logs/map_hifi_reads_to_reference_for_organelle_rna_editing_{assembly_name}.err"
         conda:
             "../envs/organelle_rna_editing.yml"
         threads:
@@ -284,7 +284,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule map_rnaseq_reads_to_organelle_rna_editing_reference:
+    rule map_rnaseq_reads_to_reference_for_organelle_rna_editing:
         input:
             reference = organelle_rna_editing_reference_paths("{assembly_name}")["reference"],
             rnaseq_1 = "results/rnaseq_reads/fastp/{rnaseq_sample_id}_1.fastq",
@@ -300,11 +300,11 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
             )
         log:
             out = (
-                "logs/map_rnaseq_reads_to_organelle_rna_editing_reference_"
+                "logs/map_rnaseq_reads_to_reference_for_organelle_rna_editing_"
                 "{rnaseq_sample_id}_{assembly_name}.out"
             ),
             err = (
-                "logs/map_rnaseq_reads_to_organelle_rna_editing_reference_"
+                "logs/map_rnaseq_reads_to_reference_for_organelle_rna_editing_"
                 "{rnaseq_sample_id}_{assembly_name}.err"
             )
         conda:
@@ -333,7 +333,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule extract_hifi_organelle_bam_for_rna_editing:
+    rule extract_organelle_hifi_bam_for_rna_editing:
         input:
             manifest = organelle_rna_editing_reference_paths("{assembly_name}")["manifest"],
             source_bam = organelle_rna_editing_hifi_bam_paths("{assembly_name}")["bam"],
@@ -344,8 +344,8 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                 "{organelle}",
             )
         log:
-            out = "logs/extract_hifi_organelle_bam_for_rna_editing_{organelle}_{assembly_name}.out",
-            err = "logs/extract_hifi_organelle_bam_for_rna_editing_{organelle}_{assembly_name}.err"
+            out = "logs/extract_organelle_hifi_bam_for_rna_editing_{organelle}_{assembly_name}.out",
+            err = "logs/extract_organelle_hifi_bam_for_rna_editing_{organelle}_{assembly_name}.err"
         conda:
             "../envs/organelle_rna_editing.yml"
         wildcard_constraints:
@@ -363,7 +363,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule extract_rnaseq_organelle_bam_for_rna_editing:
+    rule extract_organelle_rnaseq_bam_for_rna_editing:
         input:
             manifest = organelle_rna_editing_reference_paths("{assembly_name}")["manifest"],
             source_bam = (
@@ -385,11 +385,11 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
             )
         log:
             out = (
-                "logs/extract_rnaseq_organelle_bam_for_rna_editing_"
+                "logs/extract_organelle_rnaseq_bam_for_rna_editing_"
                 "{rnaseq_sample_id}_{organelle}_{assembly_name}.out"
             ),
             err = (
-                "logs/extract_rnaseq_organelle_bam_for_rna_editing_"
+                "logs/extract_organelle_rnaseq_bam_for_rna_editing_"
                 "{rnaseq_sample_id}_{organelle}_{assembly_name}.err"
             )
         conda:
@@ -410,7 +410,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule curate_organelle_rna_editing:
+    rule curate_organelle_rna_editing_sites:
         input:
             annotation = (
                 "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
@@ -455,8 +455,8 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                 "post_curation.md"
             )
         log:
-            out = "logs/curate_organelle_rna_editing_{organelle}_{tool}_{assembly_name}.out",
-            err = "logs/curate_organelle_rna_editing_{organelle}_{tool}_{assembly_name}.err"
+            out = "logs/curate_organelle_rna_editing_sites_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/curate_organelle_rna_editing_sites_{organelle}_{tool}_{assembly_name}.err"
         conda:
             "../envs/organelle_rna_editing.yml"
         wildcard_constraints:
@@ -509,7 +509,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if "mitochondrion" in configured_oatk_organelles_with_annotation() and configured_organelle_annotation_tool("mitochondrion") == "pmga":
-    rule reference_cds_qc_pre_rna_editing_pmga:
+    rule qc_pmga_reference_cds_before_editing:
         input:
             annotation = (
                 "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/"
@@ -521,8 +521,8 @@ if "mitochondrion" in configured_oatk_organelles_with_annotation() and configure
                 "{assembly_name}.mitochondrion.reference_cds_qc.pre_rna_editing.tsv"
             )
         log:
-            out = "logs/reference_cds_qc_pre_rna_editing_mitochondrion_pmga_{assembly_name}.out",
-            err = "logs/reference_cds_qc_pre_rna_editing_mitochondrion_pmga_{assembly_name}.err"
+            out = "logs/qc_pmga_reference_cds_before_editing_{assembly_name}.out",
+            err = "logs/qc_pmga_reference_cds_before_editing_{assembly_name}.err"
         conda:
             "../envs/pybase.yml"
         params:
@@ -543,7 +543,7 @@ if "mitochondrion" in configured_oatk_organelles_with_annotation() and configure
 
 
 if configured_oatk_organelles_with_rna_editing_post_curation():
-    rule reference_cds_qc_post_rna_editing:
+    rule qc_reference_cds_after_editing:
         input:
             annotation = (
                 "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
@@ -559,8 +559,8 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                 "{assembly_name}.{organelle}.manual_rna_editing_candidates.tsv"
             )
         log:
-            out = "logs/reference_cds_qc_post_rna_editing_{organelle}_{tool}_{assembly_name}.out",
-            err = "logs/reference_cds_qc_post_rna_editing_{organelle}_{tool}_{assembly_name}.err"
+            out = "logs/qc_reference_cds_after_editing_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/qc_reference_cds_after_editing_{organelle}_{tool}_{assembly_name}.err"
         conda:
             "../envs/pybase.yml"
         wildcard_constraints:
@@ -586,7 +586,7 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_annotation():
-    rule plot_organelle_pycirclize:
+    rule plot_organelle_with_pycirclize:
         input:
             annotation = (
                 lambda wildcards: organelle_annotation_input_for_downstream(
@@ -600,8 +600,8 @@ if configured_oatk_organelles_with_annotation():
                 "{assembly_name}.{organelle}.pycirclize.pdf"
             )
         log:
-            out = "logs/plot_organelle_pycirclize_{organelle}_{tool}_{assembly_name}.out",
-            err = "logs/plot_organelle_pycirclize_{organelle}_{tool}_{assembly_name}.err"
+            out = "logs/plot_organelle_with_pycirclize_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/plot_organelle_with_pycirclize_{organelle}_{tool}_{assembly_name}.err"
         conda:
             "../envs/pycirclize.yml"
         wildcard_constraints:
@@ -616,7 +616,7 @@ if configured_oatk_organelles_with_annotation():
 
 
 if configured_oatk_organelles_with_annotation():
-    rule plot_organelle_gbdraw:
+    rule plot_organelle_with_gbdraw:
         input:
             annotation = (
                 lambda wildcards: organelle_annotation_input_for_downstream(
@@ -630,8 +630,8 @@ if configured_oatk_organelles_with_annotation():
                 "{assembly_name}.{organelle}.gbdraw.pdf"
             )
         log:
-            out = "logs/plot_organelle_gbdraw_{organelle}_{tool}_{assembly_name}.out",
-            err = "logs/plot_organelle_gbdraw_{organelle}_{tool}_{assembly_name}.err"
+            out = "logs/plot_organelle_with_gbdraw_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/plot_organelle_with_gbdraw_{organelle}_{tool}_{assembly_name}.err"
         conda:
             "../envs/gbdraw.yml"
         wildcard_constraints:
