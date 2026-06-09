@@ -893,17 +893,12 @@ def organelle_visualization_output_paths(assembly_name, organelle):
     }
 
 
-def organelle_annotation_all_inputs(assembly_name):
+def organelle_annotation_all_inputs(assembly_name, genome_version_label):
     outputs = []
     for organelle in configured_oatk_organelles_with_annotation():
         outputs.extend(organelle_annotation_output_paths(assembly_name, organelle).values())
-    return outputs
-
-
-def organelle_visualization_all_inputs(assembly_name):
-    outputs = []
-    for organelle in configured_oatk_organelles_with_annotation():
         outputs.extend(organelle_visualization_output_paths(assembly_name, organelle).values())
+    outputs.extend(organelle_submission_output_paths(assembly_name, genome_version_label))
     return outputs
 
 
@@ -1005,13 +1000,6 @@ def organelle_submission_output_paths(assembly_name, genome_version):
             ).values()
         )
     return outputs
-
-
-def organelle_submission_all_inputs(assembly_name, genome_version):
-    return (
-        organelle_visualization_all_inputs(assembly_name)
-        + organelle_submission_output_paths(assembly_name, genome_version)
-    )
 
 
 def circos_plot_all_inputs(assembly_name, genome_version):

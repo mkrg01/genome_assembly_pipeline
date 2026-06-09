@@ -43,7 +43,7 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 ```
 
 > [!TIP]
-> You can run the pipeline in a stepwise manner. Replace `all` with one of the command below.
+> You can run the pipeline in a stepwise manner. Replace `all` with one of the commands below.
 > 
 > 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
 > 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
@@ -52,9 +52,7 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > 5. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
 > 6. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
 > 7. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
-> 8. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes that have configured organelle annotation tools, including any required pinned tool downloads. This target stops at the annotation files so they can be manually curated before visualization.
-> 9. `organelle_visualization_all`: Draws pyCirclize and gbdraw circular maps from the current organelle GenBank files. Run this after any manual curation.
-> 10. `organelle_submission_all`: Stages Oatk-assembled organelle genome and annotation files for the release package.
+> 8. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes, draws pyCirclize and gbdraw circular maps, and stages organelle genome and annotation files for the release package.
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 
@@ -62,9 +60,13 @@ For organelle annotation curation, a typical sequence is:
 
 ```bash
 snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 organelle_annotation_all
-# manually curate results/organelle_annotation/.../*.gbk
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_visualization_all --rerun-triggers mtime
+# Manually curate results/organelle_annotation/.../*.gbk if necessary.
+snakemake -n --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_annotation_all --rerun-triggers mtime
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_annotation_all --rerun-triggers mtime
 ```
+
+After manual GenBank curation, the dry-run should schedule only downstream steps such as organelle map drawing and release staging.
+If GenBank-producing rules are listed, check the upstream file timestamps before running the command without `-n`.
 
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.

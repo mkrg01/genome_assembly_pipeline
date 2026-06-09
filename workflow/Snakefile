@@ -11,7 +11,7 @@ include: "rules/circos_plot.smk"
 rule all:
     input:
         *circos_plot_all_inputs(assembly_name, genome_version),
-        *organelle_submission_all_inputs(assembly_name, genome_version)
+        *organelle_annotation_all_inputs(assembly_name, genome_version)
 
 rule assembly_all:
     input:
@@ -43,12 +43,4 @@ rule circos_plot_all:
 
 rule organelle_annotation_all:
     input:
-        *organelle_annotation_all_inputs(assembly_name)
-
-rule organelle_visualization_all:
-    input:
-        *organelle_visualization_all_inputs(assembly_name)
-
-rule organelle_submission_all:
-    input:
-        *organelle_submission_all_inputs(assembly_name, genome_version)
+        *organelle_annotation_all_inputs(assembly_name, genome_version)
