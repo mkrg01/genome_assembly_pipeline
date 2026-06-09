@@ -72,6 +72,8 @@ EVIDENCE_FIELDS = [
     "dna_alt_reads",
     "dna_alt_fraction",
     "decision",
+    "original_decision",
+    "rescue_reason",
     "applied",
     "note",
 ]
@@ -84,9 +86,10 @@ SUMMARY_FIELDS = [
     "feature_index",
     "location",
     "candidate_c_sites",
-    "high_sites",
-    "moderate_sites",
+    "accepted_sites",
     "applied_sites",
+    "rescued_sites",
+    "likely_genomic_variant_sites",
     "mean_candidate_rna_depth",
     "candidate_sites_with_min_depth",
     "translation_added",
@@ -115,16 +118,21 @@ def parse_args():
     parser.add_argument("--transl-table", default="1")
     parser.add_argument("--rna-bam", nargs="+", type=Path, required=True)
     parser.add_argument("--dna-bam", type=Path)
-    parser.add_argument("--min-rna-depth", type=int, default=20)
-    parser.add_argument("--min-edited-reads", type=int, default=5)
-    parser.add_argument("--min-edit-fraction", type=float, default=0.20)
-    parser.add_argument("--moderate-min-rna-depth", type=int, default=10)
-    parser.add_argument("--moderate-min-edited-reads", type=int, default=3)
-    parser.add_argument("--moderate-min-edit-fraction", type=float, default=0.10)
+    parser.add_argument("--min-rna-depth", type=int, default=10)
+    parser.add_argument("--min-edited-reads", type=int, default=3)
+    parser.add_argument("--min-edit-fraction", type=float, default=0.10)
+    parser.add_argument("--essential-rescue-min-rna-depth", type=int, default=1)
+    parser.add_argument("--essential-rescue-min-edited-reads", type=int, default=1)
+    parser.add_argument("--essential-rescue-min-edit-fraction", type=float, default=0.0)
+    parser.add_argument(
+        "--essential-rescue-max-dna-alt-fraction",
+        type=float,
+        default=0.10,
+    )
     parser.add_argument("--min-base-quality", type=int, default=30)
     parser.add_argument("--min-mapping-quality", type=int, default=30)
     parser.add_argument("--min-dna-depth", type=int, default=10)
-    parser.add_argument("--max-dna-alt-fraction", type=float, default=0.05)
+    parser.add_argument("--max-dna-alt-fraction", type=float, default=0.10)
     return parser.parse_args()
 
 
@@ -270,7 +278,7 @@ def classify_decision(
         dna_depth >= args.min_dna_depth
         and dna_alt_fraction <= args.max_dna_alt_fraction
     )
-    high = (
+    accepted = (
         rna_depth >= args.min_rna_depth
         and edited_reads >= args.min_edited_reads
         and edit_fraction >= args.min_edit_fraction
@@ -278,24 +286,87 @@ def classify_decision(
         and rna_mean_mapq >= args.min_mapping_quality
         and dna_supported
     )
-    if high:
-        return "high"
+    if accepted:
+        return "accept"
 
-    moderate = (
-        rna_depth >= args.moderate_min_rna_depth
-        and edited_reads >= args.moderate_min_edited_reads
-        and edit_fraction >= args.moderate_min_edit_fraction
-        and dna_supported
-    )
-    if moderate:
-        return "moderate"
+    if (
+        dna_depth >= args.min_dna_depth
+        and dna_alt_fraction > args.max_dna_alt_fraction
+    ):
+        return "likely_genomic_variant"
     if rna_depth == 0:
         return "insufficient_coverage"
     if dna_depth < args.min_dna_depth:
         return "insufficient_dna_coverage"
-    if dna_alt_fraction > args.max_dna_alt_fraction:
-        return "likely_genomic_variant"
     return "reject"
+
+
+def has_essential_rescue_support(site, args):
+    return (
+        site["rna_depth"] >= args.essential_rescue_min_rna_depth
+        and site["rna_edited_reads"] >= args.essential_rescue_min_edited_reads
+        and site["rna_edit_fraction"] >= args.essential_rescue_min_edit_fraction
+        and site["dna_depth"] >= args.min_dna_depth
+        and site["dna_alt_fraction"] <= args.essential_rescue_max_dna_alt_fraction
+    )
+
+
+def internal_stop_positions_from_error(error):
+    prefix = "internal_stop_codon:"
+    if not error.startswith(prefix):
+        return set()
+    positions = set()
+    for text in error.removeprefix(prefix).split(","):
+        try:
+            positions.add(int(text))
+        except ValueError:
+            continue
+    return positions
+
+
+def essential_rescue_sites(validation_errors, site_records, terminal_codon_index, args):
+    rescue_sites = []
+    used_indices = set()
+    internal_stop_positions = set()
+    needs_start_rescue = False
+    needs_terminal_stop_rescue = False
+
+    for error in validation_errors:
+        if error.startswith("invalid_start_codon:"):
+            needs_start_rescue = True
+        elif error.startswith("missing_terminal_stop:"):
+            needs_terminal_stop_rescue = True
+        elif error.startswith("internal_stop_codon:"):
+            internal_stop_positions.update(internal_stop_positions_from_error(error))
+
+    for site in site_records:
+        rescue_reason = None
+        if (
+            needs_start_rescue
+            and site["codon_index"] == 1
+            and site["effect"] == "start_gain"
+        ):
+            rescue_reason = "invalid_start_codon"
+        elif (
+            needs_terminal_stop_rescue
+            and site["codon_index"] == terminal_codon_index
+            and site["effect"] == "stop_gain"
+        ):
+            rescue_reason = "missing_terminal_stop"
+        elif (
+            site["codon_index"] in internal_stop_positions
+            and site["effect"] == "premature_stop_rescue"
+        ):
+            rescue_reason = "internal_stop_codon"
+
+        if rescue_reason is None or site["cds_index"] in used_indices:
+            continue
+        if not has_essential_rescue_support(site, args):
+            continue
+        rescue_sites.append((site, rescue_reason))
+        used_indices.add(site["cds_index"])
+
+    return rescue_sites
 
 
 def codon_effect(
@@ -462,6 +533,27 @@ def empty_counts():
     return {base: 0 for base in BASES}
 
 
+def make_accepted_site(site, *, decision, rescue_reason=""):
+    accepted_site = {
+        "genomic_pos": site["genomic_pos"],
+        "cds_pos": site["cds_pos"],
+        "codon_index": site["codon_index"],
+        "codon_pos": site["codon_pos"],
+        "genomic_base": site["genomic_base"],
+        "edited_base": site["edited_base"],
+        "effect": site["effect"],
+        "decision": decision,
+        "rna_depth": site["rna_depth"],
+        "rna_edited_reads": site["rna_edited_reads"],
+        "rna_edit_fraction": site["rna_edit_fraction"],
+        "dna_depth": site["dna_depth"],
+        "dna_alt_fraction": site["dna_alt_fraction"],
+    }
+    if rescue_reason:
+        accepted_site["rescue_reason"] = rescue_reason
+    return accepted_site
+
+
 def evaluate_cds_feature(
     *,
     record_name,
@@ -496,9 +588,10 @@ def evaluate_cds_feature(
         "feature_index": block.feature_index,
         "location": block.location,
         "candidate_c_sites": 0,
-        "high_sites": 0,
-        "moderate_sites": 0,
+        "accepted_sites": 0,
         "applied_sites": 0,
+        "rescued_sites": 0,
+        "likely_genomic_variant_sites": 0,
         "mean_candidate_rna_depth": 0,
         "candidate_sites_with_min_depth": 0,
         "translation_added": False,
@@ -521,6 +614,7 @@ def evaluate_cds_feature(
     }
 
     evidence_rows = []
+    site_records = []
     if is_pseudo:
         summary["translation_status"] = "skipped_pseudo"
         feature_decision["translation_status"] = summary["translation_status"]
@@ -633,79 +727,91 @@ def evaluate_cds_feature(
             dna_alt_fraction=dna_alt_fraction,
             args=args,
         )
-        applied = decision == "high"
+        applied = decision == "accept"
+        site = {
+            "cds_index": cds_index,
+            "genomic_pos": genomic_pos,
+            "cds_pos": cds_index + 1,
+            "codon_index": codon_index,
+            "codon_pos": codon_pos,
+            "genomic_base": genomic_base,
+            "edited_base": edited_aligned_base,
+            "effect": effect,
+            "rna_depth": rna_depth,
+            "rna_edited_reads": rna_edited_reads,
+            "rna_edit_fraction": rna_edit_fraction,
+            "dna_depth": dna_depth,
+            "dna_alt_fraction": dna_alt_fraction,
+        }
         if applied:
             edited_cds[cds_index] = "T"
             applied_indices.add(cds_index)
             editing_effects.append(effect)
             feature_decision["accepted_sites"].append(
-                {
-                    "genomic_pos": genomic_pos,
-                    "cds_pos": cds_index + 1,
-                    "codon_index": codon_index,
-                    "codon_pos": codon_pos,
-                    "genomic_base": genomic_base,
-                    "edited_base": edited_aligned_base,
-                    "effect": effect,
-                    "decision": decision,
-                    "rna_depth": rna_depth,
-                    "rna_edited_reads": rna_edited_reads,
-                    "rna_edit_fraction": rna_edit_fraction,
-                    "dna_depth": dna_depth,
-                    "dna_alt_fraction": dna_alt_fraction,
-                }
+                make_accepted_site(site, decision=decision)
             )
 
         rna_depths.append(rna_depth)
         summary["candidate_c_sites"] += 1
-        summary["high_sites"] += int(decision == "high")
-        summary["moderate_sites"] += int(decision == "moderate")
+        summary["accepted_sites"] += int(decision == "accept")
         summary["applied_sites"] += int(applied)
+        summary["likely_genomic_variant_sites"] += int(
+            decision == "likely_genomic_variant"
+        )
         summary["candidate_sites_with_min_depth"] += int(
             rna_depth >= args.min_rna_depth
         )
-        evidence_rows.append(
-            {
-                "record": record_name,
-                "organelle": args.organelle,
-                "tool": args.tool,
-                "gene": gene,
-                "product": product,
-                "feature_index": block.feature_index,
-                "location": block.location,
-                "strand": strand,
-                "genomic_pos": genomic_pos,
-                "cds_pos": cds_index + 1,
-                "coding_pos": cds_index - codon_offset + 1,
-                "codon_index": codon_index,
-                "codon_pos": codon_pos,
-                "genomic_base": genomic_base,
-                "transcript_base": transcript_base,
-                "edited_base": edited_aligned_base,
-                "genomic_codon": genomic_codon,
-                "edited_codon": edited_codon,
-                "genomic_aa": genomic_aa,
-                "edited_aa": edited_aa,
-                "effect": effect,
-                "candidate_source": candidate_source,
-                "rna_depth": rna_depth,
-                "rna_edited_reads": rna_edited_reads,
-                "rna_edit_fraction": f"{rna_edit_fraction:.6f}",
-                "rna_mean_baseq": f"{rna_counts['mean_baseq']:.3f}",
-                "rna_mean_mapq": f"{rna_counts['mean_mapq']:.3f}",
-                "rna_sample_count_supporting": sum(
-                    1
-                    for sample_counts in rna_counts["sample_counts"]
-                    if sample_counts[edited_aligned_base] > 0
-                ),
-                "dna_depth": dna_depth,
-                "dna_alt_reads": dna_alt_reads,
-                "dna_alt_fraction": f"{dna_alt_fraction:.6f}",
-                "decision": decision,
-                "applied": applied,
-                "note": "",
-            }
-        )
+        note = ""
+        if decision == "likely_genomic_variant":
+            note = (
+                "DNA/HiFi alternate fraction exceeds the RNA-editing "
+                "threshold; review genomic sequence or variant."
+            )
+        evidence_row = {
+            "record": record_name,
+            "organelle": args.organelle,
+            "tool": args.tool,
+            "gene": gene,
+            "product": product,
+            "feature_index": block.feature_index,
+            "location": block.location,
+            "strand": strand,
+            "genomic_pos": genomic_pos,
+            "cds_pos": cds_index + 1,
+            "coding_pos": cds_index - codon_offset + 1,
+            "codon_index": codon_index,
+            "codon_pos": codon_pos,
+            "genomic_base": genomic_base,
+            "transcript_base": transcript_base,
+            "edited_base": edited_aligned_base,
+            "genomic_codon": genomic_codon,
+            "edited_codon": edited_codon,
+            "genomic_aa": genomic_aa,
+            "edited_aa": edited_aa,
+            "effect": effect,
+            "candidate_source": candidate_source,
+            "rna_depth": rna_depth,
+            "rna_edited_reads": rna_edited_reads,
+            "rna_edit_fraction": f"{rna_edit_fraction:.6f}",
+            "rna_mean_baseq": f"{rna_counts['mean_baseq']:.3f}",
+            "rna_mean_mapq": f"{rna_counts['mean_mapq']:.3f}",
+            "rna_sample_count_supporting": sum(
+                1
+                for sample_counts in rna_counts["sample_counts"]
+                if sample_counts[edited_aligned_base] > 0
+            ),
+            "dna_depth": dna_depth,
+            "dna_alt_reads": dna_alt_reads,
+            "dna_alt_fraction": f"{dna_alt_fraction:.6f}",
+            "decision": decision,
+            "original_decision": "",
+            "rescue_reason": "",
+            "applied": applied,
+            "note": note,
+        }
+        evidence_rows.append(evidence_row)
+        site["evidence_row"] = evidence_row
+        site_records.append(site)
 
     if rna_depths:
         summary["mean_candidate_rna_depth"] = f"{statistics.fmean(rna_depths):.3f}"
@@ -738,6 +844,68 @@ def evaluate_cds_feature(
         feature_decision["exception_added"] = summary["exception_added"]
         feature_decision["translation_status"] = summary["translation_status"]
         return updated_lines, evidence_rows, summary, feature_decision
+
+    rescue_sites = essential_rescue_sites(
+        validation["errors"],
+        site_records,
+        complete_coding_length // 3,
+        args,
+    )
+    if rescue_sites:
+        rescued_cds = list(edited_cds)
+        for site, _reason in rescue_sites:
+            rescued_cds[site["cds_index"]] = "T"
+        rescued_coding_sequence = "".join(rescued_cds)[codon_offset:]
+        rescued_validation = validate_complete_cds_translation(
+            rescued_coding_sequence,
+            table_id,
+        )
+        if rescued_validation["valid"]:
+            for site, rescue_reason in rescue_sites:
+                edited_cds[site["cds_index"]] = "T"
+                applied_indices.add(site["cds_index"])
+                editing_effects.append(site["effect"])
+                evidence_row = site["evidence_row"]
+                evidence_row["original_decision"] = evidence_row["decision"]
+                evidence_row["decision"] = "essential_rescue"
+                evidence_row["rescue_reason"] = rescue_reason
+                evidence_row["applied"] = True
+                evidence_row["note"] = (
+                    "Applied only to rescue complete CDS validation."
+                )
+                feature_decision["accepted_sites"].append(
+                    make_accepted_site(
+                        site,
+                        decision="essential_rescue",
+                        rescue_reason=rescue_reason,
+                    )
+                )
+                summary["applied_sites"] += 1
+                summary["rescued_sites"] += 1
+
+            translation = translate_cds_for_genbank(
+                rescued_coding_sequence,
+                table_id,
+            )
+            add_exception = bool(applied_indices) and any(
+                effect != "synonymous" for effect in editing_effects
+            )
+            updated_lines = update_cds_block_lines(
+                block.lines,
+                translation=translation,
+                table_id=table_id,
+                add_rna_editing_exception=add_exception,
+                rna_editing_note=rna_editing_cds_note(editing_effects),
+            )
+            summary["translation_added"] = True
+            summary["exception_added"] = add_exception and not any(
+                value.lower() == "rna editing" for value in exceptions
+            )
+            summary["translation_status"] = "updated_with_essential_rescue"
+            feature_decision["translation_added"] = True
+            feature_decision["exception_added"] = summary["exception_added"]
+            feature_decision["translation_status"] = summary["translation_status"]
+            return updated_lines, evidence_rows, summary, feature_decision
 
     summary["translation_status"] = "validation_failed"
     summary["translation_errors"] = ";".join(validation["errors"])
@@ -834,9 +1002,13 @@ def format_path_for_markdown(path: Path):
 def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
     cds_count = len(summary_rows)
     candidate_site_count = count_summary(summary_rows, "candidate_c_sites")
-    high_site_count = count_summary(summary_rows, "high_sites")
-    moderate_site_count = count_summary(summary_rows, "moderate_sites")
+    accepted_site_count = count_summary(summary_rows, "accepted_sites")
     applied_site_count = count_summary(summary_rows, "applied_sites")
+    rescued_site_count = count_summary(summary_rows, "rescued_sites")
+    likely_genomic_variant_site_count = count_summary(
+        summary_rows,
+        "likely_genomic_variant_sites",
+    )
     translated_cds_count = count_true(summary_rows, "translation_added")
     exception_cds_count = count_true(summary_rows, "exception_added")
     insufficient_coverage_count = sum(
@@ -863,13 +1035,12 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "- RNA editing curation: scanned all annotated CDS for plant "
             "organelle C-to-U editing candidates and regenerated CDS "
             "`/translation` qualifiers from edited CDS sequences where evidence "
-            "passed the high-confidence thresholds."
+            "passed the accept thresholds."
         ),
         (
             f"- RNA editing evidence: {candidate_site_count} candidate C-to-U "
-            f"site(s) across {cds_count} CDS feature(s); {high_site_count} "
-            f"high-confidence site(s), {moderate_site_count} moderate site(s), "
-            f"{applied_site_count} site(s) applied."
+            f"site(s) across {cds_count} CDS feature(s); {accepted_site_count} "
+            f"accepted site(s), {applied_site_count} site(s) applied."
         ),
         (
             f"- RNA editing GenBank updates: added or refreshed `/translation` "
@@ -881,7 +1052,7 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             f"annotations with `/note=\"{RNA_EDITING_SITE_NOTE}\"`."
         ),
         (
-            "- RNA editing thresholds: high confidence requires "
+            "- RNA editing thresholds: accept requires "
             f"RNA depth >= {args.min_rna_depth}, edited reads >= "
             f"{args.min_edited_reads}, edit fraction >= "
             f"{args.min_edit_fraction:g}, base quality >= "
@@ -891,8 +1062,17 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             f"{args.max_dna_alt_fraction:g}."
         ),
         (
-            "- RNA editing moderate calls: retained in the evidence tables but "
-            "not applied to the GenBank output."
+            "- RNA editing non-accepted calls: retained in the evidence "
+            "tables but not applied to the GenBank output, except for "
+            "CDS-essential rescue sites that restore a valid start codon, "
+            "terminal stop codon, or internal premature-stop rescue."
+        ),
+        (
+            "- RNA editing CDS-essential rescue thresholds: RNA depth >= "
+            f"{args.essential_rescue_min_rna_depth}, edited reads >= "
+            f"{args.essential_rescue_min_edited_reads}, edit fraction >= "
+            f"{args.essential_rescue_min_edit_fraction:g}, and DNA alternate "
+            f"fraction <= {args.essential_rescue_max_dna_alt_fraction:g}."
         ),
         f"- RNA editing RNA-seq BAM input(s): {rna_bams}.",
         f"- RNA editing DNA/HiFi BAM input: {dna_bam}.",
@@ -908,6 +1088,20 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             f"- RNA editing translation note: {validation_failed_count} CDS "
             "feature(s) were not updated because the edited CDS did not pass "
             "complete-CDS translation validation."
+        )
+    if likely_genomic_variant_site_count:
+        lines.append(
+            "- RNA editing genome-sequence review note: "
+            f"{likely_genomic_variant_site_count} candidate site(s) had "
+            "DNA/HiFi alternate support above the configured threshold and "
+            "were classified as `likely_genomic_variant`; these were retained "
+            "in the evidence table and not applied as RNA editing."
+        )
+    if rescued_site_count:
+        lines.append(
+            f"- RNA editing CDS-essential rescue: {rescued_site_count} site(s) "
+            "with at least the configured rescue-level RNA support were applied "
+            "only because they restored complete-CDS translation validation."
         )
     return "\n".join(lines)
 
@@ -974,9 +1168,10 @@ def main():
             "min_rna_depth": args.min_rna_depth,
             "min_edited_reads": args.min_edited_reads,
             "min_edit_fraction": args.min_edit_fraction,
-            "moderate_min_rna_depth": args.moderate_min_rna_depth,
-            "moderate_min_edited_reads": args.moderate_min_edited_reads,
-            "moderate_min_edit_fraction": args.moderate_min_edit_fraction,
+            "essential_rescue_min_rna_depth": args.essential_rescue_min_rna_depth,
+            "essential_rescue_min_edited_reads": args.essential_rescue_min_edited_reads,
+            "essential_rescue_min_edit_fraction": args.essential_rescue_min_edit_fraction,
+            "essential_rescue_max_dna_alt_fraction": args.essential_rescue_max_dna_alt_fraction,
             "min_base_quality": args.min_base_quality,
             "min_mapping_quality": args.min_mapping_quality,
             "min_dna_depth": args.min_dna_depth,

@@ -410,9 +410,10 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
             min_rna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["min_rna_depth"],
             min_edited_reads = ORGANELLE_RNA_EDITING_THRESHOLDS["min_edited_reads"],
             min_edit_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["min_edit_fraction"],
-            moderate_min_rna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_rna_depth"],
-            moderate_min_edited_reads = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_edited_reads"],
-            moderate_min_edit_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["moderate_min_edit_fraction"],
+            essential_rescue_min_rna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["essential_rescue_min_rna_depth"],
+            essential_rescue_min_edited_reads = ORGANELLE_RNA_EDITING_THRESHOLDS["essential_rescue_min_edited_reads"],
+            essential_rescue_min_edit_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["essential_rescue_min_edit_fraction"],
+            essential_rescue_max_dna_alt_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["essential_rescue_max_dna_alt_fraction"],
             min_base_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_base_quality"],
             min_mapping_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_mapping_quality"],
             min_dna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["min_dna_depth"],
@@ -436,9 +437,10 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                     --min-rna-depth {params.min_rna_depth} \
                     --min-edited-reads {params.min_edited_reads} \
                     --min-edit-fraction {params.min_edit_fraction} \
-                    --moderate-min-rna-depth {params.moderate_min_rna_depth} \
-                    --moderate-min-edited-reads {params.moderate_min_edited_reads} \
-                    --moderate-min-edit-fraction {params.moderate_min_edit_fraction} \
+                    --essential-rescue-min-rna-depth {params.essential_rescue_min_rna_depth} \
+                    --essential-rescue-min-edited-reads {params.essential_rescue_min_edited_reads} \
+                    --essential-rescue-min-edit-fraction {params.essential_rescue_min_edit_fraction} \
+                    --essential-rescue-max-dna-alt-fraction {params.essential_rescue_max_dna_alt_fraction} \
                     --min-base-quality {params.min_base_quality} \
                     --min-mapping-quality {params.min_mapping_quality} \
                     --min-dna-depth {params.min_dna_depth} \

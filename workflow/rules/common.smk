@@ -80,16 +80,17 @@ ORGANELLE_FASTA_ID_PREFIXES = {
     "chloroplast": "cp_",
 }
 ORGANELLE_RNA_EDITING_THRESHOLDS = {
-    "min_rna_depth": 20,
-    "min_edited_reads": 5,
-    "min_edit_fraction": 0.20,
-    "moderate_min_rna_depth": 10,
-    "moderate_min_edited_reads": 3,
-    "moderate_min_edit_fraction": 0.10,
+    "min_rna_depth": 10,
+    "min_edited_reads": 3,
+    "min_edit_fraction": 0.10,
+    "essential_rescue_min_rna_depth": 1,
+    "essential_rescue_min_edited_reads": 1,
+    "essential_rescue_min_edit_fraction": 0.0,
+    "essential_rescue_max_dna_alt_fraction": 0.10,
     "min_base_quality": 30,
     "min_mapping_quality": 30,
     "min_dna_depth": 10,
-    "max_dna_alt_fraction": 0.05,
+    "max_dna_alt_fraction": 0.10,
 }
 
 VALID_ORGANELLE_ANNOTATION_TOOLS = {
