@@ -186,8 +186,14 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             genome = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.ctg.annotation.fasta",
             manifest = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.manifest.json",
             post_curation = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/post_curation.pre_rna_editing.md",
-            cds_qc = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.cds_qc.tsv",
-            cds_frameshift_candidates = "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/{assembly_name}.chloroplast.cds_frameshift_candidates.json"
+            reference_cds_qc_pre = (
+                "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/"
+                "{assembly_name}.chloroplast.reference_cds_qc.pre_rna_editing.tsv"
+            ),
+            reference_cds_frameshift_candidates = (
+                "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/"
+                "{assembly_name}.chloroplast.reference_cds_qc.frameshift_candidates.json"
+            )
         log:
             out = "logs/annotate_chloroplast_pga_v2_{assembly_name}.out",
             err = "logs/annotate_chloroplast_pga_v2_{assembly_name}.err"
@@ -196,7 +202,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
         threads:
             max(1, int(workflow.cores * 0.5))
         params:
-            reference_dir = pga_v2_reference_dir,
+            reference_dir = required_chloroplast_reference_cds_qc_dir(),
             form = config.get("pga_v2_form", "circular"),
             ir = config.get("pga_v2_ir", "1000"),
             pidentity = config.get("pga_v2_pidentity", "40"),
@@ -206,9 +212,9 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             warning = config.get("pga_v2_warning", "warning"),
             taxid = taxid or "",
             hifi_reads_arg = pga_v2_hifi_reads_arg,
-            fix_sequence_frameshifts_arg = (
-                "--fix-chloroplast-sequence-frameshifts"
-                if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False)
+            fix_hifi_frameshifts_arg = (
+                "--fix-hifi-frameshifts"
+                if organelle_reference_cds_qc_fix_hifi_frameshifts("chloroplast")
                 else ""
             )
         shell:
@@ -222,8 +228,8 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --annotation-fasta {output.genome:q} \
                     --manifest {output.manifest:q} \
                     --post-curation {output.post_curation:q} \
-                    --cds-qc {output.cds_qc:q} \
-                    --cds-frameshift-candidates {output.cds_frameshift_candidates:q} \
+                    --reference-cds-qc-pre {output.reference_cds_qc_pre:q} \
+                    --reference-cds-frameshift-candidates {output.reference_cds_frameshift_candidates:q} \
                     --assembly-name {wildcards.assembly_name:q} \
                     --form {params.form:q} \
                     --ir {params.ir:q} \
@@ -235,7 +241,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --taxid {params.taxid:q} \
                     --threads {threads} \
                     {params.hifi_reads_arg} \
-                    {params.fix_sequence_frameshifts_arg}
+                    {params.fix_hifi_frameshifts_arg}
             ) > {log.out:q} 2> {log.err:q}
             """
 
@@ -417,7 +423,8 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
             min_base_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_base_quality"],
             min_mapping_quality = ORGANELLE_RNA_EDITING_THRESHOLDS["min_mapping_quality"],
             min_dna_depth = ORGANELLE_RNA_EDITING_THRESHOLDS["min_dna_depth"],
-            max_dna_alt_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["max_dna_alt_fraction"]
+            max_dna_alt_fraction = ORGANELLE_RNA_EDITING_THRESHOLDS["max_dna_alt_fraction"],
+            reference_dir_arg = lambda wildcards: organelle_reference_cds_qc_reference_dir_arg(wildcards.organelle)
         shell:
             """
             (
@@ -444,7 +451,85 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                     --min-base-quality {params.min_base_quality} \
                     --min-mapping-quality {params.min_mapping_quality} \
                     --min-dna-depth {params.min_dna_depth} \
-                    --max-dna-alt-fraction {params.max_dna_alt_fraction}
+                    --max-dna-alt-fraction {params.max_dna_alt_fraction} \
+                    {params.reference_dir_arg}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if "mitochondrion" in configured_oatk_organelles_with_annotation() and configured_organelle_annotation_tool("mitochondrion") == "pmga":
+    rule reference_cds_qc_pre_rna_editing_pmga:
+        input:
+            annotation = (
+                "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/"
+                "{assembly_name}.mitochondrion.pre_rna_editing.gbk"
+            )
+        output:
+            qc_tsv = (
+                "results/organelle_annotation/mitochondrion/pmga/{assembly_name}/"
+                "{assembly_name}.mitochondrion.reference_cds_qc.pre_rna_editing.tsv"
+            )
+        log:
+            out = "logs/reference_cds_qc_pre_rna_editing_mitochondrion_pmga_{assembly_name}.out",
+            err = "logs/reference_cds_qc_pre_rna_editing_mitochondrion_pmga_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        params:
+            reference_dir = lambda wildcards: organelle_reference_cds_qc_reference_dir("mitochondrion")
+        shell:
+            """
+            (
+                python3 workflow/scripts/reference_cds_qc.py \
+                    --annotation {input.annotation:q} \
+                    --reference-dir {params.reference_dir:q} \
+                    --qc-tsv {output.qc_tsv:q} \
+                    --organelle mitochondrion \
+                    --tool pmga \
+                    --phase pre_rna_editing \
+                    --default-transl-table 1
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_rna_editing_post_curation():
+    rule reference_cds_qc_post_rna_editing:
+        input:
+            annotation = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.gbk"
+            )
+        output:
+            qc_tsv = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.reference_cds_qc.post_rna_editing.tsv"
+            ),
+            manual_candidates = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.manual_rna_editing_candidates.tsv"
+            )
+        log:
+            out = "logs/reference_cds_qc_post_rna_editing_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/reference_cds_qc_post_rna_editing_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "mitochondrion|chloroplast",
+            tool = "pmga|pga_v2"
+        params:
+            reference_dir = lambda wildcards: organelle_reference_cds_qc_reference_dir(wildcards.organelle),
+            transl_table = lambda wildcards: "11" if wildcards.organelle == "chloroplast" else "1"
+        shell:
+            """
+            (
+                python3 workflow/scripts/reference_cds_qc.py \
+                    --annotation {input.annotation:q} \
+                    --reference-dir {params.reference_dir:q} \
+                    --qc-tsv {output.qc_tsv:q} \
+                    --manual-candidates-tsv {output.manual_candidates:q} \
+                    --organelle {wildcards.organelle:q} \
+                    --tool {wildcards.tool:q} \
+                    --phase post_rna_editing \
+                    --default-transl-table {params.transl_table:q}
             ) > {log.out:q} 2> {log.err:q}
             """
 

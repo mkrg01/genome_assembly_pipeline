@@ -30,8 +30,12 @@ def parse_args():
     parser.add_argument("--annotation-fasta", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--post-curation", type=Path, required=True)
-    parser.add_argument("--cds-qc", type=Path, required=True)
-    parser.add_argument("--cds-frameshift-candidates", type=Path, required=True)
+    parser.add_argument("--reference-cds-qc-pre", type=Path, required=True)
+    parser.add_argument(
+        "--reference-cds-frameshift-candidates",
+        type=Path,
+        required=True,
+    )
     parser.add_argument("--assembly-name", required=True)
     parser.add_argument("--form", default="circular")
     parser.add_argument("--ir", default="1000")
@@ -44,11 +48,11 @@ def parse_args():
     parser.add_argument("--hifi-reads", type=Path)
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument(
-        "--fix-chloroplast-sequence-frameshifts",
+        "--fix-hifi-frameshifts",
         action="store_true",
         help=(
-            "Correct only high-confidence read-supported chloroplast sequence "
-            "frameshift indels detected by PGA v2 CDS QC, then rerun PGA v2."
+            "Correct only high-confidence HiFi read-supported chloroplast "
+            "sequence frameshift indels and rerun PGA v2."
         ),
     )
     return parser.parse_args()
@@ -174,14 +178,18 @@ def main():
     annotation = args.annotation.resolve()
     manifest = args.manifest.resolve()
     post_curation_path = args.post_curation.resolve()
-    cds_qc_path = args.cds_qc.resolve()
-    cds_frameshift_candidates_path = args.cds_frameshift_candidates.resolve()
+    reference_cds_qc_pre_path = args.reference_cds_qc_pre.resolve()
+    reference_cds_frameshift_candidates_path = (
+        args.reference_cds_frameshift_candidates.resolve()
+    )
     hifi_reads = args.hifi_reads.resolve() if args.hifi_reads else None
+    fix_sequence_frameshifts = bool(args.fix_hifi_frameshifts)
 
     if not reference_dir.is_dir():
         raise RuntimeError(
             f"PGA v2 reference directory does not exist: {reference_dir}. "
-            "Set 'pga_v2_reference_dir' in config/config.yml."
+            "Set organelle_reference_cds_qc.chloroplast.reference_dir in "
+            "config/config.yml."
         )
 
     run_root = annotation.parent / "pga_v2_work"
@@ -275,14 +283,14 @@ def main():
     )
     post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
     initial_cds_qc_path = (
-        run_root / "initial.cds_qc.tsv"
-        if args.fix_chloroplast_sequence_frameshifts
-        else cds_qc_path
+        run_root / "initial.reference_cds_qc.tsv"
+        if fix_sequence_frameshifts
+        else reference_cds_qc_pre_path
     )
     initial_candidates_path = (
-        run_root / "initial.cds_frameshift_candidates.json"
-        if args.fix_chloroplast_sequence_frameshifts
-        else cds_frameshift_candidates_path
+        run_root / "initial.reference_cds_qc.frameshift_candidates.json"
+        if fix_sequence_frameshifts
+        else reference_cds_frameshift_candidates_path
     )
     initial_cds_qc = run_cds_qc(
         annotation=annotation,
@@ -292,13 +300,13 @@ def main():
         candidates_json=initial_candidates_path,
         hifi_reads=hifi_reads,
         hifi_reference_fasta=annotation_fasta,
-        fix_sequence_frameshifts=args.fix_chloroplast_sequence_frameshifts,
+        fix_sequence_frameshifts=fix_sequence_frameshifts,
         work_dir=run_root,
         threads=args.threads,
     )
     post_curation["pga_v2_cds_qc"] = initial_cds_qc
     post_curation["pga_v2_sequence_frameshift_fix"] = {
-        "enabled": bool(args.fix_chloroplast_sequence_frameshifts),
+        "enabled": bool(fix_sequence_frameshifts),
         "initial_cds_qc_tsv": str(initial_cds_qc_path),
         "initial_cds_frameshift_candidates_json": str(initial_candidates_path),
         "applied_fix_count": 0,
@@ -371,8 +379,8 @@ def main():
             annotation=annotation,
             reference_dir=copied_reference_dir,
             warning_log=warning_log_path(raw_output_dir, args.warning),
-            qc_tsv=cds_qc_path,
-            candidates_json=cds_frameshift_candidates_path,
+            qc_tsv=reference_cds_qc_pre_path,
+            candidates_json=reference_cds_frameshift_candidates_path,
             fix_sequence_frameshifts=False,
             work_dir=run_root,
             threads=args.threads,
@@ -388,9 +396,12 @@ def main():
             "archived_initial_raw_output_dir": str(archived_gb),
             "archived_initial_target_dir": str(archived_target),
         }
-    elif args.fix_chloroplast_sequence_frameshifts:
-        shutil.copy2(initial_cds_qc_path, cds_qc_path)
-        shutil.copy2(initial_candidates_path, cds_frameshift_candidates_path)
+    elif fix_sequence_frameshifts:
+        shutil.copy2(initial_cds_qc_path, reference_cds_qc_pre_path)
+        shutil.copy2(
+            initial_candidates_path,
+            reference_cds_frameshift_candidates_path,
+        )
     post_curation_record = write_post_curation_record(
         post_curation_path,
         post_curation,
@@ -421,11 +432,11 @@ def main():
             "raw_output_dir": str(raw_output_dir),
             "selected_annotation": str(selected),
             "annotation": str(annotation),
-            "cds_qc": str(cds_qc_path),
-            "cds_frameshift_candidates": str(cds_frameshift_candidates_path),
-            "fix_chloroplast_sequence_frameshifts": (
-                args.fix_chloroplast_sequence_frameshifts
+            "reference_cds_qc_pre": str(reference_cds_qc_pre_path),
+            "reference_cds_frameshift_candidates": str(
+                reference_cds_frameshift_candidates_path
             ),
+            "fix_hifi_frameshifts": bool(args.fix_hifi_frameshifts),
             "hifi_reads": str(hifi_reads) if hifi_reads else None,
             "post_curation": post_curation,
             **post_curation_record,

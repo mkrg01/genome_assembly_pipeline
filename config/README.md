@@ -59,8 +59,7 @@ Below are the available parameters:
 | `organelle_annotation` | Annotation tools for Oatk-assembled organelle genomes. Mitochondrion: `{"pmga", "mitoz", null}`. Chloroplast: `{"pga_v2", null}`. Omitted keys, per-organelle `null`, or top-level `organelle_annotation: null` skip annotation. Legacy keys `mito` and `pltd` are still accepted. Oatk organelle FASTA record IDs are prefixed before annotation/submission (`mt_` for mitochondrion, `cp_` for chloroplast) so GenBank LOCUS names and submission FASTA headers stay unique and consistent. For PMGA/PGA, circular single-record inputs are first annotated once to choose an internal feature-free origin, then rotated before final annotation so origin-spanning genes are less likely to be missed; the rotated annotation FASTA is used for RNA-editing evidence mapping and submission. PMGA/PGA GenBank outputs are then post-curated with RNA-seq and HiFi evidence to add CDS `/translation` and accepted `/exception="RNA editing"` qualifiers. Normal RNA-editing calls use accept thresholds of RNA depth >= 10, edited reads >= 3, edit fraction >= 0.10, base quality >= 30, mapping quality >= 30, DNA/HiFi depth >= 10, and DNA/HiFi alternate fraction <= 0.10; CDS-essential rescue sites that restore a valid start codon, terminal stop codon, or premature-stop rescue may use a separate one-read rescue threshold with DNA/HiFi alternate fraction <= 0.10. Sites with DNA/HiFi alternate support above the threshold are retained as `likely_genomic_variant` evidence and summarized for genome sequence or variant review. PMGA and PGA v2.0 are downloaded automatically only when selected. | `{mitochondrion: "pmga", chloroplast: "pga_v2"}` |
 | `mitoz_clade` | Required only when `organelle_annotation.mitochondrion` is `mitoz`. Passed to `mitoz annotate --clade`; choose the value appropriate for the target taxon. | `null` |
 | `mitoz_genetic_code` | Required only when `organelle_annotation.mitochondrion` is `mitoz`. Positive integer NCBI translation table number passed to `mitoz annotate --genetic_code`. | `null` |
-| `pga_v2_reference_dir` | Directory containing reference plastid GenBank files for PGA v2.0. The directory is copied into the PGA v2 work area before annotation so the original reference files are not modified. | `"plastid_reference"` |
-| `pga_v2_fix_chloroplast_sequence_frameshifts` | Optional: when `true`, PGA v2 CDS-length QC may edit the chloroplast FASTA sequence itself to correct only well-supported HiFi read-supported frameshift indels, then rerun PGA v2. Keep `false` to report candidates without changing the sequence. | `false` |
+| `organelle_reference_cds_qc` | Optional reference CDS/protein QC for PMGA/PGA annotations. Set an organelle `reference_dir` to `null` to skip reference QC and reference-inferred RNA-editing rescue for that organelle. When `reference_dir` is set, the pipeline emits pre/post RNA-editing QC tables and conservatively tries closely related reference CDS/protein evidence for residual invalid CDS after RNA-seq curation. `fix_hifi_frameshifts: true` is allowed only for chloroplast/PGA and may correct well-supported HiFi read-supported frameshift indels before rerunning PGA. Chloroplast/PGA requires a reference directory because PGA v2 itself is reference-based. | `{chloroplast: {reference_dir: "plastid_reference", fix_hifi_frameshifts: false}, mitochondrion: {reference_dir: null, fix_hifi_frameshifts: false}}` |
 | `taxid`          | NCBI Taxonomy ID for the target organism. Used by FCS-GX screening and organelle GenBank source `db_xref`. Legacy `fcs_gx_taxid` is still accepted as a fallback. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 | `busco_lineage_dataset` | BUSCO lineage dataset for genome completeness assessment. [Lineage list](https://busco-data.ezlab.org/v5/data/lineages/) | `"embryophyta_odb12"`                      |
 | `tidk_clade`            | Clade for [tidk find](https://github.com/tolkit/telomeric-identifier). [Lineage list](https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find) | `"Caryophyllales"`|
@@ -76,9 +75,11 @@ Below are the available parameters:
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
-### Choosing PGA v2 plastid references
+### Choosing Organelle Reference CDS QC References
 
-When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb` or `.gbk`) in the directory configured by `pga_v2_reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming.
+When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb`, `.gbk`, or `.gbff`) in `organelle_reference_cds_qc.chloroplast.reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming.
+
+For PMGA/mitochondrion, `organelle_reference_cds_qc.mitochondrion.reference_dir` is optional. If provided, the pipeline writes reference CDS/protein QC tables before and after RNA-editing curation, plus a manual RNA-editing review candidate table. After RNA-seq curation, residual CDS with invalid start codons, missing terminal stops, or internal stop codons are conservatively checked for C-to-U RNA-editing sites inferred from closely related reference CDS/proteins. Applied reference-inferred sites are recorded separately from RNA-seq-supported calls in the RNA-editing evidence sidecars and GenBank `/inference` qualifiers.
 
 Useful NCBI Nucleotide searches:
 
@@ -87,6 +88,8 @@ Useful NCBI Nucleotide searches:
 <Genus name>[Organism] AND chloroplast[Title] AND "complete genome"[Title]
 <Family name>[Organism] AND chloroplast[Title] AND "complete genome"[Title]
 ```
+
+For mitochondrial references, prefer complete mitochondrial GenBank records from the same species, genus, or family when available, but treat the output as manual-review evidence rather than an automatic correction source.
 
 NCBI GenBank download:
 

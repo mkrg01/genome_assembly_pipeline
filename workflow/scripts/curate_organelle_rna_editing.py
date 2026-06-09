@@ -5,6 +5,7 @@ import json
 import statistics
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -31,14 +32,32 @@ from organelle_annotation_utils import (  # noqa: E402
     unwrap_genbank_location_function,
     validate_complete_cds_translation,
 )
+from reference_cds_qc import (  # noqa: E402
+    best_reference_feature,
+    protein_match_metrics,
+    reference_cds_by_gene,
+    reference_cds_by_product,
+)
 
 
 BASES = ("A", "C", "G", "T")
 RNA_EDITING_EXCEPTION = "RNA editing"
 RNA_EDITING_INFERENCE = "EXISTENCE:similar to RNA sequence, mRNA (same species)"
 RNA_EDITING_SITE_NOTE = "C to U RNA editing"
+REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE = (
+    "C to U RNA editing inferred from closely related species"
+)
 RNA_EDITING_TRANSLATION_NOTE = "RNA editing is required for translation"
 RNA_EDITING_START_GAIN_NOTE = "initiation codon is created by RNA editing"
+REFERENCE_INFERRED_TRANSLATION_NOTE = (
+    "translation inferred from C-to-U RNA editing in a closely related species"
+)
+MIXED_RNA_EDITING_TRANSLATION_NOTE = (
+    "RNA editing is required for translation; some edit sites were inferred "
+    "from a closely related species"
+)
+REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY = 0.70
+REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE = 0.70
 EVIDENCE_FIELDS = [
     "record",
     "organelle",
@@ -74,6 +93,13 @@ EVIDENCE_FIELDS = [
     "decision",
     "original_decision",
     "rescue_reason",
+    "reference_id",
+    "reference_gene",
+    "reference_product",
+    "reference_protein_id",
+    "reference_inference",
+    "protein_identity",
+    "protein_coverage",
     "applied",
     "note",
 ]
@@ -89,6 +115,7 @@ SUMMARY_FIELDS = [
     "accepted_sites",
     "applied_sites",
     "rescued_sites",
+    "reference_inferred_sites",
     "likely_genomic_variant_sites",
     "mean_candidate_rna_depth",
     "candidate_sites_with_min_depth",
@@ -118,6 +145,7 @@ def parse_args():
     parser.add_argument("--transl-table", default="1")
     parser.add_argument("--rna-bam", nargs="+", type=Path, required=True)
     parser.add_argument("--dna-bam", type=Path)
+    parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--min-rna-depth", type=int, default=10)
     parser.add_argument("--min-edited-reads", type=int, default=3)
     parser.add_argument("--min-edit-fraction", type=float, default=0.10)
@@ -369,6 +397,192 @@ def essential_rescue_sites(validation_errors, site_records, terminal_codon_index
     return rescue_sites
 
 
+def site_was_applied(site):
+    return bool(site.get("evidence_row", {}).get("applied"))
+
+
+def has_reference_inferred_support(site, args):
+    return (
+        not site_was_applied(site)
+        and site["dna_depth"] >= args.min_dna_depth
+        and site["dna_alt_fraction"] <= args.max_dna_alt_fraction
+    )
+
+
+def single_reference_rescue_site(choices):
+    unique = {}
+    for site in choices:
+        unique[site["cds_index"]] = site
+    if len(unique) != 1:
+        return None
+    return next(iter(unique.values()))
+
+
+def reference_inferred_candidate_sites(
+    validation_errors,
+    site_records,
+    terminal_codon_index,
+    args,
+):
+    candidates = []
+    used_indices = set()
+    internal_stop_positions = set()
+
+    for error in validation_errors:
+        if error.startswith("invalid_start_codon:"):
+            choices = [
+                site
+                for site in site_records
+                if site["codon_index"] == 1
+                and site["effect"] == "start_gain"
+                and has_reference_inferred_support(site, args)
+            ]
+            site = single_reference_rescue_site(choices)
+            if site is None:
+                return []
+            candidates.append((site, "invalid_start_codon"))
+            used_indices.add(site["cds_index"])
+        elif error.startswith("missing_terminal_stop:"):
+            choices = [
+                site
+                for site in site_records
+                if site["codon_index"] == terminal_codon_index
+                and site["effect"] == "stop_gain"
+                and has_reference_inferred_support(site, args)
+            ]
+            site = single_reference_rescue_site(choices)
+            if site is None:
+                return []
+            if site["cds_index"] not in used_indices:
+                candidates.append((site, "missing_terminal_stop"))
+                used_indices.add(site["cds_index"])
+        elif error.startswith("internal_stop_codon:"):
+            internal_stop_positions.update(internal_stop_positions_from_error(error))
+        elif error not in {"length_not_multiple_of_three"}:
+            return []
+
+    for codon_index in sorted(internal_stop_positions):
+        choices = [
+            site
+            for site in site_records
+            if site["codon_index"] == codon_index
+            and site["effect"] == "premature_stop_rescue"
+            and has_reference_inferred_support(site, args)
+        ]
+        site = single_reference_rescue_site(choices)
+        if site is None:
+            return []
+        if site["cds_index"] not in used_indices:
+            candidates.append((site, "internal_stop_codon"))
+            used_indices.add(site["cds_index"])
+
+    return candidates
+
+
+def reference_inference_value(reference):
+    protein_id = reference.get("protein_id", "")
+    if protein_id:
+        if protein_id.startswith(("NP_", "YP_", "XP_", "WP_", "ZP_")):
+            return f"EXISTENCE:similar to AA sequence:RefSeq:{protein_id}"
+        return f"EXISTENCE:similar to AA sequence:INSD:{protein_id}"
+    accession = reference.get("accession", "") or reference.get("record_id", "")
+    if accession:
+        return f"EXISTENCE:similar to AA sequence:INSD:{accession}"
+    return "EXISTENCE:similar to AA sequence"
+
+
+def best_reference_for_feature(
+    *,
+    gene,
+    product,
+    coding_sequence,
+    cds_length,
+    table_id,
+    references_by_gene,
+    references_by_product,
+):
+    if not references_by_gene:
+        return None
+    query_protein = translate_cds_for_genbank(coding_sequence, table_id)
+    target = SimpleNamespace(
+        gene=gene,
+        product=product,
+        protein=query_protein,
+        length=cds_length,
+    )
+    return best_reference_feature(
+        target,
+        references_by_gene,
+        references_by_product,
+    )
+
+
+def reference_inferred_rescue(
+    *,
+    validation_errors,
+    site_records,
+    edited_cds,
+    codon_offset,
+    terminal_codon_index,
+    table_id,
+    gene,
+    product,
+    references_by_gene,
+    references_by_product,
+    args,
+):
+    rescue_sites = reference_inferred_candidate_sites(
+        validation_errors,
+        site_records,
+        terminal_codon_index,
+        args,
+    )
+    if not rescue_sites:
+        return None
+
+    rescued_cds = list(edited_cds)
+    for site, _reason in rescue_sites:
+        rescued_cds[site["cds_index"]] = "T"
+    rescued_coding_sequence = "".join(rescued_cds)[codon_offset:]
+    rescued_validation = validate_complete_cds_translation(
+        rescued_coding_sequence,
+        table_id,
+    )
+    if not rescued_validation["valid"]:
+        return None
+
+    reference = best_reference_for_feature(
+        gene=gene,
+        product=product,
+        coding_sequence=rescued_coding_sequence,
+        cds_length=len(rescued_cds),
+        table_id=table_id,
+        references_by_gene=references_by_gene,
+        references_by_product=references_by_product,
+    )
+    if reference is None or not reference.get("protein"):
+        return None
+
+    translation = translate_cds_for_genbank(rescued_coding_sequence, table_id)
+    metrics = protein_match_metrics(translation, reference.get("protein", ""))
+    if (
+        metrics["protein_identity"] is None
+        or metrics["protein_coverage"] is None
+        or metrics["protein_identity"] < REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY
+        or metrics["protein_coverage"] < REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE
+    ):
+        return None
+
+    return {
+        "sites": rescue_sites,
+        "coding_sequence": rescued_coding_sequence,
+        "translation": translation,
+        "reference": reference,
+        "metrics": metrics,
+        "inference": reference_inference_value(reference),
+    }
+
+
 def codon_effect(
     *,
     codon_index,
@@ -450,6 +664,7 @@ def update_cds_block_lines(
     table_id,
     add_rna_editing_exception,
     rna_editing_note=None,
+    rna_editing_inferences=None,
 ):
     cleaned = remove_qualifiers(block_lines, {"translation"})
     existing_exceptions = genbank_qualifier_values(cleaned, "exception")
@@ -468,15 +683,25 @@ def update_cds_block_lines(
             value.lower()
             for value in genbank_qualifier_values(cleaned, "inference")
         }
-        if RNA_EDITING_INFERENCE.lower() not in existing_inferences:
-            cleaned.extend(format_quoted_qualifier("inference", RNA_EDITING_INFERENCE))
+        for inference in rna_editing_inferences or [RNA_EDITING_INFERENCE]:
+            if inference.lower() not in existing_inferences:
+                cleaned.extend(format_quoted_qualifier("inference", inference))
+                existing_inferences.add(inference.lower())
     if table_id != "1" and not any(genbank_qualifier_name(line) == "transl_table" for line in cleaned):
         cleaned.extend(format_simple_qualifier("transl_table", f"\"{table_id}\""))
     cleaned.extend(format_quoted_qualifier("translation", translation))
     return cleaned
 
 
-def rna_editing_cds_note(editing_effects):
+def rna_editing_cds_note(editing_effects, applied_decisions):
+    has_reference_inferred = "reference_inferred" in applied_decisions
+    has_rna_supported = any(
+        decision in {"accept", "essential_rescue"} for decision in applied_decisions
+    )
+    if has_reference_inferred and has_rna_supported:
+        return MIXED_RNA_EDITING_TRANSLATION_NOTE
+    if has_reference_inferred:
+        return REFERENCE_INFERRED_TRANSLATION_NOTE
     if "start_gain" in editing_effects:
         return RNA_EDITING_START_GAIN_NOTE
     return RNA_EDITING_TRANSLATION_NOTE
@@ -489,24 +714,28 @@ def rna_editing_site_location(site):
     return str(position)
 
 
-def rna_editing_site_feature_lines(site):
+def rna_editing_site_feature_lines(site, note=RNA_EDITING_SITE_NOTE):
     location = rna_editing_site_location(site)
     return [
         f"{FEATURE_INDENT}{'misc_feature':<16}{location}\n",
-        *format_quoted_qualifier("note", RNA_EDITING_SITE_NOTE),
+        *format_quoted_qualifier("note", note),
     ]
 
 
 def existing_rna_editing_site_features(blocks):
     existing = set()
+    accepted_notes = {
+        RNA_EDITING_SITE_NOTE.lower(),
+        REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE.lower(),
+    }
     for block in blocks:
         if block.key != "misc_feature":
             continue
         notes = {
             value.lower() for value in genbank_qualifier_values(block.lines, "note")
         }
-        if RNA_EDITING_SITE_NOTE.lower() in notes:
-            existing.add((block.location, RNA_EDITING_SITE_NOTE.lower()))
+        for note in notes & accepted_notes:
+            existing.add((block.location, note))
     return existing
 
 
@@ -514,11 +743,12 @@ def new_rna_editing_site_feature_blocks(feature_decision, existing_site_features
     blocks = []
     for site in feature_decision["accepted_sites"]:
         location = rna_editing_site_location(site)
-        key = (location, RNA_EDITING_SITE_NOTE.lower())
+        site_note = site.get("site_note", RNA_EDITING_SITE_NOTE)
+        key = (location, site_note.lower())
         if key in existing_site_features:
             continue
         existing_site_features.add(key)
-        blocks.append(rna_editing_site_feature_lines(site))
+        blocks.append(rna_editing_site_feature_lines(site, site_note))
     return blocks
 
 
@@ -533,7 +763,7 @@ def empty_counts():
     return {base: 0 for base in BASES}
 
 
-def make_accepted_site(site, *, decision, rescue_reason=""):
+def make_accepted_site(site, *, decision, rescue_reason="", reference=None, metrics=None):
     accepted_site = {
         "genomic_pos": site["genomic_pos"],
         "cds_pos": site["cds_pos"],
@@ -551,6 +781,19 @@ def make_accepted_site(site, *, decision, rescue_reason=""):
     }
     if rescue_reason:
         accepted_site["rescue_reason"] = rescue_reason
+    if decision == "reference_inferred":
+        accepted_site["site_note"] = REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE
+        accepted_site["reference_id"] = reference.get("record_id", "") if reference else ""
+        accepted_site["reference_gene"] = reference.get("gene", "") if reference else ""
+        accepted_site["reference_product"] = (
+            reference.get("product", "") if reference else ""
+        )
+        accepted_site["reference_protein_id"] = (
+            reference.get("protein_id", "") if reference else ""
+        )
+        if metrics:
+            accepted_site["protein_identity"] = metrics.get("protein_identity")
+            accepted_site["protein_coverage"] = metrics.get("protein_coverage")
     return accepted_site
 
 
@@ -562,6 +805,8 @@ def evaluate_cds_feature(
     args,
     rna_bams,
     dna_bams,
+    references_by_gene=None,
+    references_by_product=None,
 ):
     table_id = str(
         first_genbank_qualifier_value(block.lines, "transl_table", args.transl_table)
@@ -591,6 +836,7 @@ def evaluate_cds_feature(
         "accepted_sites": 0,
         "applied_sites": 0,
         "rescued_sites": 0,
+        "reference_inferred_sites": 0,
         "likely_genomic_variant_sites": 0,
         "mean_candidate_rna_depth": 0,
         "candidate_sites_with_min_depth": 0,
@@ -656,6 +902,7 @@ def evaluate_cds_feature(
     rna_depths = []
     applied_indices = set()
     editing_effects = []
+    applied_decisions = []
     complete_coding_length = len(cds_sequence[codon_offset:])
     complete_coding_length -= complete_coding_length % 3
     coding_end = codon_offset + complete_coding_length
@@ -747,6 +994,7 @@ def evaluate_cds_feature(
             edited_cds[cds_index] = "T"
             applied_indices.add(cds_index)
             editing_effects.append(effect)
+            applied_decisions.append(decision)
             feature_decision["accepted_sites"].append(
                 make_accepted_site(site, decision=decision)
             )
@@ -806,6 +1054,13 @@ def evaluate_cds_feature(
             "decision": decision,
             "original_decision": "",
             "rescue_reason": "",
+            "reference_id": "",
+            "reference_gene": "",
+            "reference_product": "",
+            "reference_protein_id": "",
+            "reference_inference": "",
+            "protein_identity": "",
+            "protein_coverage": "",
             "applied": applied,
             "note": note,
         }
@@ -833,7 +1088,8 @@ def evaluate_cds_feature(
             translation=translation,
             table_id=table_id,
             add_rna_editing_exception=add_exception,
-            rna_editing_note=rna_editing_cds_note(editing_effects),
+            rna_editing_note=rna_editing_cds_note(editing_effects, applied_decisions),
+            rna_editing_inferences=[RNA_EDITING_INFERENCE],
         )
         summary["translation_added"] = True
         summary["exception_added"] = add_exception and not any(
@@ -865,6 +1121,7 @@ def evaluate_cds_feature(
                 edited_cds[site["cds_index"]] = "T"
                 applied_indices.add(site["cds_index"])
                 editing_effects.append(site["effect"])
+                applied_decisions.append("essential_rescue")
                 evidence_row = site["evidence_row"]
                 evidence_row["original_decision"] = evidence_row["decision"]
                 evidence_row["decision"] = "essential_rescue"
@@ -895,7 +1152,8 @@ def evaluate_cds_feature(
                 translation=translation,
                 table_id=table_id,
                 add_rna_editing_exception=add_exception,
-                rna_editing_note=rna_editing_cds_note(editing_effects),
+                rna_editing_note=rna_editing_cds_note(editing_effects, applied_decisions),
+                rna_editing_inferences=[RNA_EDITING_INFERENCE],
             )
             summary["translation_added"] = True
             summary["exception_added"] = add_exception and not any(
@@ -906,6 +1164,87 @@ def evaluate_cds_feature(
             feature_decision["exception_added"] = summary["exception_added"]
             feature_decision["translation_status"] = summary["translation_status"]
             return updated_lines, evidence_rows, summary, feature_decision
+
+    reference_rescue = reference_inferred_rescue(
+        validation_errors=validation["errors"],
+        site_records=site_records,
+        edited_cds=edited_cds,
+        codon_offset=codon_offset,
+        terminal_codon_index=complete_coding_length // 3,
+        table_id=table_id,
+        gene=gene,
+        product=product,
+        references_by_gene=references_by_gene,
+        references_by_product=references_by_product,
+        args=args,
+    )
+    if reference_rescue is not None:
+        reference = reference_rescue["reference"]
+        metrics = reference_rescue["metrics"]
+        reference_inference = reference_rescue["inference"]
+        for site, rescue_reason in reference_rescue["sites"]:
+            edited_cds[site["cds_index"]] = "T"
+            applied_indices.add(site["cds_index"])
+            editing_effects.append(site["effect"])
+            applied_decisions.append("reference_inferred")
+            evidence_row = site["evidence_row"]
+            evidence_row["original_decision"] = evidence_row["decision"]
+            evidence_row["decision"] = "reference_inferred"
+            evidence_row["rescue_reason"] = rescue_reason
+            evidence_row["reference_id"] = reference.get("record_id", "")
+            evidence_row["reference_gene"] = reference.get("gene", "")
+            evidence_row["reference_product"] = reference.get("product", "")
+            evidence_row["reference_protein_id"] = reference.get("protein_id", "")
+            evidence_row["reference_inference"] = reference_inference
+            evidence_row["protein_identity"] = f"{metrics['protein_identity']:.6f}"
+            evidence_row["protein_coverage"] = f"{metrics['protein_coverage']:.6f}"
+            evidence_row["applied"] = True
+            evidence_row["note"] = (
+                "Applied only to rescue complete CDS validation using "
+                "closely related reference protein evidence."
+            )
+            feature_decision["accepted_sites"].append(
+                make_accepted_site(
+                    site,
+                    decision="reference_inferred",
+                    rescue_reason=rescue_reason,
+                    reference=reference,
+                    metrics=metrics,
+                )
+            )
+            summary["applied_sites"] += 1
+            summary["reference_inferred_sites"] += 1
+
+        add_exception = bool(applied_indices) and any(
+            effect != "synonymous" for effect in editing_effects
+        )
+        inferences = []
+        if any(
+            decision in {"accept", "essential_rescue"}
+            for decision in applied_decisions
+        ):
+            inferences.append(RNA_EDITING_INFERENCE)
+        inferences.append(reference_inference)
+        updated_lines = update_cds_block_lines(
+            block.lines,
+            translation=reference_rescue["translation"],
+            table_id=table_id,
+            add_rna_editing_exception=add_exception,
+            rna_editing_note=rna_editing_cds_note(
+                editing_effects,
+                applied_decisions,
+            ),
+            rna_editing_inferences=inferences,
+        )
+        summary["translation_added"] = True
+        summary["exception_added"] = add_exception and not any(
+            value.lower() == "rna editing" for value in exceptions
+        )
+        summary["translation_status"] = "updated_with_reference_inference"
+        feature_decision["translation_added"] = True
+        feature_decision["exception_added"] = summary["exception_added"]
+        feature_decision["translation_status"] = summary["translation_status"]
+        return updated_lines, evidence_rows, summary, feature_decision
 
     summary["translation_status"] = "validation_failed"
     summary["translation_errors"] = ";".join(validation["errors"])
@@ -921,6 +1260,18 @@ def curate_records(args, rna_bams, dna_bams):
     evidence_rows = []
     summary_rows = []
     feature_decisions = []
+    references_by_gene = None
+    references_by_product = None
+    if args.reference_dir is not None:
+        if not args.reference_dir.is_dir():
+            raise RuntimeError(
+                f"Reference directory does not exist: {args.reference_dir}"
+            )
+        references_by_gene = reference_cds_by_gene(
+            args.reference_dir,
+            args.transl_table,
+        )
+        references_by_product = reference_cds_by_product(references_by_gene)
 
     for record_index, record in enumerate(records, start=1):
         metadata = genbank_record_locus_metadata(record)
@@ -951,6 +1302,8 @@ def curate_records(args, rna_bams, dna_bams):
                 args=args,
                 rna_bams=rna_bams,
                 dna_bams=dna_bams,
+                references_by_gene=references_by_gene,
+                references_by_product=references_by_product,
             )
             curated_blocks.append(updated_lines)
             curated_blocks.extend(
@@ -1005,6 +1358,10 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
     accepted_site_count = count_summary(summary_rows, "accepted_sites")
     applied_site_count = count_summary(summary_rows, "applied_sites")
     rescued_site_count = count_summary(summary_rows, "rescued_sites")
+    reference_inferred_site_count = count_summary(
+        summary_rows,
+        "reference_inferred_sites",
+    )
     likely_genomic_variant_site_count = count_summary(
         summary_rows,
         "likely_genomic_variant_sites",
@@ -1049,7 +1406,8 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "feature(s), with DDBJ-oriented CDS `/note` and `/inference` "
             "qualifiers where RNA editing changes the translated product. "
             "Applied edit sites are also represented as `misc_feature` "
-            f"annotations with `/note=\"{RNA_EDITING_SITE_NOTE}\"`."
+            f"annotations with `/note=\"{RNA_EDITING_SITE_NOTE}\"` or "
+            f"`/note=\"{REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE}\"`."
         ),
         (
             "- RNA editing thresholds: accept requires "
@@ -1065,14 +1423,17 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "- RNA editing non-accepted calls: retained in the evidence "
             "tables but not applied to the GenBank output, except for "
             "CDS-essential rescue sites that restore a valid start codon, "
-            "terminal stop codon, or internal premature-stop rescue."
+            "terminal stop codon, or internal premature-stop rescue, and "
+            "reference-inferred sites that rescue otherwise invalid CDS "
+            "translation."
         ),
         (
             "- RNA editing CDS-essential rescue thresholds: RNA depth >= "
             f"{args.essential_rescue_min_rna_depth}, edited reads >= "
             f"{args.essential_rescue_min_edited_reads}, edit fraction >= "
-            f"{args.essential_rescue_min_edit_fraction:g}, and DNA alternate "
-            f"fraction <= {args.essential_rescue_max_dna_alt_fraction:g}."
+            f"{args.essential_rescue_min_edit_fraction:g}, DNA/HiFi depth >= "
+            f"{args.min_dna_depth}, and DNA alternate fraction <= "
+            f"{args.essential_rescue_max_dna_alt_fraction:g}."
         ),
         f"- RNA editing RNA-seq BAM input(s): {rna_bams}.",
         f"- RNA editing DNA/HiFi BAM input: {dna_bam}.",
@@ -1102,6 +1463,24 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             f"- RNA editing CDS-essential rescue: {rescued_site_count} site(s) "
             "with at least the configured rescue-level RNA support were applied "
             "only because they restored complete-CDS translation validation."
+        )
+    if reference_inferred_site_count:
+        reference_dir = (
+            format_path_for_markdown(args.reference_dir)
+            if args.reference_dir is not None
+            else "none"
+        )
+        lines.append(
+            "- RNA editing reference-inferred rescue: "
+            f"{reference_inferred_site_count} site(s) were inferred from "
+            "closely related reference CDS/protein evidence after RNA-seq "
+            "curation did not restore complete-CDS translation. These sites "
+            f"required DNA/HiFi depth >= {args.min_dna_depth}, DNA alternate "
+            f"fraction <= {args.max_dna_alt_fraction:g}, and rescued protein "
+            "identity/coverage >= "
+            f"{REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY:g}/"
+            f"{REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE:g}. Reference "
+            f"directory: {reference_dir}."
         )
     return "\n".join(lines)
 
@@ -1162,6 +1541,7 @@ def main():
         "organelle": args.organelle,
         "tool": args.tool,
         "transl_table_default": str(args.transl_table),
+        "reference_dir": str(args.reference_dir) if args.reference_dir else None,
         "rna_bams": [str(path) for path in args.rna_bam],
         "dna_bam": str(args.dna_bam) if args.dna_bam else None,
         "thresholds": {
@@ -1176,6 +1556,12 @@ def main():
             "min_mapping_quality": args.min_mapping_quality,
             "min_dna_depth": args.min_dna_depth,
             "max_dna_alt_fraction": args.max_dna_alt_fraction,
+            "reference_inferred_min_protein_identity": (
+                REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY
+            ),
+            "reference_inferred_min_protein_coverage": (
+                REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE
+            ),
         },
         "feature_decisions": feature_decisions,
     }

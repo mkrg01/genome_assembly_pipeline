@@ -98,6 +98,7 @@ VALID_ORGANELLE_ANNOTATION_TOOLS = {
     "chloroplast": ("pga_v2",),
 }
 ORGANELLE_RNA_EDITING_SUPPORTED_TOOLS = {"pmga", "pga_v2"}
+ORGANELLE_REFERENCE_CDS_QC_SUPPORTED_TOOLS = {"pmga", "pga_v2"}
 
 HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS = {
     "default": {
@@ -552,11 +553,67 @@ def configured_oatk_organelles():
 organelle_annotation_tools = normalize_organelle_annotation_config(
     config.get("organelle_annotation", None)
 )
-pga_v2_reference_dir = config.get("pga_v2_reference_dir", "resources/plastid_reference")
+organelle_reference_cds_qc_config = config.get("organelle_reference_cds_qc", {}) or {}
+if not isinstance(organelle_reference_cds_qc_config, dict):
+    raise ValueError("'organelle_reference_cds_qc' in config.yml must be a mapping.")
+
+
+def organelle_reference_cds_qc_settings(organelle):
+    organelle = normalize_organelle_name("organelle_reference_cds_qc", organelle)
+    settings = organelle_reference_cds_qc_config.get(organelle, {}) or {}
+    if not isinstance(settings, dict):
+        raise ValueError(
+            f"'organelle_reference_cds_qc.{organelle}' in config.yml must be a mapping."
+        )
+    reference_dir = settings.get("reference_dir", None)
+    if reference_dir is not None:
+        if not isinstance(reference_dir, str) or not reference_dir.strip():
+            raise ValueError(
+                f"'organelle_reference_cds_qc.{organelle}.reference_dir' in "
+                "config.yml must be null or a non-empty string path."
+            )
+    fix_hifi_frameshifts = normalize_bool_config(
+        f"organelle_reference_cds_qc.{organelle}.fix_hifi_frameshifts",
+        settings.get("fix_hifi_frameshifts", False),
+        default=False,
+    )
+    if organelle == "mitochondrion" and fix_hifi_frameshifts:
+        raise ValueError(
+            "organelle_reference_cds_qc.mitochondrion.fix_hifi_frameshifts "
+            "must be false; HiFi-supported sequence frameshift correction is "
+            "supported only for chloroplast/PGA."
+        )
+    return {
+        "reference_dir": reference_dir,
+        "fix_hifi_frameshifts": fix_hifi_frameshifts,
+    }
+
+
+def organelle_reference_cds_qc_reference_dir(organelle):
+    return organelle_reference_cds_qc_settings(organelle)["reference_dir"]
+
+
+def organelle_reference_cds_qc_fix_hifi_frameshifts(organelle):
+    return organelle_reference_cds_qc_settings(organelle)["fix_hifi_frameshifts"]
+
+
+def has_organelle_reference_cds_qc(organelle):
+    return organelle_reference_cds_qc_reference_dir(organelle) is not None
+
+
+def required_chloroplast_reference_cds_qc_dir():
+    reference_dir = organelle_reference_cds_qc_reference_dir("chloroplast")
+    if reference_dir is None:
+        raise ValueError(
+            "'organelle_reference_cds_qc.chloroplast.reference_dir' in "
+            "config.yml is required when organelle_annotation.chloroplast is "
+            "'pga_v2'."
+        )
+    return reference_dir
 
 
 def pga_v2_hifi_reads_for_sequence_fix(wildcards):
-    if config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+    if organelle_reference_cds_qc_fix_hifi_frameshifts("chloroplast"):
         return (
             "results/hifi_reads/merged/"
             f"{wildcards.assembly_name}_hifi_reads_curated.fastq.gz"
@@ -565,9 +622,16 @@ def pga_v2_hifi_reads_for_sequence_fix(wildcards):
 
 
 def pga_v2_hifi_reads_arg(_wildcards, input):
-    if not config.get("pga_v2_fix_chloroplast_sequence_frameshifts", False):
+    if not organelle_reference_cds_qc_fix_hifi_frameshifts("chloroplast"):
         return ""
     return f"--hifi-reads {shlex.quote(str(input.hifi_reads))}"
+
+
+def organelle_reference_cds_qc_reference_dir_arg(organelle):
+    reference_dir = organelle_reference_cds_qc_reference_dir(organelle)
+    if reference_dir is None:
+        return ""
+    return f"--reference-dir {shlex.quote(reference_dir)}"
 
 
 def configured_organelle_annotation_tool(organelle):
@@ -622,12 +686,21 @@ def organelle_annotation_output_paths(assembly_name, organelle):
     ):
         paths["genome"] = f"{prefix}/{assembly_name}.{organelle}.ctg.annotation.fasta"
         paths["post_curation"] = f"{prefix}/post_curation.md"
-    if organelle == "chloroplast" and tool == "pga_v2":
-        paths["cds_qc"] = f"{prefix}/{assembly_name}.{organelle}.cds_qc.tsv"
-        paths["cds_frameshift_candidates"] = (
+    if (
+        tool in ORGANELLE_REFERENCE_CDS_QC_SUPPORTED_TOOLS
+        and has_organelle_reference_cds_qc(organelle)
+    ):
+        qc_prefix = f"{prefix}/{assembly_name}.{organelle}.reference_cds_qc"
+        paths["reference_cds_qc_pre"] = f"{qc_prefix}.pre_rna_editing.tsv"
+        paths["reference_cds_qc_post"] = f"{qc_prefix}.post_rna_editing.tsv"
+        paths["manual_rna_editing_candidates"] = (
             f"{prefix}/{assembly_name}.{organelle}."
-            "cds_frameshift_candidates.json"
+            "manual_rna_editing_candidates.tsv"
         )
+        if organelle == "chloroplast" and tool == "pga_v2":
+            paths["reference_cds_frameshift_candidates"] = (
+                f"{qc_prefix}.frameshift_candidates.json"
+            )
     if has_organelle_rna_editing_post_curation(organelle):
         rna_prefix = f"{prefix}/{assembly_name}.{organelle}.rna_editing"
         paths["pre_rna_editing_annotation"] = (

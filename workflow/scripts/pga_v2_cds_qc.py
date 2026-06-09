@@ -1,4 +1,3 @@
-import csv
 import difflib
 import json
 import re
@@ -7,20 +6,19 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from organelle_annotation_utils import (
-    extract_genbank_location_sequence,
-    first_genbank_qualifier_value,
-    genbank_location_intervals,
-    genbank_record_origin_sequence,
-    parse_genbank_feature_blocks,
     reverse_complement_dna,
-    split_genbank_records,
     validate_complete_cds_translation,
+)
+from reference_cds_qc import (
+    SHORT_LENGTH_MISSING_BP,
+    SHORT_LENGTH_RATIO,
+    CdsFeature,
+    parse_genbank_records_with_sequences,
+    run_reference_cds_qc,
 )
 
 
 BASE_FLANK_BP = 300
-SHORT_LENGTH_RATIO = 0.90
-SHORT_LENGTH_MISSING_BP = 60
 SEED_LENGTHS = (30, 25, 20, 15)
 READ_SUPPORT_MIN_SPANNING = 20
 READ_SUPPORT_MIN_CORRECTED_FRACTION = 0.90
@@ -28,39 +26,6 @@ READ_SUPPORT_MAX_CURRENT_FRACTION = 0.05
 READ_SUPPORT_MIN_MAPQ = 20
 READ_SUPPORT_FLANK_BP = 20
 READ_SUPPORT_INDEL_SLOP_BP = 8
-
-
-@dataclass
-class CdsFeature:
-    record_id: str
-    gene: str
-    location: str
-    strand: str
-    start: int
-    end: int
-    length: int
-    sequence: str
-    codon_start: int
-    transl_table: str
-    validation_valid: bool
-    validation_errors: list[str]
-
-
-@dataclass
-class CdsQcRow:
-    record_id: str
-    gene: str
-    location: str
-    strand: str
-    target_length: int
-    reference_length: int | None
-    length_ratio: float | None
-    missing_bp: int | None
-    pga_warning: str
-    needs_alignment: bool
-    validation_valid: bool
-    validation_errors: str
-
 
 @dataclass
 class SequenceFix:
@@ -74,109 +39,6 @@ class SequenceFix:
     read_support: dict = field(default_factory=dict)
 
 
-def record_id_from_locus(record_lines):
-    for line in record_lines:
-        if line.startswith("LOCUS"):
-            parts = line.split()
-            if len(parts) >= 2:
-                return parts[1]
-    return "record"
-
-
-def parse_cds_features(path: Path):
-    records = split_genbank_records(path.read_text().splitlines(keepends=True))
-    features = []
-    for record in records:
-        record_id = record_id_from_locus(record)
-        record_sequence = genbank_record_origin_sequence(record)
-        _features_index, _origin_index, blocks = parse_genbank_feature_blocks(record)
-        for block in blocks:
-            if block.key != "CDS":
-                continue
-            genes = block.qualifiers.get("gene", [])
-            if not genes or not block.intervals:
-                continue
-            location = block.location
-            sequence = extract_genbank_location_sequence(location, record_sequence)
-            codon_start_text = first_genbank_qualifier_value(
-                block.lines,
-                "codon_start",
-                "1",
-            )
-            try:
-                codon_start = int(codon_start_text)
-            except ValueError:
-                codon_start = 1
-            if codon_start not in {1, 2, 3}:
-                codon_start = 1
-            transl_table = first_genbank_qualifier_value(
-                block.lines,
-                "transl_table",
-                "11",
-            )
-            coding_sequence = sequence[codon_start - 1 :]
-            validation = validate_complete_cds_translation(
-                coding_sequence,
-                transl_table,
-            )
-            starts = [start for start, _end in block.intervals]
-            ends = [end for _start, end in block.intervals]
-            features.append(
-                CdsFeature(
-                    record_id=record_id,
-                    gene=genes[0],
-                    location=location,
-                    strand="-" if location.replace(" ", "").startswith("complement(") else "+",
-                    start=min(starts),
-                    end=max(ends),
-                    length=len(sequence),
-                    sequence=sequence,
-                    codon_start=codon_start,
-                    transl_table=transl_table,
-                    validation_valid=validation["valid"],
-                    validation_errors=validation["errors"],
-                )
-            )
-    return features
-
-
-def parse_genbank_records_with_sequences(path: Path):
-    records = []
-    for record in split_genbank_records(path.read_text().splitlines(keepends=True)):
-        records.append(
-            {
-                "id": record_id_from_locus(record),
-                "sequence": genbank_record_origin_sequence(record),
-            }
-        )
-    return records
-
-
-def reference_cds_by_gene(reference_dir: Path):
-    by_gene = {}
-    for path in sorted(reference_dir.iterdir()):
-        if not path.is_file() or path.suffix.lower() not in {".gb", ".gbk", ".gbff"}:
-            continue
-        for feature in parse_cds_features(path):
-            by_gene.setdefault(feature.gene, []).append(
-                {
-                    "path": str(path),
-                    "record_id": feature.record_id,
-                    "gene": feature.gene,
-                    "length": feature.length,
-                    "sequence": feature.sequence,
-                    "location": feature.location,
-                }
-            )
-    return by_gene
-
-
-def closest_reference_feature(target: CdsFeature, references):
-    if not references:
-        return None
-    return min(references, key=lambda item: abs(item["length"] - target.length))
-
-
 def parse_pga_warnings(path: Path):
     warnings = {}
     if not path.exists():
@@ -186,79 +48,6 @@ def parse_pga_warnings(path: Path):
         if match:
             warnings.setdefault(match.group(1), []).append(match.group(2).strip())
     return warnings
-
-
-def needs_candidate_alignment(row: CdsQcRow):
-    if row.reference_length is None or row.length_ratio is None or row.missing_bp is None:
-        return False
-    return (
-        row.length_ratio < SHORT_LENGTH_RATIO
-        or row.missing_bp >= SHORT_LENGTH_MISSING_BP
-        or (bool(row.pga_warning) and row.missing_bp > 0)
-    )
-
-
-def make_qc_rows(target_features, references_by_gene, pga_warnings):
-    rows = []
-    reference_choice_by_feature = {}
-    for feature in target_features:
-        reference = closest_reference_feature(
-            feature,
-            references_by_gene.get(feature.gene, []),
-        )
-        reference_choice_by_feature[id(feature)] = reference
-        if reference is None:
-            reference_length = None
-            length_ratio = None
-            missing_bp = None
-        else:
-            reference_length = reference["length"]
-            length_ratio = feature.length / reference_length if reference_length else None
-            missing_bp = reference_length - feature.length
-        warning = "; ".join(pga_warnings.get(feature.gene, []))
-        row = CdsQcRow(
-            record_id=feature.record_id,
-            gene=feature.gene,
-            location=feature.location,
-            strand=feature.strand,
-            target_length=feature.length,
-            reference_length=reference_length,
-            length_ratio=length_ratio,
-            missing_bp=missing_bp,
-            pga_warning=warning,
-            needs_alignment=False,
-            validation_valid=feature.validation_valid,
-            validation_errors=";".join(feature.validation_errors),
-        )
-        row.needs_alignment = needs_candidate_alignment(row)
-        rows.append(row)
-    return rows, reference_choice_by_feature
-
-
-def write_qc_tsv(rows, path: Path):
-    fieldnames = [
-        "record_id",
-        "gene",
-        "location",
-        "strand",
-        "target_length",
-        "reference_length",
-        "length_ratio",
-        "missing_bp",
-        "pga_warning",
-        "needs_alignment",
-        "validation_valid",
-        "validation_errors",
-    ]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
-        writer.writeheader()
-        for row in rows:
-            data = asdict(row)
-            if data["length_ratio"] is not None:
-                data["length_ratio"] = f"{data['length_ratio']:.6f}"
-            writer.writerow(data)
 
 
 def window_for_feature(feature: CdsFeature, record_sequence: str, reference_length: int):
@@ -761,15 +550,21 @@ def run_cds_qc(
     work_dir: Path | None = None,
     threads=1,
 ):
-    target_features = parse_cds_features(annotation)
     target_records = parse_genbank_records_with_sequences(annotation)
-    references_by_gene = reference_cds_by_gene(reference_dir)
     pga_warnings = parse_pga_warnings(warning_log)
-    qc_rows, reference_choice_by_feature = make_qc_rows(
-        target_features,
-        references_by_gene,
-        pga_warnings,
+    qc_result = run_reference_cds_qc(
+        annotation=annotation,
+        reference_dir=reference_dir,
+        qc_tsv=qc_tsv,
+        organelle="chloroplast",
+        tool="pga_v2",
+        phase="pre_rna_editing",
+        pga_warnings=pga_warnings,
+        default_transl_table="11",
     )
+    target_features = qc_result["target_features"]
+    qc_rows = qc_result["qc_rows"]
+    reference_choice_by_feature = qc_result["reference_choice_by_feature"]
     candidates = find_frameshift_candidates(
         target_features,
         qc_rows,
@@ -781,13 +576,14 @@ def run_cds_qc(
     if fix_sequence_frameshifts:
         if hifi_reads is None:
             raise RuntimeError(
-                "pga_v2_fix_chloroplast_sequence_frameshifts is true, but no "
-                "HiFi reads were provided to run_pga_v2.py."
+                "organelle_reference_cds_qc.chloroplast.fix_hifi_frameshifts "
+                "is true, but no HiFi reads were provided to run_pga_v2.py."
             )
         if hifi_reference_fasta is None:
             raise RuntimeError(
-                "pga_v2_fix_chloroplast_sequence_frameshifts is true, but no "
-                "chloroplast FASTA was provided for HiFi read mapping."
+                "organelle_reference_cds_qc.chloroplast.fix_hifi_frameshifts "
+                "is true, but no chloroplast FASTA was provided for HiFi "
+                "read mapping."
             )
         sam_path = (work_dir or annotation.parent) / "pga_v2_cds_qc" / "hifi_to_chloroplast.sam"
         mapping_command = map_hifi_reads(
@@ -799,7 +595,6 @@ def run_cds_qc(
         add_read_support(candidates, sam_path)
 
     fixes = selected_sequence_fixes(candidates) if fix_sequence_frameshifts else []
-    write_qc_tsv(qc_rows, qc_tsv)
     candidates_data = {
         "annotation": str(annotation),
         "reference_dir": str(reference_dir),

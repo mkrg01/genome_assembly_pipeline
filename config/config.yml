@@ -17,8 +17,13 @@ organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. S
   chloroplast: "pga_v2"
 mitoz_clade: null # Required when organelle_annotation.mitochondrion is "mitoz". Passed to `mitoz annotate --clade`, e.g. "Arthropoda".
 mitoz_genetic_code: null # Required when organelle_annotation.mitochondrion is "mitoz". NCBI translation table number passed to `mitoz annotate --genetic_code`, e.g. 5 for invertebrate mitochondrial code.
-pga_v2_reference_dir: "plastid_reference" # Directory containing reference plastid GenBank files for PGA v2.0. Prefer complete chloroplast/plastid genomes from the same species, then species in the same genus or family; see config/README.md.
-pga_v2_fix_chloroplast_sequence_frameshifts: false # If true, PGA v2 CDS-length QC may correct only high-confidence HiFi read-supported frameshift indels in the chloroplast FASTA sequence and rerun PGA v2. Leave false to report candidates without changing the sequence.
+organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle annotations. Set reference_dir to null to skip. fix_hifi_frameshifts is chloroplast/PGA only.
+  chloroplast:
+    reference_dir: "plastid_reference"
+    fix_hifi_frameshifts: false
+  mitochondrion:
+    reference_dir: null
+    fix_hifi_frameshifts: false
 taxid: "122299" # NCBI Taxonomy ID for the target organism. Used by FCS-GX and organelle GenBank source db_xref. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 busco_lineage_dataset: "embryophyta_odb12" # BUSCO lineage dataset. See: https://busco-data.ezlab.org/v5/data/lineages/
 tidk_clade: "Caryophyllales" # Clade to use for tidk (Telomere Identification Toolkit). See: https://github.com/tolkit/telomeric-identifier?tab=readme-ov-file#find
