@@ -60,7 +60,7 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 For organelle annotation curation, a typical sequence is:
 
 ```bash
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_annotation_all
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 organelle_annotation_all
 # manually curate results/organelle_annotation/.../*.gbk
 snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_visualization_all --rerun-triggers mtime
 ```
