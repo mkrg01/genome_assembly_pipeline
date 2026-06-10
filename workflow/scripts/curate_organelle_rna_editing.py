@@ -42,19 +42,43 @@ from reference_cds_qc import (  # noqa: E402
 
 BASES = ("A", "C", "G", "T")
 RNA_EDITING_EXCEPTION = "RNA editing"
-RNA_EDITING_INFERENCE = "EXISTENCE:similar to RNA sequence, mRNA (same species)"
+RNA_EDITING_INFERENCE = "similar to RNA sequence, mRNA (same species)"
 RNA_EDITING_SITE_NOTE = "C to U RNA editing"
-REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE = (
+OBSOLETE_REFERENCE_INFERRED_RNA_EDITING_SITE_NOTES = {
     "C to U RNA editing inferred from closely related species"
+}
+REFERENCE_SITE_EVIDENCE_NOTE_PREFIXES = (
+    "inferred from reference cds evidence:",
+    "inferred from reference protein evidence:",
+    "inferred from reference cds:",
+    "inferred from reference protein:",
 )
-RNA_EDITING_TRANSLATION_NOTE = "RNA editing is required for translation"
-RNA_EDITING_START_GAIN_NOTE = "initiation codon is created by RNA editing"
-REFERENCE_INFERRED_TRANSLATION_NOTE = (
-    "translation inferred from C-to-U RNA editing in a closely related species"
-)
-MIXED_RNA_EDITING_TRANSLATION_NOTE = (
-    "RNA editing is required for translation; some edit sites were inferred "
-    "from a closely related species"
+RNA_EDITING_START_GAIN_NOTE = "start codon is created by C to U RNA editing"
+RNA_EDITING_STOP_GAIN_NOTE = "stop codon is created by C to U RNA editing"
+RNA_EDITING_OBSOLETE_NOTE_REPLACEMENTS = {
+    RNA_EDITING_START_GAIN_NOTE: {
+        "start codon is not determined",
+    },
+    RNA_EDITING_STOP_GAIN_NOTE: {
+        "stop codon is not determined",
+    },
+}
+REFSEQ_ACCESSION_PREFIXES = (
+    "AC_",
+    "NC_",
+    "NG_",
+    "NM_",
+    "NP_",
+    "NR_",
+    "NT_",
+    "NW_",
+    "NZ_",
+    "WP_",
+    "XM_",
+    "XP_",
+    "XR_",
+    "YP_",
+    "ZP_",
 )
 REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY = 0.70
 REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE = 0.70
@@ -646,13 +670,44 @@ def reference_inferred_candidate_sites(
 def reference_inference_value(reference):
     protein_id = reference.get("protein_id", "")
     if protein_id:
-        if protein_id.startswith(("NP_", "YP_", "XP_", "WP_", "ZP_")):
-            return f"EXISTENCE:similar to AA sequence:RefSeq:{protein_id}"
-        return f"EXISTENCE:similar to AA sequence:INSD:{protein_id}"
+        database = reference_sequence_database(protein_id)
+        return f"similar to AA sequence:{database}:{protein_id}"
     accession = reference.get("accession", "") or reference.get("record_id", "")
     if accession:
-        return f"EXISTENCE:similar to AA sequence:INSD:{accession}"
-    return "EXISTENCE:similar to AA sequence"
+        database = reference_sequence_database(accession)
+        return f"similar to AA sequence:{database}:{accession}"
+    return "similar to AA sequence"
+
+
+def reference_sequence_database(accession):
+    if accession.startswith(REFSEQ_ACCESSION_PREFIXES):
+        return "RefSeq"
+    return "INSD"
+
+
+def reference_evidence_accession(reference):
+    return (
+        reference.get("protein_id", "")
+        or reference.get("accession", "")
+        or reference.get("record_id", "")
+    )
+
+
+def reference_evidence_basis(reference):
+    accession = reference_evidence_accession(reference)
+    if not accession:
+        return ""
+    database = reference_sequence_database(accession)
+    return f"{database}:{accession}"
+
+
+def reference_site_evidence_note(reference):
+    reference = reference or {}
+    evidence_basis = reference_evidence_basis(reference)
+    evidence_kind = "protein" if reference.get("protein_id", "") else "CDS"
+    if evidence_basis:
+        return f"inferred from reference {evidence_kind}: {evidence_basis}"
+    return "inferred from reference CDS"
 
 
 def best_reference_for_feature(
@@ -821,6 +876,48 @@ def remove_qualifiers(block_lines, qualifiers):
     return cleaned
 
 
+def qualifier_value_from_line(line, qualifier):
+    stripped = line.strip()
+    prefix = f"/{qualifier}="
+    if not stripped.startswith(prefix):
+        return None
+    value = stripped.removeprefix(prefix)
+    if value.startswith('"'):
+        value = value[1:]
+    if value.endswith('"'):
+        value = value[:-1]
+    return value
+
+
+def remove_qualifier_values(block_lines, qualifier, values):
+    value_set = {value.lower() for value in values}
+    cleaned = []
+    skipping = False
+    for line in block_lines:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            skipping = False
+            if qualifier_name == qualifier:
+                value = qualifier_value_from_line(line, qualifier)
+                if value is not None and value.lower() in value_set:
+                    skipping = True
+                    continue
+            cleaned.append(line)
+            continue
+        if skipping:
+            continue
+        cleaned.append(line)
+    return cleaned
+
+
+def listify_qualifier_values(values):
+    if values is None:
+        return []
+    if isinstance(values, str):
+        return [values]
+    return list(values)
+
+
 def update_cds_block_lines(
     block_lines,
     *,
@@ -838,11 +935,19 @@ def update_cds_block_lines(
     if add_rna_editing_exception and not has_rna_editing_exception:
         cleaned.extend(format_quoted_qualifier("exception", RNA_EDITING_EXCEPTION))
     if add_rna_editing_exception:
+        rna_editing_notes = listify_qualifier_values(rna_editing_note)
+        obsolete_notes = set()
+        for note in rna_editing_notes:
+            obsolete_notes.update(RNA_EDITING_OBSOLETE_NOTE_REPLACEMENTS.get(note, ()))
+        if obsolete_notes:
+            cleaned = remove_qualifier_values(cleaned, "note", obsolete_notes)
         existing_notes = {
             value.lower() for value in genbank_qualifier_values(cleaned, "note")
         }
-        if rna_editing_note and rna_editing_note.lower() not in existing_notes:
-            cleaned.extend(format_quoted_qualifier("note", rna_editing_note))
+        for note in rna_editing_notes:
+            if note.lower() not in existing_notes:
+                cleaned.extend(format_quoted_qualifier("note", note))
+                existing_notes.add(note.lower())
         existing_inferences = {
             value.lower()
             for value in genbank_qualifier_values(cleaned, "inference")
@@ -851,24 +956,26 @@ def update_cds_block_lines(
             if inference.lower() not in existing_inferences:
                 cleaned.extend(format_quoted_qualifier("inference", inference))
                 existing_inferences.add(inference.lower())
-    if table_id != "1" and not any(genbank_qualifier_name(line) == "transl_table" for line in cleaned):
-        cleaned.extend(format_simple_qualifier("transl_table", f"\"{table_id}\""))
+    if table_id != "1" and not any(
+        genbank_qualifier_name(line) == "transl_table" for line in cleaned
+    ):
+        cleaned.extend(format_simple_qualifier("transl_table", table_id))
     cleaned.extend(format_quoted_qualifier("translation", translation))
     return cleaned
 
 
 def rna_editing_cds_note(editing_effects, applied_decisions):
-    has_reference_inferred = "reference_inferred" in applied_decisions
-    has_rna_supported = any(
-        decision in {"accept", "essential_rescue"} for decision in applied_decisions
-    )
-    if has_reference_inferred and has_rna_supported:
-        return MIXED_RNA_EDITING_TRANSLATION_NOTE
-    if has_reference_inferred:
-        return REFERENCE_INFERRED_TRANSLATION_NOTE
+    _ = applied_decisions
+    notes = []
     if "start_gain" in editing_effects:
-        return RNA_EDITING_START_GAIN_NOTE
-    return RNA_EDITING_TRANSLATION_NOTE
+        notes.append(RNA_EDITING_START_GAIN_NOTE)
+    if "stop_gain" in editing_effects:
+        notes.append(RNA_EDITING_STOP_GAIN_NOTE)
+    if not notes:
+        return None
+    if len(notes) == 1:
+        return notes[0]
+    return notes
 
 
 def rna_editing_site_location(site):
@@ -878,20 +985,31 @@ def rna_editing_site_location(site):
     return str(position)
 
 
-def rna_editing_site_feature_lines(site, note=RNA_EDITING_SITE_NOTE):
+def rna_editing_site_notes(site):
+    notes = site.get("site_notes", site.get("site_note", RNA_EDITING_SITE_NOTE))
+    notes = listify_qualifier_values(notes)
+    return notes or [RNA_EDITING_SITE_NOTE]
+
+
+def rna_editing_site_feature_lines(site):
     location = rna_editing_site_location(site)
     return [
         f"{FEATURE_INDENT}{'misc_feature':<16}{location}\n",
-        *format_quoted_qualifier("note", note),
+        *[
+            line
+            for note in rna_editing_site_notes(site)
+            for line in format_quoted_qualifier("note", note)
+        ],
     ]
 
 
-def existing_rna_editing_site_features(blocks):
+def existing_rna_editing_site_feature_registry(blocks):
     existing = set()
-    accepted_notes = {
-        RNA_EDITING_SITE_NOTE.lower(),
-        REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE.lower(),
-    }
+    block_lines_by_key = {}
+    accepted_notes = {RNA_EDITING_SITE_NOTE.lower()}
+    accepted_notes.update(
+        note.lower() for note in OBSOLETE_REFERENCE_INFERRED_RNA_EDITING_SITE_NOTES
+    )
     for block in blocks:
         if block.key != "misc_feature":
             continue
@@ -899,20 +1017,83 @@ def existing_rna_editing_site_features(blocks):
             value.lower() for value in genbank_qualifier_values(block.lines, "note")
         }
         for note in notes & accepted_notes:
-            existing.add((block.location, note))
+            key = (block.location, RNA_EDITING_SITE_NOTE.lower())
+            existing.add(key)
+            block_lines_by_key.setdefault(key, block.lines)
+    return existing, block_lines_by_key
+
+
+def existing_rna_editing_site_features(blocks):
+    existing, _block_lines_by_key = existing_rna_editing_site_feature_registry(blocks)
     return existing
 
 
-def new_rna_editing_site_feature_blocks(feature_decision, existing_site_features):
+def merge_rna_editing_site_feature_notes(block_lines, desired_notes):
+    cleaned = remove_qualifier_values(
+        block_lines,
+        "note",
+        OBSOLETE_REFERENCE_INFERRED_RNA_EDITING_SITE_NOTES,
+    )
+    desired_note_set = {note.lower() for note in desired_notes}
+    merged = []
+    skipping = False
+    for line in cleaned:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            skipping = False
+            value = qualifier_value_from_line(line, "note")
+            if value is None:
+                merged.append(line)
+                continue
+            value_lower = value.lower()
+            if (
+                any(
+                    value_lower.startswith(prefix)
+                    for prefix in REFERENCE_SITE_EVIDENCE_NOTE_PREFIXES
+                )
+                and value_lower not in desired_note_set
+            ):
+                skipping = True
+                continue
+            merged.append(line)
+            continue
+        if skipping:
+            continue
+        merged.append(line)
+    cleaned = merged
+    if cleaned != block_lines:
+        block_lines[:] = cleaned
+    existing_notes = {
+        value.lower() for value in genbank_qualifier_values(block_lines, "note")
+    }
+    for note in desired_notes:
+        if note.lower() in existing_notes:
+            continue
+        block_lines.extend(format_quoted_qualifier("note", note))
+        existing_notes.add(note.lower())
+
+
+def new_rna_editing_site_feature_blocks(
+    feature_decision,
+    existing_site_features,
+    existing_site_feature_lines=None,
+):
+    existing_site_feature_lines = existing_site_feature_lines or {}
     blocks = []
     for site in feature_decision["accepted_sites"]:
         location = rna_editing_site_location(site)
-        site_note = site.get("site_note", RNA_EDITING_SITE_NOTE)
+        site_notes = rna_editing_site_notes(site)
+        site_note = site_notes[0]
         key = (location, site_note.lower())
         if key in existing_site_features:
+            existing_lines = existing_site_feature_lines.get(key)
+            if existing_lines is not None:
+                merge_rna_editing_site_feature_notes(existing_lines, site_notes)
             continue
         existing_site_features.add(key)
-        blocks.append(rna_editing_site_feature_lines(site, site_note))
+        block_lines = rna_editing_site_feature_lines(site)
+        existing_site_feature_lines[key] = block_lines
+        blocks.append(block_lines)
     return blocks
 
 
@@ -946,7 +1127,10 @@ def make_accepted_site(site, *, decision, rescue_reason="", reference=None, metr
     if rescue_reason:
         accepted_site["rescue_reason"] = rescue_reason
     if decision == "reference_inferred":
-        accepted_site["site_note"] = REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE
+        accepted_site["site_notes"] = [
+            RNA_EDITING_SITE_NOTE,
+            reference_site_evidence_note(reference),
+        ]
         accepted_site["reference_id"] = reference.get("record_id", "") if reference else ""
         accepted_site["reference_gene"] = reference.get("gene", "") if reference else ""
         accepted_site["reference_product"] = (
@@ -1563,7 +1747,7 @@ def evaluate_cds_feature(
             evidence_row["applied"] = True
             evidence_row["note"] = (
                 "Applied only to rescue complete CDS validation using "
-                "closely related reference protein evidence."
+                "reference protein evidence."
             )
             feature_decision["accepted_sites"].append(
                 make_accepted_site(
@@ -1662,7 +1846,10 @@ def curate_records(args, rna_bams, dna_bams):
             full_span=True,
         )
         curated_blocks = []
-        existing_site_features = existing_rna_editing_site_features(blocks)
+        (
+            existing_site_features,
+            existing_site_feature_lines,
+        ) = existing_rna_editing_site_feature_registry(blocks)
         for block in blocks:
             if block.key != "CDS":
                 curated_blocks.append(block.lines)
@@ -1687,6 +1874,7 @@ def curate_records(args, rna_bams, dna_bams):
                 new_rna_editing_site_feature_blocks(
                     feature_decision,
                     existing_site_features,
+                    existing_site_feature_lines,
                 )
             )
             evidence_rows.extend(block_evidence_rows)
@@ -1783,8 +1971,9 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "feature(s), with DDBJ-oriented CDS `/note` and `/inference` "
             "qualifiers where RNA editing changes the translated product. "
             "Applied edit sites are also represented as `misc_feature` "
-            f"annotations with `/note=\"{RNA_EDITING_SITE_NOTE}\"` or "
-            f"`/note=\"{REFERENCE_INFERRED_RNA_EDITING_SITE_NOTE}\"`."
+            f"annotations with `/note=\"{RNA_EDITING_SITE_NOTE}\"`; "
+            "reference-inferred sites include an additional reference CDS "
+            "evidence note."
         ),
         (
             "- RNA editing thresholds: accept requires "
@@ -1851,7 +2040,7 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
         lines.append(
             "- RNA editing reference-inferred rescue: "
             f"{reference_inferred_site_count} site(s) were inferred from "
-            "closely related reference CDS/protein evidence after RNA-seq "
+            "reference CDS/protein evidence after RNA-seq "
             "curation did not restore complete-CDS translation. These sites "
             f"required DNA/HiFi depth >= {args.min_dna_depth}, DNA alternate "
             f"fraction <= {args.max_dna_alt_fraction:g}, and rescued protein "

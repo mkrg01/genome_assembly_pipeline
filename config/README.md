@@ -123,9 +123,9 @@ The sections below follow the order of `config/config.yml`.
 
 When `organelle_annotation.chloroplast` is set to `pga_v2`, place one or a few plastid GenBank files (`.gb`, `.gbk`, or `.gbff`) in `organelle_reference_cds_qc.chloroplast.reference_dir`. PGA v2 uses these annotated references to transfer chloroplast/plastid gene annotations, so the reference choice can affect annotation completeness and naming. The same references are also used for chloroplast CDS/protein QC and reference-inferred RNA-editing rescue.
 
-For PMGA/mitochondrion, `organelle_reference_cds_qc.mitochondrion.reference_dir` is optional. If provided, the pipeline writes reference CDS/protein QC tables before and after RNA-editing curation, plus a manual RNA-editing review candidate table. After RNA-seq curation, residual CDS with invalid start codons, missing terminal stops, or internal stop codons are conservatively checked for C-to-U RNA-editing sites inferred from closely related reference CDS/proteins. Applied reference-inferred sites are recorded separately from RNA-seq-supported calls in the RNA-editing evidence sidecars and GenBank `/inference` qualifiers.
+For PMGA/mitochondrion, `organelle_reference_cds_qc.mitochondrion.reference_dir` is optional. If provided, place one or a few mitochondrial GenBank files (`.gb`, `.gbk`, or `.gbff`) in that directory. Those references are used for mitochondrial CDS/protein QC and reference-inferred RNA-editing rescue. Applied reference-inferred sites are recorded separately from RNA-seq-supported calls in the RNA-editing evidence sidecars and GenBank `/inference` qualifiers.
 
-Useful NCBI Nucleotide searches:
+Useful NCBI Nucleotide searches for chloroplast/plastid references:
 
 ```text
 "<Species name>"[Organism] AND chloroplast[Title] AND "complete genome"[Title]
@@ -133,15 +133,28 @@ Useful NCBI Nucleotide searches:
 <Family name>[Organism] AND chloroplast[Title] AND "complete genome"[Title]
 ```
 
-For mitochondrial references, prefer complete mitochondrial GenBank records from the same species, genus, or family when available, but treat the output as manual-review evidence rather than an automatic correction source.
+Useful NCBI Nucleotide searches for mitochondrial references:
 
-NCBI GenBank download:
+```text
+"<Species name>"[Organism] AND mitochondrion[Title] AND "complete genome"[Title]
+<Genus name>[Organism] AND mitochondrion[Title] AND "complete genome"[Title]
+<Family name>[Organism] AND mitochondrion[Title] AND "complete genome"[Title]
+```
+
+Prefer complete organelle GenBank records from the same species, genus, or family when available.
+
+NCBI GenBank download examples:
 
 ```bash
 mkdir -p plastid_reference
+mkdir -p mitochondrial_reference
 
-ACCESSION="NC_041245.1"
+PLASTID_ACCESSION="NC_041245.1"
+MITOCHONDRION_ACCESSION="<mitochondrion accession>"
 
-curl -L "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${ACCESSION}&rettype=gb&retmode=text" \
-  -o "plastid_reference/${ACCESSION}.gbk"
+curl -L "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${PLASTID_ACCESSION}&rettype=gb&retmode=text" \
+  -o "plastid_reference/${PLASTID_ACCESSION}.gbk"
+
+curl -L "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${MITOCHONDRION_ACCESSION}&rettype=gb&retmode=text" \
+  -o "mitochondrial_reference/${MITOCHONDRION_ACCESSION}.gbk"
 ```
