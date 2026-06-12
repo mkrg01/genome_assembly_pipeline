@@ -48,11 +48,12 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 al
 > 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
 > 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
 > 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
-> 4. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding and Juicebox-ready contact maps when Hi-C reads are configured. Without Hi-C reads, this is effectively the same as `remove_contamination_all`.
-> 5. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
-> 6. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
-> 7. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
-> 8. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes, draws pyCirclize and gbdraw circular maps, and stages organelle genome and annotation files for the release package.
+> 4. `longstitch_all`: Runs rules up to LongStitch correction/scaffolding when `longstitch_enabled` is true. Otherwise, this is effectively the same as `remove_contamination_all`.
+> 5. `scaffold_all`: Runs rules up to LongStitch and then YaHS Hi-C scaffolding plus Juicebox-ready contact maps when those steps are configured. Without Hi-C reads, this stops at the selected downstream assembly.
+> 6. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
+> 7. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
+> 8. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
+> 9. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes, draws pyCirclize and gbdraw circular maps, and stages organelle genome and annotation files for the release package.
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 

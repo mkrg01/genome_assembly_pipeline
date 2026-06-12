@@ -32,6 +32,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 - Keep only one raw RNA-seq file per sample and read pair. For example, do not place both `SAMPLE_1.fastq.gz` and `SAMPLE_1.fq` in `raw_data/`.
 - Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
 - Hi-C reads are optional and should be provided as matching R1/R2 paths in `hic_reads_r1` and `hic_reads_r2`. Multiple lanes can be listed in matching order. If Hi-C reads are configured, the pipeline uses them for hifiasm phasing, runs YaHS scaffolding on each assembly listed in `selected_assemblies`, and prepares Juicebox-ready contact maps. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#hi-c-integration) and the [YaHS documentation](https://github.com/c-zhou/yahs) for details.
+- LongStitch, when enabled, uses the curated HiFi reads generated internally by this workflow.
 
 ---
 
@@ -73,11 +74,19 @@ The sections below follow the order of `config/config.yml`.
 | --- | --- | --- |
 | `taxid`          | NCBI Taxonomy ID for the target organism. Used by FCS-GX screening and organelle GenBank source `db_xref`. Legacy `fcs_gx_taxid` is still accepted as a fallback. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 
+### LongStitch Misassembly Correction
+
+| Parameter | Description | Example |
+| --- | --- | --- |
+| `longstitch_enabled` | Optional: Run LongStitch on the FCS-cleaned assembly before YaHS and downstream analysis. `{true, false}` | `false` |
+| `longstitch_genome_size` | Required when `longstitch_enabled` is `true`. Haploid genome size passed to LongStitch as `G`. | `"3e9"` |
+| `longstitch_longmap` | Long read technology preset used by LongStitch for minimap2 mapping. One of `{"ont", "pb", "hifi"}`. | `"hifi"` |
+
 ### YaHS Scaffolding
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding after FCS cleanup. Set to `null` to use YaHS defaults. This parameter is used only when both `hic_reads_r1` and `hic_reads_r2` are set. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
+| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding after FCS cleanup and optional LongStitch correction. Set to `null` to use YaHS defaults. This parameter is used only when both `hic_reads_r1` and `hic_reads_r2` are set. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
 
 ### Quality Assessment
 

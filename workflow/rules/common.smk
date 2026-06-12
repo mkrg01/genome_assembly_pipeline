@@ -181,6 +181,17 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def normalize_required_scalar_config(config_key, value):
+    if value is None:
+        raise ValueError(f"'{config_key}' in config.yml is required.")
+    if isinstance(value, bool):
+        raise ValueError(f"'{config_key}' in config.yml must not be a boolean.")
+    value = str(value).strip()
+    if not value:
+        raise ValueError(f"'{config_key}' in config.yml must be non-empty.")
+    return value
+
+
 def normalize_pipeline_version_config():
     value = config.get("pipeline_version", None)
     if value is None:
@@ -390,10 +401,31 @@ hifiasm_dual_scaf = normalize_bool_config(
     "hifiasm_dual_scaf",
     config.get("hifiasm_dual_scaf", False),
 )
+longstitch_enabled = normalize_bool_config(
+    "longstitch_enabled",
+    config.get("longstitch_enabled", False),
+)
+longstitch_genome_size = (
+    normalize_required_scalar_config(
+        "longstitch_genome_size",
+        config.get("longstitch_genome_size", None),
+    )
+    if longstitch_enabled
+    else None
+)
+longstitch_longmap = config.get("longstitch_longmap", "hifi")
+if longstitch_longmap is None:
+    longstitch_longmap = "hifi"
+if not isinstance(longstitch_longmap, str) or longstitch_longmap not in ("ont", "pb", "hifi"):
+    raise ValueError(
+        "'longstitch_longmap' in config.yml must be one of: ont, pb, hifi."
+    )
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]
-downstream_assembly_name = "yahs" if hic_reads_enabled else "fcs"
+downstream_assembly_name = (
+    "yahs" if hic_reads_enabled else "longstitch" if longstitch_enabled else "fcs"
+)
 taxid = normalize_taxid_config()
 oatk_organelle = normalize_oatk_organelle_config(
     config.get("oatk_organelle", "mitochondrion_and_chloroplast")
@@ -446,6 +478,20 @@ def downstream_assembly_path(assembly_name, selected_assembly):
     return (
         f"results/{downstream_assembly_name}/assembly/{selected_assembly}/{assembly_name}.fa"
     )
+
+
+def fcs_assembly_path(assembly_name, selected_assembly):
+    return f"results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+
+
+def longstitch_assembly_path(assembly_name, selected_assembly):
+    return f"results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa"
+
+
+def pre_yahs_assembly_path(assembly_name, selected_assembly):
+    if longstitch_enabled:
+        return longstitch_assembly_path(assembly_name, selected_assembly)
+    return fcs_assembly_path(assembly_name, selected_assembly)
 
 
 def seqkit_stats_organelle_path():
@@ -533,8 +579,22 @@ def remove_contamination_all_inputs(assembly_name):
     return inputs
 
 
-def scaffold_all_inputs(assembly_name):
+def longstitch_all_inputs(assembly_name):
     inputs = remove_contamination_all_inputs(assembly_name)
+    if not longstitch_enabled:
+        return inputs
+
+    inputs.extend(
+        expand_selected_assembly_paths(
+            "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa",
+            assembly_name,
+        )
+    )
+    return inputs
+
+
+def scaffold_all_inputs(assembly_name):
+    inputs = longstitch_all_inputs(assembly_name)
     if not hic_reads_enabled:
         return inputs
 

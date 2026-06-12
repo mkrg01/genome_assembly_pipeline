@@ -109,6 +109,15 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
 - `tidk/{selected_assembly}/`
   `tidk find`, `tidk explore`, and `tidk search` outputs and plots.
 
+## `results/longstitch/`
+
+Created only when `longstitch_enabled` is `true`.
+
+- `assembly/{selected_assembly}/`
+  LongStitch-corrected/scaffolded assembly copied from the LongStitch run output.
+- `run/{selected_assembly}/`
+  LongStitch working directories containing symlinks to the FCS-cleaned assembly and curated HiFi reads, plus LongStitch intermediate outputs.
+
 ## `results/external/`
 
 Created only when running `workflow/Snakefile.annotation`.

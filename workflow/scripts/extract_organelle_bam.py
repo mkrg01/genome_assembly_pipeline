@@ -45,6 +45,7 @@ def main():
     args = parse_args()
     record_ids = organelle_record_ids(args.manifest, args.organelle)
     args.output_bam.parent.mkdir(parents=True, exist_ok=True)
+    output_index = Path(str(args.output_bam) + ".bai")
     subprocess.run(
         [
             "samtools",
@@ -59,7 +60,11 @@ def main():
         ],
         check=True,
     )
-    subprocess.run(["samtools", "index", "-f", str(args.output_bam)], check=True)
+    output_index.unlink(missing_ok=True)
+    subprocess.run(
+        ["samtools", "index", str(args.output_bam), str(output_index)],
+        check=True,
+    )
 
 
 if __name__ == "__main__":
