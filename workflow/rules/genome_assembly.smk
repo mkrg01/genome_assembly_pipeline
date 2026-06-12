@@ -1,5 +1,6 @@
 hifi_sample_ids = discover_sample_ids([
     ("raw_data/*.hifi_reads.bam", ".hifi_reads.bam"),
+    ("results/hifi_reads/raw_reads/*_hifi_reads.fastq.gz", "_hifi_reads.fastq.gz"),
     ("results/hifi_reads/fastplong/*_hifi_reads_curated.fastq.gz", "_hifi_reads_curated.fastq.gz"),
 ])
 
