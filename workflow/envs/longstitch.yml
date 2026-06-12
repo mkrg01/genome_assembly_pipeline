@@ -1,0 +1,5 @@
+name: longstitch
+channels:
+  - conda-forge
+dependencies:
+  - bioconda::longstitch=1.0.5

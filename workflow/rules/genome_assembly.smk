@@ -763,9 +763,56 @@ rule copy_fcs_gx_clean:
     shell:
         "cp {input} {output} > {log.out} 2> {log.err}"
 
+rule longstitch:
+    input:
+        assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa",
+        reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
+    output:
+        assembly = "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa"
+    log:
+        out = "logs/longstitch_{selected_assembly}_{assembly_name}.out",
+        err = "logs/longstitch_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/longstitch.yml"
+    threads:
+        max(1, int(workflow.cores * 0.95))
+    params:
+        genome_size = longstitch_genome_size,
+        longmap = longstitch_longmap
+    shell:
+        """
+        (
+            run_dir=results/longstitch/run/{wildcards.selected_assembly}/{wildcards.assembly_name}
+            output_dir=$(dirname {output.assembly})
+            rm -rf "$run_dir"
+            mkdir -p "$run_dir" "$output_dir"
+
+            assembly=$(realpath {input.assembly})
+            reads=$(realpath {input.reads})
+
+            cd "$run_dir"
+            ln -sf "$assembly" draft.fa
+            ln -sf "$reads" reads.fastq.gz
+
+            longstitch run \
+                draft=draft \
+                reads=reads \
+                G={params.genome_size} \
+                longmap={params.longmap} \
+                t={threads} \
+                out_prefix=longstitch
+
+            test -s longstitch.scaffolds.fa
+            cp longstitch.scaffolds.fa "$OLDPWD/{output.assembly}"
+        ) > {log.out} 2> {log.err}
+        """
+
 rule prepare_yahs_input_assembly:
     input:
-        "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+        lambda wildcards: pre_yahs_assembly_path(
+            wildcards.assembly_name,
+            wildcards.selected_assembly,
+        )
     output:
         assembly = "results/yahs/input/{selected_assembly}/{assembly_name}.fa",
         fai = "results/yahs/input/{selected_assembly}/{assembly_name}.fa.fai"

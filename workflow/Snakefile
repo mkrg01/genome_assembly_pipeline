@@ -25,6 +25,10 @@ rule remove_contamination_all:
     input:
         *remove_contamination_all_inputs(assembly_name)
 
+rule longstitch_all:
+    input:
+        *longstitch_all_inputs(assembly_name)
+
 rule scaffold_all:
     input:
         *scaffold_all_inputs(assembly_name)
