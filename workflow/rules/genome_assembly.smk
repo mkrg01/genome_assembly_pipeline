@@ -802,8 +802,7 @@ rule longstitch:
     input:
         assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa",
         reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
-        genome_stats = "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
-        extract_sum_len = "workflow/scripts/extract_seqkit_sum_len.py"
+        genome_stats = "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv"
     output:
         assembly = "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
@@ -823,7 +822,7 @@ rule longstitch:
 
             assembly=$(realpath {input.assembly})
             reads=$(realpath {input.reads})
-            genome_size=$(python3 {input.extract_sum_len} {input.genome_stats})
+            genome_size=$(python3 workflow/scripts/extract_seqkit_sum_len.py {input.genome_stats})
 
             cd "$run_dir"
             ln -sf "$assembly" draft.fa
