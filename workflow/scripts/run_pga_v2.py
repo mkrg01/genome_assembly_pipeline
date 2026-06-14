@@ -21,6 +21,11 @@ from organelle_annotation_utils import (
 from pga_v2_cds_qc import SequenceFix, apply_sequence_fixes, run_cds_qc
 
 
+PGA_V2_RANDOM_ALPHABET = "my @a = (0..9,'$','%','a'..'z','A'..'Z','-','+','_');"
+PGA_V2_SHELL_SAFE_RANDOM_ALPHABET = "my @a = (0..9,'%','a'..'z','A'..'Z','-','+','_');"
+PGA_V2_SHELL_SAFE_SCRIPT_NAME = "pga_v2.shell_safe.pl"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run PGA v2.0 on an Oatk plastid FASTA.")
     parser.add_argument("--script", type=Path, required=True)
@@ -62,6 +67,36 @@ def recreate_dir(path):
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
+
+
+def prepare_shell_safe_pga_v2_script(script: Path, run_root: Path):
+    text = script.read_text()
+    if PGA_V2_RANDOM_ALPHABET in text:
+        patched_text = text.replace(
+            PGA_V2_RANDOM_ALPHABET,
+            PGA_V2_SHELL_SAFE_RANDOM_ALPHABET,
+            1,
+        )
+        changed = True
+    elif PGA_V2_SHELL_SAFE_RANDOM_ALPHABET in text:
+        patched_text = text
+        changed = False
+    else:
+        raise RuntimeError(
+            "Could not locate the PGA v2 random temporary-name alphabet in "
+            f"{script}. Refusing to run without shell-safe temporary names."
+        )
+
+    patched_script = run_root / PGA_V2_SHELL_SAFE_SCRIPT_NAME
+    patched_script.write_text(patched_text)
+    shutil.copymode(script, patched_script)
+
+    return patched_script, {
+        "source_script": str(script),
+        "execution_script": str(patched_script),
+        "shell_safe_random_alphabet_changed": changed,
+        "removed_shell_sensitive_random_characters": ["$"],
+    }
 
 
 def input_fasta_topology(path):
@@ -171,7 +206,7 @@ def curate_preliminary_annotation(annotation, record):
 
 def main():
     args = parse_args()
-    script = args.script.resolve()
+    source_script = args.script.resolve()
     input_fasta = args.input_fasta.resolve()
     annotation_fasta = args.annotation_fasta.resolve()
     reference_dir = args.reference_dir.resolve()
@@ -197,6 +232,7 @@ def main():
     copied_reference_dir = run_root / "reference"
     raw_output_dir = run_root / "gb"
     recreate_dir(run_root)
+    script, script_safety = prepare_shell_safe_pga_v2_script(source_script, run_root)
     shutil.copytree(reference_dir, copied_reference_dir)
 
     input_records = parse_fasta_records(input_fasta)
@@ -411,7 +447,9 @@ def main():
         manifest,
         {
             "tool": "pga_v2",
-            "script": str(script),
+            "script": str(source_script),
+            "execution_script": str(script),
+            "script_safety": script_safety,
             "input_fasta": str(input_fasta),
             "annotation_fasta": str(annotation_fasta),
             "reference_dir": str(reference_dir),
