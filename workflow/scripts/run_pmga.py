@@ -10,6 +10,7 @@ from organelle_annotation_utils import (
     curate_genbank_locus,
     curate_genbank_source_metadata,
     format_cds_auto_translation_validation_errors,
+    normalize_genbank_feature_location_wrapping,
     normalize_genbank_origin_wrapping_locations,
     normalize_pmga_trans_splicing_qualifiers,
     remove_genbank_feature_qualifiers,
@@ -347,6 +348,9 @@ def main():
         ]
         post_curation["core_sections"] = core_sections
         post_curation["locus_topology"] = topology_curation
+        post_curation["feature_location_wrapping"] = (
+            normalize_genbank_feature_location_wrapping(annotation)
+        )
         post_curation["origin_wrapping_locations"] = (
             normalize_genbank_origin_wrapping_locations(annotation)
         )
@@ -439,6 +443,9 @@ def main():
             ]
             record_post_curation["core_sections"] = core_sections
             record_post_curation["locus_topology"] = topology_curation
+            record_post_curation["feature_location_wrapping"] = (
+                normalize_genbank_feature_location_wrapping(record_annotation)
+            )
             record_post_curation["origin_wrapping_locations"] = (
                 normalize_genbank_origin_wrapping_locations(record_annotation)
             )

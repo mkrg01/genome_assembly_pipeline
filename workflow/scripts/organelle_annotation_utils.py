@@ -19,6 +19,7 @@ GENBANK_QUALIFIER_PATTERN = re.compile(r"^/([^=\s]+)(?:=|$)")
 GENBANK_LOCATION_RANGE_PATTERN = re.compile(r"<?(\d+)\.\.>?(\d+)")
 GENBANK_LOCATION_RANGE_DETAIL_PATTERN = re.compile(r"(<)?(\d+)\.\.(>)?(\d+)")
 GENBANK_LOCATION_POSITION_PATTERN = re.compile(r"(?<![A-Za-z_])<?(\d+)(?![A-Za-z_])")
+GENBANK_FEATURE_LOCATION_WIDTH = 58
 FEATURE_SORT_ORDER = {
     "gene": 0,
     "mRNA": 1,
@@ -416,12 +417,118 @@ def genbank_feature_qualifier_start(block_lines: list[str]):
     return len(block_lines)
 
 
+def split_genbank_location_at_commas(location: str):
+    parts = []
+    start = 0
+    for index, character in enumerate(location):
+        if character != ",":
+            continue
+        parts.append(location[start : index + 1])
+        start = index + 1
+    if start < len(location):
+        parts.append(location[start:])
+    return [part for part in parts if part]
+
+
+def wrap_genbank_feature_location(
+    location: str,
+    width: int = GENBANK_FEATURE_LOCATION_WIDTH,
+):
+    parts = split_genbank_location_at_commas(location)
+    if not parts:
+        return [location]
+
+    wrapped = []
+    current = ""
+    for part in parts:
+        if not current:
+            current = part
+            continue
+        if len(current) + len(part) <= width:
+            current += part
+            continue
+        wrapped.append(current)
+        current = part
+
+    if current:
+        wrapped.append(current)
+    return wrapped
+
+
 def format_genbank_feature_location_lines(
     key: str,
     location: str,
     newline: str = "\n",
 ):
-    return [f"{FEATURE_INDENT}{key:<16}{location}{newline}"]
+    location_parts = wrap_genbank_feature_location(location)
+    first_prefix = f"{FEATURE_INDENT}{key:<16}"
+    return [
+        f"{first_prefix if index == 0 else QUALIFIER_INDENT}{part}{newline}"
+        for index, part in enumerate(location_parts)
+    ]
+
+
+def normalize_genbank_record_feature_location_wrapping(record: list[str]):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, 0
+
+    changed_feature_count = 0
+    normalized_blocks = []
+    for block in blocks:
+        qualifier_start = genbank_feature_qualifier_start(block.lines)
+        newline = "\n" if block.lines[0].endswith("\n") else ""
+        normalized_location_lines = format_genbank_feature_location_lines(
+            block.key,
+            block.location,
+            newline=newline,
+        )
+        if normalized_location_lines != block.lines[:qualifier_start]:
+            changed_feature_count += 1
+        normalized_blocks.append(
+            [*normalized_location_lines, *block.lines[qualifier_start:]]
+        )
+
+    if changed_feature_count == 0:
+        return record, False, 0
+
+    normalized_feature_lines = [
+        line for block_lines in normalized_blocks for line in block_lines
+    ]
+    normalized_record = [
+        *record[: features_index + 1],
+        *normalized_feature_lines,
+        *record[origin_index:],
+    ]
+    return normalized_record, True, changed_feature_count
+
+
+def normalize_genbank_feature_location_wrapping(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    normalized_records = []
+    changed_record_count = 0
+    changed_feature_count = 0
+
+    for record in records:
+        normalized_record, changed, record_changed_feature_count = (
+            normalize_genbank_record_feature_location_wrapping(record)
+        )
+        normalized_records.append(normalized_record)
+        changed_record_count += int(changed)
+        changed_feature_count += record_changed_feature_count
+
+    normalized_lines = [line for record in normalized_records for line in record]
+    changed = lines != normalized_lines
+    if changed:
+        path.write_text("".join(normalized_lines))
+
+    return {
+        "feature_location_wrap_record_count": len(records),
+        "feature_location_wrap_changed_record_count": changed_record_count,
+        "feature_location_wrap_changed_feature_count": changed_feature_count,
+        "feature_location_wrap_changed": changed,
+    }
 
 
 def genbank_qualifier_name(line: str):
@@ -2091,6 +2198,25 @@ def append_post_curation_summary(lines, post_curation):
             lines.append(
                 "- feature locations: no circular origin-spanning location(s) "
                 f"needed normalization across {record_count} record(s)"
+            )
+
+    location_wrap = post_curation.get("feature_location_wrapping")
+    if location_wrap:
+        record_count = location_wrap["feature_location_wrap_record_count"]
+        feature_count = location_wrap["feature_location_wrap_changed_feature_count"]
+        if location_wrap["feature_location_wrap_changed"]:
+            changed_records = location_wrap[
+                "feature_location_wrap_changed_record_count"
+            ]
+            lines.append(
+                "- feature location wrapping: normalized "
+                f"{feature_count} feature location(s) across "
+                f"{changed_records}/{record_count} record(s)"
+            )
+        else:
+            lines.append(
+                "- feature location wrapping: already standard across "
+                f"{record_count} record(s)"
             )
 
     feature_sort = post_curation.get("feature_sort")
