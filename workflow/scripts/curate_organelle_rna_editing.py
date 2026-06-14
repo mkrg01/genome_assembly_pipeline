@@ -141,6 +141,8 @@ SUMMARY_FIELDS = [
     "applied_sites",
     "rescued_sites",
     "reference_inferred_sites",
+    "reference_inferred_rescue_attempted",
+    "reference_inferred_candidate_sites",
     "likely_genomic_variant_sites",
     "mean_candidate_rna_depth",
     "candidate_sites_with_min_depth",
@@ -750,13 +752,15 @@ def reference_inferred_rescue(
     references_by_gene,
     references_by_product,
     args,
+    rescue_sites=None,
 ):
-    rescue_sites = reference_inferred_candidate_sites(
-        validation_errors,
-        site_records,
-        terminal_codon_index,
-        args,
-    )
+    if rescue_sites is None:
+        rescue_sites = reference_inferred_candidate_sites(
+            validation_errors,
+            site_records,
+            terminal_codon_index,
+            args,
+        )
     if not rescue_sites:
         return None
 
@@ -1361,6 +1365,8 @@ def evaluate_cds_feature(
         "applied_sites": 0,
         "rescued_sites": 0,
         "reference_inferred_sites": 0,
+        "reference_inferred_rescue_attempted": False,
+        "reference_inferred_candidate_sites": 0,
         "likely_genomic_variant_sites": 0,
         "mean_candidate_rna_depth": 0,
         "candidate_sites_with_min_depth": 0,
@@ -1712,7 +1718,9 @@ def evaluate_cds_feature(
             feature_decision["translation_status"] = summary["translation_status"]
             return updated_lines, evidence_rows, summary, feature_decision
 
-    if references_by_gene:
+    reference_rescue_sites = []
+    if references_by_gene is not None:
+        summary["reference_inferred_rescue_attempted"] = True
         ensure_dna_counts_for_sites(
             reference_inferred_dna_candidate_sites(
                 validation["errors"],
@@ -1722,19 +1730,29 @@ def evaluate_cds_feature(
             dna_pileups=dna_pileups,
             record_name=record_name,
         )
-    reference_rescue = reference_inferred_rescue(
-        validation_errors=validation["errors"],
-        site_records=site_records,
-        edited_cds=edited_cds,
-        codon_offset=codon_offset,
-        terminal_codon_index=complete_coding_length // 3,
-        table_id=table_id,
-        gene=gene,
-        product=product,
-        references_by_gene=references_by_gene,
-        references_by_product=references_by_product,
-        args=args,
-    )
+        reference_rescue_sites = reference_inferred_candidate_sites(
+            validation["errors"],
+            site_records,
+            complete_coding_length // 3,
+            args,
+        )
+        summary["reference_inferred_candidate_sites"] = len(reference_rescue_sites)
+    reference_rescue = None
+    if references_by_gene is not None:
+        reference_rescue = reference_inferred_rescue(
+            validation_errors=validation["errors"],
+            site_records=site_records,
+            edited_cds=edited_cds,
+            codon_offset=codon_offset,
+            terminal_codon_index=complete_coding_length // 3,
+            table_id=table_id,
+            gene=gene,
+            product=product,
+            references_by_gene=references_by_gene,
+            references_by_product=references_by_product,
+            args=args,
+            rescue_sites=reference_rescue_sites,
+        )
     if reference_rescue is not None:
         reference = reference_rescue["reference"]
         metrics = reference_rescue["metrics"]
@@ -1928,6 +1946,24 @@ def format_path_for_markdown(path: Path):
     return f"`{path.as_posix()}`"
 
 
+def format_applied_site_count_breakdown(
+    accepted_site_count,
+    applied_site_count,
+    rescued_site_count,
+    reference_inferred_site_count,
+):
+    parts = [f"{accepted_site_count} normal-threshold accepted site(s)"]
+    if rescued_site_count:
+        parts.append(f"{rescued_site_count} CDS-essential rescue-applied site(s)")
+    if reference_inferred_site_count:
+        parts.append(
+            f"{reference_inferred_site_count} reference-inferred rescue-applied "
+            "site(s)"
+        )
+    parts.append(f"{applied_site_count} total applied site(s)")
+    return ", ".join(parts)
+
+
 def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
     cds_count = len(summary_rows)
     candidate_site_count = count_summary(summary_rows, "candidate_c_sites")
@@ -1938,17 +1974,26 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
         summary_rows,
         "reference_inferred_sites",
     )
+    reference_inferred_attempted_cds_count = count_true(
+        summary_rows,
+        "reference_inferred_rescue_attempted",
+    )
+    reference_inferred_candidate_site_count = count_summary(
+        summary_rows,
+        "reference_inferred_candidate_sites",
+    )
+    reference_inferred_fixed_cds_count = sum(
+        1
+        for row in summary_rows
+        if row.get("translation_status") == "updated_with_reference_inference"
+    )
     likely_genomic_variant_site_count = count_summary(
         summary_rows,
         "likely_genomic_variant_sites",
     )
     translated_cds_count = count_true(summary_rows, "translation_added")
     exception_cds_count = count_true(summary_rows, "exception_added")
-    insufficient_coverage_count = sum(
-        1
-        for row in evidence_rows
-        if row.get("decision") == "insufficient_coverage"
-    )
+    _ = evidence_rows
     validation_failed_count = sum(
         1
         for row in summary_rows
@@ -1960,6 +2005,18 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
     )
     rna_bams = ", ".join(format_path_for_markdown(path) for path in args.rna_bam)
     dna_bam = format_path_for_markdown(args.dna_bam) if args.dna_bam else "none"
+    applied_site_breakdown = format_applied_site_count_breakdown(
+        accepted_site_count,
+        applied_site_count,
+        rescued_site_count,
+        reference_inferred_site_count,
+    )
+    translation_rescue_context = (
+        "normal RNA-editing calls, CDS-essential rescue, and "
+        "reference-inferred rescue"
+        if args.reference_dir is not None
+        else "normal RNA-editing calls and CDS-essential rescue"
+    )
 
     lines = [
         "## RNA editing evidence curation",
@@ -1972,8 +2029,7 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
         ),
         (
             f"- RNA editing evidence: {candidate_site_count} candidate C-to-U "
-            f"site(s) across {cds_count} CDS feature(s); {accepted_site_count} "
-            f"accepted site(s), {applied_site_count} site(s) applied."
+            f"site(s) across {cds_count} CDS feature(s); {applied_site_breakdown}."
         ),
         (
             f"- RNA editing GenBank updates: added or refreshed `/translation` "
@@ -2017,17 +2073,6 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
         f"- RNA editing DNA/HiFi BAM input: {dna_bam}.",
         f"- RNA editing sidecars: {sidecars}.",
     ]
-    if insufficient_coverage_count:
-        lines.append(
-            f"- RNA editing coverage note: {insufficient_coverage_count} "
-            "candidate site(s) had no passing RNA-seq pileup coverage."
-        )
-    if validation_failed_count:
-        lines.append(
-            f"- RNA editing translation note: {validation_failed_count} CDS "
-            "feature(s) were not updated because the edited CDS did not pass "
-            "complete-CDS translation validation."
-        )
     if likely_genomic_variant_site_count:
         lines.append(
             "- RNA editing genome-sequence review note: "
@@ -2036,29 +2081,35 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "were classified as `likely_genomic_variant`; these were retained "
             "in the evidence table and not applied as RNA editing."
         )
-    if rescued_site_count:
-        lines.append(
-            f"- RNA editing CDS-essential rescue: {rescued_site_count} site(s) "
-            "with at least the configured rescue-level RNA support were applied "
-            "only because they restored complete-CDS translation validation."
-        )
-    if reference_inferred_site_count:
-        reference_dir = (
-            format_path_for_markdown(args.reference_dir)
-            if args.reference_dir is not None
-            else "none"
-        )
+    if args.reference_dir is not None:
+        reference_dir = format_path_for_markdown(args.reference_dir)
         lines.append(
             "- RNA editing reference-inferred rescue: "
-            f"{reference_inferred_site_count} site(s) were inferred from "
-            "reference CDS/protein evidence after RNA-seq "
-            "curation did not restore complete-CDS translation. These sites "
-            f"required DNA/HiFi depth >= {args.min_dna_depth}, DNA alternate "
-            f"fraction <= {args.max_dna_alt_fraction:g}, and rescued protein "
-            "identity/coverage >= "
+            f"enabled with reference directory {reference_dir}; evaluated "
+            f"{reference_inferred_attempted_cds_count} CDS feature(s) that "
+            "still failed complete-CDS validation after normal RNA-editing "
+            f"calls and CDS-essential rescue; tested "
+            f"{reference_inferred_candidate_site_count} validation-targeted "
+            f"candidate site(s); fixed {reference_inferred_fixed_cds_count} "
+            f"CDS feature(s) by applying {reference_inferred_site_count} "
+            "reference-inferred site(s). Candidate sites are selected only "
+            "when exactly one not-yet-applied C-to-U site directly addresses "
+            "a remaining validation error (start gain at the first codon, "
+            "terminal stop gain, or internal premature-stop rescue) and passes "
+            f"DNA/HiFi depth >= {args.min_dna_depth} with DNA alternate "
+            f"fraction <= {args.max_dna_alt_fraction:g}. A fix is applied "
+            "only if the edited CDS passes complete-CDS translation validation "
+            "and the translated protein matches the best same-gene/product "
+            "reference with identity/coverage >= "
             f"{REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY:g}/"
-            f"{REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE:g}. Reference "
-            f"directory: {reference_dir}."
+            f"{REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE:g}."
+        )
+    if validation_failed_count:
+        lines.append(
+            "- RNA editing translation note: after "
+            f"{translation_rescue_context}, {validation_failed_count} CDS "
+            "feature(s) were still not updated because the edited CDS did "
+            "not pass complete-CDS translation validation."
         )
     return "\n".join(lines)
 
