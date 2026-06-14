@@ -78,8 +78,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `longstitch_enabled` | Optional: Run LongStitch on the FCS-cleaned assembly before YaHS and downstream analysis. `{true, false}` | `false` |
-| `longstitch_genome_size` | Required when `longstitch_enabled` is `true`. Haploid genome size passed to LongStitch as `G`. | `"3e9"` |
+| `longstitch_enabled` | Optional: Run LongStitch on the FCS-cleaned assembly before YaHS and downstream analysis. When enabled, the haploid genome size passed to LongStitch as `G` is derived from the FCS-cleaned assembly `sum_len` in the workflow-generated `seqkit stats` table. `{true, false}` | `false` |
 | `longstitch_longmap` | Long read technology preset used by LongStitch for minimap2 mapping. One of `{"ont", "pb", "hifi"}`. | `"hifi"` |
 
 ### YaHS Scaffolding

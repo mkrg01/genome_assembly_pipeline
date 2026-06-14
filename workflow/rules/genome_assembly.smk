@@ -766,7 +766,9 @@ rule copy_fcs_gx_clean:
 rule longstitch:
     input:
         assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa",
-        reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz"
+        reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        genome_stats = "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        extract_sum_len = "workflow/scripts/extract_seqkit_sum_len.py"
     output:
         assembly = "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
@@ -777,7 +779,6 @@ rule longstitch:
     threads:
         max(1, int(workflow.cores * 0.95))
     params:
-        genome_size = longstitch_genome_size,
         longmap = longstitch_longmap
     shell:
         """
@@ -789,6 +790,7 @@ rule longstitch:
 
             assembly=$(realpath {input.assembly})
             reads=$(realpath {input.reads})
+            genome_size=$(python3 {input.extract_sum_len} {input.genome_stats})
 
             cd "$run_dir"
             ln -sf "$assembly" draft.fa
@@ -797,7 +799,7 @@ rule longstitch:
             longstitch run \
                 draft=draft \
                 reads=reads \
-                G={params.genome_size} \
+                G="$genome_size" \
                 longmap={params.longmap} \
                 t={threads} \
                 out_prefix=longstitch

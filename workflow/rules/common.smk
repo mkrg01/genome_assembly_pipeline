@@ -405,14 +405,6 @@ longstitch_enabled = normalize_bool_config(
     "longstitch_enabled",
     config.get("longstitch_enabled", False),
 )
-longstitch_genome_size = (
-    normalize_required_scalar_config(
-        "longstitch_genome_size",
-        config.get("longstitch_genome_size", None),
-    )
-    if longstitch_enabled
-    else None
-)
 longstitch_longmap = config.get("longstitch_longmap", "hifi")
 if longstitch_longmap is None:
     longstitch_longmap = "hifi"
