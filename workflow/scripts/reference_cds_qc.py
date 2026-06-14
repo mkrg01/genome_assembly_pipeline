@@ -25,6 +25,7 @@ from organelle_annotation_utils import (
 SHORT_LENGTH_RATIO = 0.90
 SHORT_LENGTH_MISSING_BP = 60
 REFERENCE_EXTENSIONS = {".gb", ".gbk", ".gbff"}
+RNA_EDITING_EXCEPTION = "rna editing"
 
 
 @dataclass
@@ -46,6 +47,7 @@ class CdsFeature:
     protein: str
     protein_length: int
     translation_source: str
+    has_rna_editing_exception: bool
     validation_valid: bool
     validation_errors: list[str]
 
@@ -125,27 +127,6 @@ QC_FIELDS = [
     "manual_review_candidate",
 ]
 
-MANUAL_CANDIDATE_FIELDS = [
-    "organelle",
-    "tool",
-    "phase",
-    "record_id",
-    "gene",
-    "product",
-    "feature_index",
-    "location",
-    "problem",
-    "validation_errors",
-    "reference_id",
-    "reference_gene",
-    "reference_product",
-    "protein_identity",
-    "protein_coverage",
-    "length_ratio",
-    "suggested_action",
-]
-
-
 def normalized_product(product: str):
     return " ".join(product.lower().replace("-", " ").replace("_", " ").split())
 
@@ -168,6 +149,13 @@ def first_qualifier_value(qualifiers, name: str, default=""):
     if not values:
         return default
     return values[0]
+
+
+def has_rna_editing_exception(qualifiers):
+    return any(
+        str(value).lower() == RNA_EDITING_EXCEPTION
+        for value in qualifiers.get("exception", [])
+    )
 
 
 def parse_codon_start(value):
@@ -297,6 +285,9 @@ def parse_cds_features(path: Path, default_transl_table="1"):
                         protein=protein,
                         protein_length=len(protein),
                         translation_source=translation_source,
+                        has_rna_editing_exception=has_rna_editing_exception(
+                            qualifiers
+                        ),
                         validation_valid=validation["valid"],
                         validation_errors=validation["errors"],
                     )
@@ -432,6 +423,16 @@ def row_review_reasons(row: CdsQcRow):
     return reasons
 
 
+def feature_validation_for_phase(feature: CdsFeature, phase: str):
+    if (
+        phase == "post_rna_editing"
+        and feature.has_rna_editing_exception
+        and feature.translation_source == "genbank_translation"
+    ):
+        return True, []
+    return feature.validation_valid, feature.validation_errors
+
+
 def make_qc_rows(
     target_features,
     references_by_gene,
@@ -481,6 +482,10 @@ def make_qc_rows(
             reference_gene = reference["gene"]
             reference_product = reference.get("product", "")
         warning = "; ".join(pga_warnings.get(feature.gene, []))
+        validation_valid, validation_errors = feature_validation_for_phase(
+            feature,
+            phase,
+        )
         row = CdsQcRow(
             organelle=organelle,
             tool=tool,
@@ -508,8 +513,8 @@ def make_qc_rows(
             missing_bp=missing_bp,
             pga_warning=warning,
             needs_alignment=False,
-            validation_valid=feature.validation_valid,
-            validation_errors=";".join(feature.validation_errors),
+            validation_valid=validation_valid,
+            validation_errors=";".join(validation_errors),
             review_reason="",
             manual_review_candidate=False,
         )
@@ -543,48 +548,6 @@ def write_qc_tsv(rows, path: Path):
             )
 
 
-def manual_candidate_rows(rows):
-    candidates = []
-    for row in rows:
-        if row.validation_valid:
-            continue
-        candidates.append(
-            {
-                "organelle": row.organelle,
-                "tool": row.tool,
-                "phase": row.phase,
-                "record_id": row.record_id,
-                "gene": row.gene,
-                "product": row.product,
-                "feature_index": row.feature_index,
-                "location": row.location,
-                "problem": row.validation_errors,
-                "validation_errors": row.validation_errors,
-                "reference_id": row.reference_id,
-                "reference_gene": row.reference_gene,
-                "reference_product": row.reference_product,
-                "protein_identity": format_tsv_value(row.protein_identity),
-                "protein_coverage": format_tsv_value(row.protein_coverage),
-                "length_ratio": format_tsv_value(row.length_ratio),
-                "suggested_action": "manual_review",
-            }
-        )
-    return candidates
-
-
-def write_manual_candidates_tsv(rows, path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=MANUAL_CANDIDATE_FIELDS,
-            delimiter="\t",
-        )
-        writer.writeheader()
-        for row in manual_candidate_rows(rows):
-            writer.writerow(row)
-
-
 def write_qc_json(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
@@ -596,7 +559,6 @@ def run_reference_cds_qc(
     reference_dir: Path,
     qc_tsv: Path,
     qc_json: Path | None = None,
-    manual_candidates_tsv: Path | None = None,
     organelle: str,
     tool: str,
     phase: str,
@@ -614,8 +576,6 @@ def run_reference_cds_qc(
         phase=phase,
     )
     write_qc_tsv(qc_rows, qc_tsv)
-    if manual_candidates_tsv is not None:
-        write_manual_candidates_tsv(qc_rows, manual_candidates_tsv)
     result = {
         "annotation": str(annotation),
         "reference_dir": str(reference_dir),
@@ -623,9 +583,6 @@ def run_reference_cds_qc(
         "tool": tool,
         "phase": phase,
         "qc_tsv": str(qc_tsv),
-        "manual_candidates_tsv": (
-            str(manual_candidates_tsv) if manual_candidates_tsv else None
-        ),
         "target_cds_count": len(target_features),
         "reference_gene_count": len(references_by_gene),
         "qc_row_count": len(qc_rows),
@@ -653,7 +610,6 @@ def parse_args():
     parser.add_argument("--reference-dir", type=Path, required=True)
     parser.add_argument("--qc-tsv", type=Path, required=True)
     parser.add_argument("--qc-json", type=Path)
-    parser.add_argument("--manual-candidates-tsv", type=Path)
     parser.add_argument("--organelle", required=True)
     parser.add_argument("--tool", required=True)
     parser.add_argument("--phase", required=True)
@@ -670,7 +626,6 @@ def main():
         reference_dir=args.reference_dir,
         qc_tsv=args.qc_tsv,
         qc_json=args.qc_json,
-        manual_candidates_tsv=args.manual_candidates_tsv,
         organelle=args.organelle,
         tool=args.tool,
         phase=args.phase,

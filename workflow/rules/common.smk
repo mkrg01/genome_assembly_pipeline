@@ -808,10 +808,6 @@ def organelle_annotation_output_paths(assembly_name, organelle):
         qc_prefix = f"{prefix}/{assembly_name}.{organelle}.reference_cds_qc"
         paths["reference_cds_qc_pre"] = f"{qc_prefix}.pre_rna_editing.tsv"
         paths["reference_cds_qc_post"] = f"{qc_prefix}.post_rna_editing.tsv"
-        paths["manual_rna_editing_candidates"] = (
-            f"{prefix}/{assembly_name}.{organelle}."
-            "manual_rna_editing_candidates.tsv"
-        )
         if organelle == "chloroplast" and tool == "pga_v2":
             paths["reference_cds_frameshift_candidates"] = (
                 f"{qc_prefix}.frameshift_candidates.json"

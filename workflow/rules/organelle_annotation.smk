@@ -554,10 +554,6 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                 "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
                 "{assembly_name}.{organelle}.reference_cds_qc.post_rna_editing.tsv"
             ),
-            manual_candidates = (
-                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
-                "{assembly_name}.{organelle}.manual_rna_editing_candidates.tsv"
-            )
         log:
             out = "logs/qc_reference_cds_after_editing_{organelle}_{tool}_{assembly_name}.out",
             err = "logs/qc_reference_cds_after_editing_{organelle}_{tool}_{assembly_name}.err"
@@ -576,7 +572,6 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
                     --annotation {input.annotation:q} \
                     --reference-dir {params.reference_dir:q} \
                     --qc-tsv {output.qc_tsv:q} \
-                    --manual-candidates-tsv {output.manual_candidates:q} \
                     --organelle {wildcards.organelle:q} \
                     --tool {wildcards.tool:q} \
                     --phase post_rna_editing \
