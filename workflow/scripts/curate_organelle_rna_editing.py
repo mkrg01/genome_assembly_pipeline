@@ -21,6 +21,7 @@ from organelle_annotation_utils import (  # noqa: E402
     extract_genbank_location_sequence,
     first_genbank_qualifier_value,
     genbank_feature_has_qualifier,
+    genbank_qualifier_block_value,
     genbank_qualifier_name,
     genbank_qualifier_values,
     genbank_record_locus_metadata,
@@ -877,36 +878,72 @@ def remove_qualifiers(block_lines, qualifiers):
 
 
 def qualifier_value_from_line(line, qualifier):
-    stripped = line.strip()
-    prefix = f"/{qualifier}="
-    if not stripped.startswith(prefix):
-        return None
-    value = stripped.removeprefix(prefix)
-    if value.startswith('"'):
-        value = value[1:]
-    if value.endswith('"'):
-        value = value[:-1]
-    return value
+    return genbank_qualifier_block_value(qualifier, [line])
 
 
 def remove_qualifier_values(block_lines, qualifier, values):
     value_set = {value.lower() for value in values}
     cleaned = []
-    skipping = False
-    for line in block_lines:
+    index = 0
+    while index < len(block_lines):
+        line = block_lines[index]
         qualifier_name = genbank_qualifier_name(line)
-        if qualifier_name is not None:
-            skipping = False
-            if qualifier_name == qualifier:
-                value = qualifier_value_from_line(line, qualifier)
-                if value is not None and value.lower() in value_set:
-                    skipping = True
-                    continue
+        if qualifier_name is None:
             cleaned.append(line)
+            index += 1
             continue
-        if skipping:
+
+        next_index = index + 1
+        while (
+            next_index < len(block_lines)
+            and genbank_qualifier_name(block_lines[next_index]) is None
+        ):
+            next_index += 1
+        qualifier_lines = block_lines[index:next_index]
+        if qualifier_name == qualifier:
+            value = genbank_qualifier_block_value(qualifier, qualifier_lines)
+            if value is not None and value.lower() in value_set:
+                index = next_index
+                continue
+        cleaned.extend(qualifier_lines)
+        index = next_index
+    return cleaned
+
+
+def remove_stale_reference_site_notes(block_lines, desired_notes):
+    desired_note_set = {note.lower() for note in desired_notes}
+    cleaned = []
+    index = 0
+    while index < len(block_lines):
+        line = block_lines[index]
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is None:
+            cleaned.append(line)
+            index += 1
             continue
-        cleaned.append(line)
+
+        next_index = index + 1
+        while (
+            next_index < len(block_lines)
+            and genbank_qualifier_name(block_lines[next_index]) is None
+        ):
+            next_index += 1
+        qualifier_lines = block_lines[index:next_index]
+        if qualifier_name == "note":
+            value = genbank_qualifier_block_value("note", qualifier_lines)
+            if value is not None:
+                value_lower = value.lower()
+                if (
+                    any(
+                        value_lower.startswith(prefix)
+                        for prefix in REFERENCE_SITE_EVIDENCE_NOTE_PREFIXES
+                    )
+                    and value_lower not in desired_note_set
+                ):
+                    index = next_index
+                    continue
+        cleaned.extend(qualifier_lines)
+        index = next_index
     return cleaned
 
 
@@ -1034,33 +1071,7 @@ def merge_rna_editing_site_feature_notes(block_lines, desired_notes):
         "note",
         OBSOLETE_REFERENCE_INFERRED_RNA_EDITING_SITE_NOTES,
     )
-    desired_note_set = {note.lower() for note in desired_notes}
-    merged = []
-    skipping = False
-    for line in cleaned:
-        qualifier_name = genbank_qualifier_name(line)
-        if qualifier_name is not None:
-            skipping = False
-            value = qualifier_value_from_line(line, "note")
-            if value is None:
-                merged.append(line)
-                continue
-            value_lower = value.lower()
-            if (
-                any(
-                    value_lower.startswith(prefix)
-                    for prefix in REFERENCE_SITE_EVIDENCE_NOTE_PREFIXES
-                )
-                and value_lower not in desired_note_set
-            ):
-                skipping = True
-                continue
-            merged.append(line)
-            continue
-        if skipping:
-            continue
-        merged.append(line)
-    cleaned = merged
+    cleaned = remove_stale_reference_site_notes(cleaned, desired_notes)
     if cleaned != block_lines:
         block_lines[:] = cleaned
     existing_notes = {

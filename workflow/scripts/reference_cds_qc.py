@@ -4,13 +4,18 @@ import csv
 import difflib
 import json
 from dataclasses import asdict, dataclass
+from io import StringIO
 from pathlib import Path
 
+try:
+    from Bio import SeqIO
+    from Bio.SeqIO.InsdcIO import _insdc_location_string
+except ImportError:  # pragma: no cover - exercised in environments without Bio.
+    SeqIO = None
+    _insdc_location_string = None
+
 from organelle_annotation_utils import (
-    extract_genbank_location_sequence,
-    first_genbank_qualifier_value,
-    genbank_record_origin_sequence,
-    parse_genbank_feature_blocks,
+    normalize_genbank_record_feature_location_wrapping,
     split_genbank_records,
     translate_complete_codons,
     validate_complete_cds_translation,
@@ -141,28 +146,6 @@ MANUAL_CANDIDATE_FIELDS = [
 ]
 
 
-def record_id_from_locus(record_lines):
-    for line in record_lines:
-        if line.startswith("LOCUS"):
-            parts = line.split()
-            if len(parts) >= 2:
-                return parts[1]
-    return "record"
-
-
-def accession_from_record(record_lines):
-    for line in record_lines:
-        if line.startswith("VERSION"):
-            parts = line.split()
-            if len(parts) >= 2:
-                return parts[1]
-        if line.startswith("ACCESSION"):
-            parts = line.split()
-            if len(parts) >= 2:
-                return parts[1]
-    return ""
-
-
 def normalized_product(product: str):
     return " ".join(product.lower().replace("-", " ").replace("_", " ").split())
 
@@ -180,102 +163,158 @@ def conceptual_translation(sequence: str, codon_start: int, transl_table: str):
     return normalize_translation(protein)
 
 
-def parse_cds_features(path: Path, default_transl_table="1"):
-    records = split_genbank_records(path.read_text().splitlines(keepends=True))
-    features = []
+def first_qualifier_value(qualifiers, name: str, default=""):
+    values = qualifiers.get(name) or []
+    if not values:
+        return default
+    return values[0]
+
+
+def parse_codon_start(value):
+    try:
+        codon_start = int(value)
+    except (TypeError, ValueError):
+        return 1
+    if codon_start not in {1, 2, 3}:
+        return 1
+    return codon_start
+
+
+def record_locus_id(record):
+    if record.name and record.name != "<unknown name>":
+        return record.name
+    if record.id and record.id != "<unknown id>":
+        return record.id
+    return "record"
+
+
+def record_accession(record):
+    if record.id and record.id != "<unknown id>":
+        return record.id
+    accessions = record.annotations.get("accessions") or []
+    if accessions:
+        version = record.annotations.get("sequence_version")
+        if version is not None:
+            return f"{accessions[0]}.{version}"
+        return accessions[0]
+    return ""
+
+
+def feature_parts(location):
+    return getattr(location, "parts", None) or [location]
+
+
+def feature_start_end(location):
+    starts = [int(part.start) + 1 for part in feature_parts(location)]
+    ends = [int(part.end) for part in feature_parts(location)]
+    return min(starts), max(ends)
+
+
+def feature_location_string(feature, record_length: int):
+    if _insdc_location_string is None:
+        return str(feature.location)
+    return _insdc_location_string(feature.location, record_length)
+
+
+def require_biopython():
+    if SeqIO is None:
+        raise RuntimeError(
+            "reference_cds_qc.py requires Biopython for GenBank parsing. "
+            "Run it in workflow/envs/pybase.yml or install biopython."
+        )
+
+
+def normalized_genbank_text_for_biopython(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    if not records:
+        return "".join(lines)
+    normalized_records = []
     for record in records:
-        record_id = record_id_from_locus(record)
-        record_sequence = genbank_record_origin_sequence(record)
-        _features_index, _origin_index, blocks = parse_genbank_feature_blocks(record)
-        for block in blocks:
-            if block.key != "CDS":
-                continue
-            genes = block.qualifiers.get("gene", [])
-            if not genes or not block.intervals:
-                continue
-            location = block.location
-            sequence = extract_genbank_location_sequence(location, record_sequence)
-            codon_start_text = first_genbank_qualifier_value(
-                block.lines,
-                "codon_start",
-                "1",
-            )
-            try:
-                codon_start = int(codon_start_text)
-            except ValueError:
-                codon_start = 1
-            if codon_start not in {1, 2, 3}:
-                codon_start = 1
-            transl_table = first_genbank_qualifier_value(
-                block.lines,
-                "transl_table",
-                str(default_transl_table),
-            )
-            coding_sequence = sequence[codon_start - 1 :]
-            validation = validate_complete_cds_translation(
-                coding_sequence,
-                transl_table,
-            )
-            translation = first_genbank_qualifier_value(
-                block.lines,
-                "translation",
-                None,
-            )
-            if translation:
-                protein = normalize_translation(translation)
-                translation_source = "genbank_translation"
-            else:
-                protein = conceptual_translation(sequence, codon_start, transl_table)
-                translation_source = "conceptual_translation"
-            starts = [start for start, _end in block.intervals]
-            ends = [end for _start, end in block.intervals]
-            features.append(
-                CdsFeature(
-                    record_id=record_id,
-                    accession=accession_from_record(record),
-                    gene=genes[0],
-                    product=first_genbank_qualifier_value(
-                        block.lines,
-                        "product",
-                        "",
-                    ),
-                    protein_id=first_genbank_qualifier_value(
-                        block.lines,
-                        "protein_id",
-                        "",
-                    ),
-                    feature_index=block.feature_index,
-                    location=location,
-                    strand=(
-                        "-"
-                        if location.replace(" ", "").startswith("complement(")
-                        else "+"
-                    ),
-                    start=min(starts),
-                    end=max(ends),
-                    length=len(sequence),
-                    sequence=sequence,
-                    codon_start=codon_start,
-                    transl_table=transl_table,
-                    protein=protein,
-                    protein_length=len(protein),
-                    translation_source=translation_source,
-                    validation_valid=validation["valid"],
-                    validation_errors=validation["errors"],
+        normalized_record, _changed, _changed_feature_count = (
+            normalize_genbank_record_feature_location_wrapping(record)
+        )
+        normalized_records.append(normalized_record)
+    return "".join(line for record in normalized_records for line in record)
+
+
+def parse_cds_features(path: Path, default_transl_table="1"):
+    require_biopython()
+    features = []
+    with StringIO(normalized_genbank_text_for_biopython(path)) as handle:
+        for record in SeqIO.parse(handle, "genbank"):
+            record_id = record_locus_id(record)
+            accession = record_accession(record)
+            record_length = len(record.seq)
+            for feature_index, feature in enumerate(record.features):
+                if feature.type != "CDS":
+                    continue
+                qualifiers = feature.qualifiers
+                genes = qualifiers.get("gene") or []
+                if not genes or feature.location is None:
+                    continue
+                sequence = str(feature.extract(record.seq)).upper()
+                codon_start = parse_codon_start(
+                    first_qualifier_value(qualifiers, "codon_start", "1")
                 )
-            )
+                transl_table = str(
+                    first_qualifier_value(
+                        qualifiers,
+                        "transl_table",
+                        str(default_transl_table),
+                    )
+                )
+                coding_sequence = sequence[codon_start - 1 :]
+                validation = validate_complete_cds_translation(
+                    coding_sequence,
+                    transl_table,
+                )
+                translation = first_qualifier_value(qualifiers, "translation", None)
+                if translation:
+                    protein = normalize_translation(translation)
+                    translation_source = "genbank_translation"
+                else:
+                    protein = conceptual_translation(sequence, codon_start, transl_table)
+                    translation_source = "conceptual_translation"
+                location = feature_location_string(feature, record_length)
+                start, end = feature_start_end(feature.location)
+                features.append(
+                    CdsFeature(
+                        record_id=record_id,
+                        accession=accession,
+                        gene=genes[0],
+                        product=first_qualifier_value(qualifiers, "product", ""),
+                        protein_id=first_qualifier_value(qualifiers, "protein_id", ""),
+                        feature_index=feature_index,
+                        location=location,
+                        strand="-" if feature.location.strand == -1 else "+",
+                        start=start,
+                        end=end,
+                        length=len(sequence),
+                        sequence=sequence,
+                        codon_start=codon_start,
+                        transl_table=transl_table,
+                        protein=protein,
+                        protein_length=len(protein),
+                        translation_source=translation_source,
+                        validation_valid=validation["valid"],
+                        validation_errors=validation["errors"],
+                    )
+                )
     return features
 
 
 def parse_genbank_records_with_sequences(path: Path):
+    require_biopython()
     records = []
-    for record in split_genbank_records(path.read_text().splitlines(keepends=True)):
-        records.append(
-            {
-                "id": record_id_from_locus(record),
-                "sequence": genbank_record_origin_sequence(record),
-            }
-        )
+    with StringIO(normalized_genbank_text_for_biopython(path)) as handle:
+        for record in SeqIO.parse(handle, "genbank"):
+            records.append(
+                {
+                    "id": record_locus_id(record),
+                    "sequence": str(record.seq).upper(),
+                }
+            )
     return records
 
 

@@ -298,16 +298,59 @@ def trim_genbank_to_core_sections(path: Path):
     }
 
 
+def genbank_qualifier_line_content(line: str):
+    raw = line.rstrip("\r\n")
+    if raw.startswith(QUALIFIER_INDENT):
+        return raw[len(QUALIFIER_INDENT) :]
+    return raw.strip()
+
+
+def genbank_qualifier_blocks(block_lines: list[str]):
+    blocks = []
+    current_name = None
+    current_lines = []
+    for line in block_lines[1:]:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            if current_name is not None:
+                blocks.append((current_name, current_lines))
+            current_name = qualifier_name
+            current_lines = [line]
+            continue
+        if current_name is not None:
+            current_lines.append(line)
+    if current_name is not None:
+        blocks.append((current_name, current_lines))
+    return blocks
+
+
+def genbank_qualifier_block_value(qualifier: str, lines: list[str]):
+    if not lines:
+        return None
+    first_content = genbank_qualifier_line_content(lines[0])
+    prefix = f"/{qualifier}"
+    if first_content == prefix:
+        return None
+    if not first_content.startswith(f"{prefix}="):
+        return None
+    value_parts = [first_content.removeprefix(f"{prefix}=")]
+    value_parts.extend(genbank_qualifier_line_content(line) for line in lines[1:])
+    value = "".join(value_parts)
+    if value.startswith('"'):
+        value = value[1:]
+        if value.endswith('"'):
+            value = value[:-1]
+    return value
+
+
 def genbank_qualifier_values(block_lines: list[str], qualifier: str):
     values = []
-    for line in block_lines[1:]:
-        stripped = line.strip()
-        if not stripped.startswith(f"/{qualifier}="):
+    for qualifier_name, qualifier_lines in genbank_qualifier_blocks(block_lines):
+        if qualifier_name != qualifier:
             continue
-        value = stripped.removeprefix(f"/{qualifier}=")
-        if value.startswith('"') and value.endswith('"'):
-            value = value[1:-1]
-        values.append(value)
+        value = genbank_qualifier_block_value(qualifier, qualifier_lines)
+        if value is not None:
+            values.append(value)
     return values
 
 
