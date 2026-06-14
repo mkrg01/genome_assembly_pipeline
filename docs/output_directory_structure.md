@@ -111,10 +111,10 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
 
 ## `results/longstitch/`
 
-Created only when `longstitch_enabled` is `true`.
+Created when `longstitch_enabled` is `true`, which is the default.
 
 - `assembly/{selected_assembly}/`
-  LongStitch-corrected/scaffolded assembly copied from the LongStitch run output.
+  Assembly corrected and scaffolded by LongStitch.
 - `run/{selected_assembly}/`
   LongStitch working directories containing symlinks to the FCS-cleaned assembly and curated HiFi reads, plus LongStitch intermediate outputs.
 

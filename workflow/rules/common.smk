@@ -403,7 +403,7 @@ hifiasm_dual_scaf = normalize_bool_config(
 )
 longstitch_enabled = normalize_bool_config(
     "longstitch_enabled",
-    config.get("longstitch_enabled", False),
+    config.get("longstitch_enabled", True),
 )
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
