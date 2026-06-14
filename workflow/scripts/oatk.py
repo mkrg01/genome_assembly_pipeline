@@ -2,6 +2,16 @@ from pathlib import Path
 import subprocess
 import sys
 
+
+def read_minimum_kmer_coverage(path):
+    value = Path(path).read_text().strip()
+    if not value.isdigit() or int(value) <= 0:
+        raise ValueError(
+            f"Resolved Oatk minimum kmer coverage must be a positive integer, got {value!r}."
+        )
+    return value
+
+
 def run_oatk(snakemake):
     input = snakemake.input
     output = snakemake.output
@@ -11,6 +21,7 @@ def run_oatk(snakemake):
     outdir = Path(output.utg_final_gfa).parent
     outprefix = outdir / wildcards.assembly_name
     oatk_organelle = params.oatk_organelle
+    minimum_kmer_coverage = read_minimum_kmer_coverage(input.minimum_kmer_coverage)
 
     cmd = ["oatk"]
 
@@ -29,7 +40,7 @@ def run_oatk(snakemake):
 
     cmd += [
         "-o", str(outprefix),
-        "-c", str(params.oatk_minimum_kmer_coverage),
+        "-c", minimum_kmer_coverage,
         "-t", str(threads),
         str(input.hifi_reads)
     ]

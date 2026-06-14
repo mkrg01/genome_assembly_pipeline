@@ -181,6 +181,31 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def normalize_oatk_minimum_kmer_coverage_config(value):
+    if value is None:
+        value = "250"
+    if isinstance(value, bool):
+        raise ValueError(
+            "'oatk_minimum_kmer_coverage' in config.yml must be a positive integer "
+            "or 'auto'."
+        )
+    value = str(value).strip()
+    if value.lower() == "auto":
+        return "auto"
+    if not value.isdigit():
+        raise ValueError(
+            "'oatk_minimum_kmer_coverage' in config.yml must be a positive integer "
+            "or 'auto'."
+        )
+    value = str(int(value))
+    if int(value) <= 0:
+        raise ValueError(
+            "'oatk_minimum_kmer_coverage' in config.yml must be greater than zero "
+            "or set to 'auto'."
+        )
+    return value
+
+
 def normalize_required_scalar_config(config_key, value):
     if value is None:
         raise ValueError(f"'{config_key}' in config.yml is required.")
@@ -414,6 +439,9 @@ downstream_assembly_name = (
 taxid = normalize_taxid_config()
 oatk_organelle = normalize_oatk_organelle_config(
     config.get("oatk_organelle", "mitochondrion_and_chloroplast")
+)
+oatk_minimum_kmer_coverage = normalize_oatk_minimum_kmer_coverage_config(
+    config.get("oatk_minimum_kmer_coverage", "250")
 )
 
 
@@ -1099,6 +1127,23 @@ def hifiasm_hic_option(input):
     if "hic_r1" not in input.keys():
         return ""
     return f"--h1 {input.hic_r1} --h2 {input.hic_r2}"
+
+
+def oatk_minimum_kmer_coverage_resolution_input(wildcards):
+    if oatk_minimum_kmer_coverage != "auto":
+        return {}
+    selected_assembly = selected_assemblies[0]
+    return {
+        "hifi_reads": (
+            "results/hifi_reads/merged/"
+            f"{wildcards.assembly_name}_hifi_reads_curated.fastq.gz"
+        ),
+        "nuclear_assembly_stats": (
+            "results/hifiasm/seqkit/"
+            f"{selected_assembly}/"
+            f"{wildcards.assembly_name}_seqkit_stats.tsv"
+        ),
+    }
 
 
 def oatkdb_path():

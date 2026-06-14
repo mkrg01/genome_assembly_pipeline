@@ -225,6 +225,8 @@ Organelle assembly outputs generated from HiFi reads.
 - `oatk/`
   Raw Oatk outputs.
   Depending on `oatk_organelle`, this directory can include mitochondrial and/or chloroplast/plastid GFA files, BED files, and contig FASTA files. Oatk writes these raw files with its native `mito` and `pltd` suffixes. Oatk annotation files are not used directly by the release path.
+- `auto/`
+  Resolved `oatk_minimum_kmer_coverage` values and JSON metadata. When `oatk_minimum_kmer_coverage` is set to `"auto"`, the metadata records the inferred nuclear HiFi read coverage and fixed multiplier used to choose the Oatk `-c` value.
 - `concatemer/`
   Concatenated organelle references.
   `*.concatemer.all.fa` is always produced; organelle-specific `*.concatemer.mitochondrion.fa` and/or `*.concatemer.chloroplast.fa` are produced when applicable.

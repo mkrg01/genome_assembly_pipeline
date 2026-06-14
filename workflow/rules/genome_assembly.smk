@@ -385,9 +385,45 @@ rule download_oatkdb:
         ) > {log.out} 2> {log.err}
         """
 
+rule resolve_oatk_minimum_kmer_coverage:
+    input:
+        unpack(oatk_minimum_kmer_coverage_resolution_input)
+    output:
+        value = "results/oatk/auto/{assembly_name}_minimum_kmer_coverage.txt",
+        metadata = "results/oatk/auto/{assembly_name}_minimum_kmer_coverage.json"
+    log:
+        out = "logs/resolve_oatk_minimum_kmer_coverage_{assembly_name}.out",
+        err = "logs/resolve_oatk_minimum_kmer_coverage_{assembly_name}.err"
+    params:
+        config_value = oatk_minimum_kmer_coverage,
+        hifi_reads_arg = lambda wildcards, input: (
+            f"--hifi-reads {shlex.quote(str(input.hifi_reads))}"
+            if "hifi_reads" in input.keys()
+            else ""
+        ),
+        nuclear_assembly_stats_arg = lambda wildcards, input: (
+            f"--nuclear-assembly-stats {shlex.quote(str(input.nuclear_assembly_stats))}"
+            if "nuclear_assembly_stats" in input.keys()
+            else ""
+        )
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/resolve_oatk_minimum_kmer_coverage.py \
+                --config-value {params.config_value:q} \
+                {params.hifi_reads_arg} \
+                {params.nuclear_assembly_stats_arg} \
+                --output {output.value} \
+                --metadata {output.metadata}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule oatk:
     input:
         hifi_reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        minimum_kmer_coverage = "results/oatk/auto/{assembly_name}_minimum_kmer_coverage.txt",
         **oatkdb_path()
     output:
         **oatk_output_path()
@@ -395,7 +431,6 @@ rule oatk:
         out = "logs/oatk_{assembly_name}.out",
         err = "logs/oatk_{assembly_name}.err"
     params:
-        oatk_minimum_kmer_coverage = config["oatk_minimum_kmer_coverage"],
         oatk_organelle = oatk_organelle
     conda:
         "../envs/oatk.yml"
