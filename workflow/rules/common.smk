@@ -405,13 +405,6 @@ longstitch_enabled = normalize_bool_config(
     "longstitch_enabled",
     config.get("longstitch_enabled", False),
 )
-longstitch_longmap = config.get("longstitch_longmap", "hifi")
-if longstitch_longmap is None:
-    longstitch_longmap = "hifi"
-if not isinstance(longstitch_longmap, str) or longstitch_longmap not in ("ont", "pb", "hifi"):
-    raise ValueError(
-        "'longstitch_longmap' in config.yml must be one of: ont, pb, hifi."
-    )
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]

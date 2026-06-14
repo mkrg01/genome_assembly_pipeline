@@ -778,8 +778,6 @@ rule longstitch:
         "../envs/longstitch.yml"
     threads:
         max(1, int(workflow.cores * 0.95))
-    params:
-        longmap = longstitch_longmap
     shell:
         """
         (
@@ -800,7 +798,7 @@ rule longstitch:
                 draft=draft \
                 reads=reads \
                 G="$genome_size" \
-                longmap={params.longmap} \
+                longmap=hifi \
                 t={threads} \
                 out_prefix=longstitch
 
