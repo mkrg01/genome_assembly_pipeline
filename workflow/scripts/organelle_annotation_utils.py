@@ -36,6 +36,28 @@ FEATURE_SORT_ORDER = {
     "3'UTR": 2,
     "intron": 2,
 }
+CDS_QUALIFIER_ORDER = (
+    "gene",
+    "locus_tag",
+    "old_locus_tag",
+    "product",
+    "function",
+    "EC_number",
+    "codon_start",
+    "transl_table",
+    "codon",
+    "trans_splicing",
+    "exception",
+    "ribosomal_slippage",
+    "pseudo",
+    "pseudogene",
+    "note",
+    "experiment",
+    "inference",
+    "protein_id",
+    "db_xref",
+)
+CDS_TRAILING_QUALIFIERS = ("translation",)
 STANDARD_GENETIC_CODE = {
     "TTT": "F",
     "TTC": "F",
@@ -710,6 +732,144 @@ def remove_genbank_feature_qualifiers(
 
 def genbank_feature_has_qualifier(block_lines: list[str], qualifier: str):
     return any(genbank_qualifier_name(line) == qualifier for line in block_lines[1:])
+
+
+def normalize_cds_qualifier_block_order(
+    block_lines: list[str],
+    *,
+    qualifier_order: tuple[str, ...] = CDS_QUALIFIER_ORDER,
+    trailing_qualifiers: tuple[str, ...] = CDS_TRAILING_QUALIFIERS,
+):
+    qualifier_start = genbank_feature_qualifier_start(block_lines)
+    prefix_lines = block_lines[:qualifier_start]
+    qualifier_blocks = genbank_qualifier_blocks(block_lines)
+    if not qualifier_blocks:
+        return block_lines, False, {}
+
+    qualifier_ranks = {name: index for index, name in enumerate(qualifier_order)}
+    trailing_ranks = {
+        name: index for index, name in enumerate(trailing_qualifiers)
+    }
+    unknown_counts = {
+        qualifier_name: sum(
+            1 for name, _qualifier_lines in qualifier_blocks if name == qualifier_name
+        )
+        for qualifier_name in sorted(
+            {
+                name
+                for name, _qualifier_lines in qualifier_blocks
+                if name not in qualifier_ranks and name not in trailing_ranks
+            }
+        )
+    }
+
+    def sort_key(indexed_block):
+        original_index, qualifier_name, _qualifier_lines = indexed_block
+        if qualifier_name in qualifier_ranks:
+            return (0, qualifier_ranks[qualifier_name], original_index)
+        if qualifier_name in trailing_ranks:
+            return (2, trailing_ranks[qualifier_name], original_index)
+        return (1, 0, original_index)
+
+    indexed_blocks = [
+        (index, qualifier_name, qualifier_lines)
+        for index, (qualifier_name, qualifier_lines) in enumerate(qualifier_blocks)
+    ]
+    sorted_blocks = sorted(indexed_blocks, key=sort_key)
+    normalized_lines = [
+        *prefix_lines,
+        *[
+            line
+            for _index, _qualifier_name, qualifier_lines in sorted_blocks
+            for line in qualifier_lines
+        ],
+    ]
+    return normalized_lines, normalized_lines != block_lines, unknown_counts
+
+
+def normalize_genbank_record_cds_qualifier_order(record: list[str]):
+    features_index, origin_index, blocks = parse_genbank_feature_blocks(record)
+    if features_index is None or origin_index is None or not blocks:
+        return record, False, 0, 0, {}
+
+    target_feature_count = 0
+    changed_feature_count = 0
+    unknown_counts = {}
+    normalized_blocks = []
+
+    for block in blocks:
+        if block.key != "CDS":
+            normalized_blocks.append(block.lines)
+            continue
+
+        target_feature_count += 1
+        normalized_lines, changed, block_unknown_counts = (
+            normalize_cds_qualifier_block_order(block.lines)
+        )
+        changed_feature_count += int(changed)
+        for qualifier, count in block_unknown_counts.items():
+            unknown_counts[qualifier] = unknown_counts.get(qualifier, 0) + count
+        normalized_blocks.append(normalized_lines)
+
+    if changed_feature_count == 0:
+        return record, False, target_feature_count, 0, unknown_counts
+
+    normalized_feature_lines = [
+        line for block_lines in normalized_blocks for line in block_lines
+    ]
+    normalized_record = [
+        *record[: features_index + 1],
+        *normalized_feature_lines,
+        *record[origin_index:],
+    ]
+    return (
+        normalized_record,
+        True,
+        target_feature_count,
+        changed_feature_count,
+        unknown_counts,
+    )
+
+
+def normalize_genbank_cds_qualifier_order(path: Path):
+    lines = path.read_text().splitlines(keepends=True)
+    records = split_genbank_records(lines)
+    normalized_records = []
+    changed_records = 0
+    target_feature_count = 0
+    changed_feature_count = 0
+    unknown_counts = {}
+
+    for record in records:
+        (
+            normalized_record,
+            changed,
+            record_target_feature_count,
+            record_changed_feature_count,
+            record_unknown_counts,
+        ) = normalize_genbank_record_cds_qualifier_order(record)
+        normalized_records.append(normalized_record)
+        changed_records += int(changed)
+        target_feature_count += record_target_feature_count
+        changed_feature_count += record_changed_feature_count
+        for qualifier, count in record_unknown_counts.items():
+            unknown_counts[qualifier] = unknown_counts.get(qualifier, 0) + count
+
+    normalized_lines = [line for record in normalized_records for line in record]
+    changed = lines != normalized_lines
+    if changed:
+        path.write_text("".join(normalized_lines))
+
+    return {
+        "cds_qualifier_order_record_count": len(records),
+        "cds_qualifier_order_changed_record_count": changed_records,
+        "cds_qualifier_order_target_feature_count": target_feature_count,
+        "cds_qualifier_order_changed_feature_count": changed_feature_count,
+        "cds_qualifier_order_known_qualifiers": list(CDS_QUALIFIER_ORDER),
+        "cds_qualifier_order_trailing_qualifiers": list(CDS_TRAILING_QUALIFIERS),
+        "cds_qualifier_order_unknown_counts": unknown_counts,
+        "cds_qualifier_order_changed": changed,
+    }
 
 
 def normalize_pmga_trans_splicing_feature_block(block_lines: list[str]):
@@ -2439,6 +2599,46 @@ def append_post_curation_summary(lines, post_curation):
                     "- CDS /transl_table: omitted qualifiers remain interpreted "
                     "as the INSDC default standard genetic code (table 1)"
                 )
+
+    cds_qualifier_order = post_curation.get("cds_qualifier_order")
+    if cds_qualifier_order:
+        record_count = cds_qualifier_order["cds_qualifier_order_record_count"]
+        target_feature_count = cds_qualifier_order[
+            "cds_qualifier_order_target_feature_count"
+        ]
+        unknown_counts = cds_qualifier_order.get(
+            "cds_qualifier_order_unknown_counts",
+            {},
+        )
+        unknown_text = ""
+        if unknown_counts:
+            counted_unknowns = ", ".join(
+                f"/{qualifier} ({count})"
+                for qualifier, count in sorted(unknown_counts.items())
+            )
+            unknown_text = (
+                f"; preserved unranked qualifier(s) in original order: "
+                f"{counted_unknowns}"
+            )
+        if cds_qualifier_order["cds_qualifier_order_changed"]:
+            changed_records = cds_qualifier_order[
+                "cds_qualifier_order_changed_record_count"
+            ]
+            changed_features = cds_qualifier_order[
+                "cds_qualifier_order_changed_feature_count"
+            ]
+            lines.append(
+                "- CDS qualifier order: normalized "
+                f"{changed_features}/{target_feature_count} CDS feature(s) "
+                f"across {changed_records}/{record_count} record(s)"
+                f"{unknown_text}"
+            )
+        else:
+            lines.append(
+                "- CDS qualifier order: already normalized across "
+                f"{target_feature_count} CDS feature(s) in {record_count} "
+                f"record(s){unknown_text}"
+            )
 
     source_organism = post_curation.get("source_organism")
     if source_organism:

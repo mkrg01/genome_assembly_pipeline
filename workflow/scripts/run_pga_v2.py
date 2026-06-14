@@ -7,6 +7,7 @@ from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
     curate_genbank_source_metadata,
+    normalize_genbank_cds_qualifier_order,
     normalize_genbank_origin_wrapping_locations,
     parse_fasta_records,
     rotate_fasta_record,
@@ -318,6 +319,9 @@ def main():
         normalize_genbank_origin_wrapping_locations(annotation)
     )
     post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
+    post_curation["cds_qualifier_order"] = normalize_genbank_cds_qualifier_order(
+        annotation,
+    )
     initial_cds_qc_path = (
         run_root / "initial.reference_cds_qc.tsv"
         if fix_sequence_frameshifts
@@ -411,6 +415,9 @@ def main():
             normalize_genbank_origin_wrapping_locations(annotation)
         )
         post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
+        post_curation["cds_qualifier_order"] = normalize_genbank_cds_qualifier_order(
+            annotation,
+        )
         final_cds_qc = run_cds_qc(
             annotation=annotation,
             reference_dir=copied_reference_dir,

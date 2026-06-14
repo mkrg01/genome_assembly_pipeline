@@ -27,6 +27,7 @@ from organelle_annotation_utils import (  # noqa: E402
     genbank_record_locus_metadata,
     genbank_record_origin_sequence,
     parse_genbank_feature_blocks,
+    normalize_genbank_cds_qualifier_order,
     split_genbank_location_arguments,
     split_genbank_records,
     translate_complete_codons,
@@ -1964,7 +1965,12 @@ def format_applied_site_count_breakdown(
     return ", ".join(parts)
 
 
-def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
+def format_rna_editing_post_curation_section(
+    args,
+    evidence_rows,
+    summary_rows,
+    cds_qualifier_order=None,
+):
     cds_count = len(summary_rows)
     candidate_site_count = count_summary(summary_rows, "candidate_c_sites")
     accepted_site_count = count_summary(summary_rows, "accepted_sites")
@@ -2081,6 +2087,31 @@ def format_rna_editing_post_curation_section(args, evidence_rows, summary_rows):
             "were classified as `likely_genomic_variant`; these were retained "
             "in the evidence table and not applied as RNA editing."
         )
+    if cds_qualifier_order:
+        target_feature_count = cds_qualifier_order[
+            "cds_qualifier_order_target_feature_count"
+        ]
+        changed_feature_count = cds_qualifier_order[
+            "cds_qualifier_order_changed_feature_count"
+        ]
+        changed_record_count = cds_qualifier_order[
+            "cds_qualifier_order_changed_record_count"
+        ]
+        record_count = cds_qualifier_order["cds_qualifier_order_record_count"]
+        if cds_qualifier_order["cds_qualifier_order_changed"]:
+            lines.append(
+                "- RNA editing GenBank CDS qualifier order: normalized "
+                f"{changed_feature_count}/{target_feature_count} CDS feature(s) "
+                f"across {changed_record_count}/{record_count} record(s) using "
+                "a stable qualifier-block sort; repeated and unranked "
+                "qualifiers kept their original relative order."
+            )
+        else:
+            lines.append(
+                "- RNA editing GenBank CDS qualifier order: already normalized "
+                f"across {target_feature_count} CDS feature(s) in "
+                f"{record_count} record(s)."
+            )
     if args.reference_dir is not None:
         reference_dir = format_path_for_markdown(args.reference_dir)
         lines.append(
@@ -2128,7 +2159,7 @@ def insert_post_curation_section(text, section):
     )
 
 
-def write_post_curation(args, evidence_rows, summary_rows):
+def write_post_curation(args, evidence_rows, summary_rows, cds_qualifier_order=None):
     if args.output_post_curation is None:
         return
     if args.input_post_curation is not None and args.input_post_curation.exists():
@@ -2139,6 +2170,7 @@ def write_post_curation(args, evidence_rows, summary_rows):
         args,
         evidence_rows,
         summary_rows,
+        cds_qualifier_order=cds_qualifier_order,
     )
     args.output_post_curation.parent.mkdir(parents=True, exist_ok=True)
     args.output_post_curation.write_text(insert_post_curation_section(text, section))
@@ -2160,9 +2192,15 @@ def main():
 
     args.output_gbk.parent.mkdir(parents=True, exist_ok=True)
     args.output_gbk.write_text("".join(curated_lines))
+    cds_qualifier_order = normalize_genbank_cds_qualifier_order(args.output_gbk)
     write_tsv(args.evidence_tsv, evidence_rows, EVIDENCE_FIELDS)
     write_tsv(args.summary_tsv, summary_rows, SUMMARY_FIELDS)
-    write_post_curation(args, evidence_rows, summary_rows)
+    write_post_curation(
+        args,
+        evidence_rows,
+        summary_rows,
+        cds_qualifier_order=cds_qualifier_order,
+    )
 
     decisions = {
         "input_gbk": str(args.input_gbk),
@@ -2192,6 +2230,7 @@ def main():
                 REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE
             ),
         },
+        "cds_qualifier_order": cds_qualifier_order,
         "feature_decisions": feature_decisions,
     }
     args.decisions_json.parent.mkdir(parents=True, exist_ok=True)

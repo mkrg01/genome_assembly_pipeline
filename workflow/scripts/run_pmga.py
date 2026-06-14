@@ -10,6 +10,7 @@ from organelle_annotation_utils import (
     curate_genbank_locus,
     curate_genbank_source_metadata,
     format_cds_auto_translation_validation_errors,
+    normalize_genbank_cds_qualifier_order,
     normalize_genbank_feature_location_wrapping,
     normalize_genbank_origin_wrapping_locations,
     normalize_pmga_trans_splicing_qualifiers,
@@ -366,9 +367,12 @@ def main():
         post_curation["feature_qualifier_removal"] = remove_genbank_feature_qualifiers(
             annotation,
             feature_keys=("CDS",),
-            qualifiers=("translation", "transl_table"),
+            qualifiers=("translation", "transl_table", "misc_feature"),
         )
         post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
+        post_curation["cds_qualifier_order"] = normalize_genbank_cds_qualifier_order(
+            annotation,
+        )
         commands = [cmd]
         selected_annotations = [str(selected)]
         record_manifests = [
@@ -468,11 +472,14 @@ def main():
                 remove_genbank_feature_qualifiers(
                     record_annotation,
                     feature_keys=("CDS",),
-                    qualifiers=("translation", "transl_table"),
+                    qualifiers=("translation", "transl_table", "misc_feature"),
                 )
             )
             record_post_curation["feature_sort"] = sort_genbank_features_by_location(
                 record_annotation
+            )
+            record_post_curation["cds_qualifier_order"] = (
+                normalize_genbank_cds_qualifier_order(record_annotation)
             )
 
             commands.append(cmd)
