@@ -183,7 +183,7 @@ def normalize_bool_config(config_key, value, default=False):
 
 def normalize_oatk_minimum_kmer_coverage_config(value):
     if value is None:
-        value = "250"
+        value = "auto"
     if isinstance(value, bool):
         raise ValueError(
             "'oatk_minimum_kmer_coverage' in config.yml must be a positive integer "
@@ -441,7 +441,7 @@ oatk_organelle = normalize_oatk_organelle_config(
     config.get("oatk_organelle", "mitochondrion_and_chloroplast")
 )
 oatk_minimum_kmer_coverage = normalize_oatk_minimum_kmer_coverage_config(
-    config.get("oatk_minimum_kmer_coverage", "250")
+    config.get("oatk_minimum_kmer_coverage", "auto")
 )
 
 
