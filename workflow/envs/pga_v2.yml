@@ -4,5 +4,6 @@ channels:
 dependencies:
   - python=3.13.7
   - perl=5.32.1
+  - biopython=1.87
   - bioconda::blast=2.16.0
   - bioconda::minimap2=2.30
