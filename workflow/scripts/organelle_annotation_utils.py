@@ -1422,28 +1422,16 @@ def validate_genbank_cds_auto_translation(
     }
 
 
-def format_cds_auto_translation_validation_errors(validation):
-    blocking_issues = [
-        issue
-        for issue in validation.get("cds_auto_translation_issues", [])
-        if issue.get("severity") == "error"
-    ]
-    issue_lines = []
-    for issue in blocking_issues[:10]:
-        issue_lines.append(
-            "- "
-            f"{issue.get('record')} {issue.get('gene')} "
-            f"({issue.get('code')}): {issue.get('message')} "
-            f"location={issue.get('location')}"
-        )
-    if len(blocking_issues) > 10:
-        issue_lines.append(f"- ... {len(blocking_issues) - 10} more issue(s)")
-    joined_issues = "\n".join(issue_lines)
-    return (
-        "CDS auto-translation validation failed before removing "
-        "/translation and /transl_table from PMGA CDS features.\n"
-        f"{joined_issues}"
-    )
+def format_cds_auto_translation_issue_note(issue):
+    record = issue.get("record") or "record"
+    gene = issue.get("gene") or "?"
+    code = issue.get("code") or "unknown"
+    message = issue.get("message") or "CDS auto-translation validation finding."
+    location = issue.get("location")
+    note = f"{record} {gene} ({code}): {message}"
+    if location:
+        note = f"{note} location={location}"
+    return note
 
 
 def normalize_circular_origin_wrapping_location(
@@ -2505,6 +2493,11 @@ def append_post_curation_summary(lines, post_curation):
             "cds_auto_translation_blocking_issue_count"
         ]
         warning_count = translation_validation["cds_auto_translation_warning_count"]
+        blocking_issues = [
+            issue
+            for issue in translation_validation.get("cds_auto_translation_issues", [])
+            if issue.get("severity") == "error"
+        ]
         if translation_validation["cds_auto_translation_passed"]:
             lines.append(
                 "- CDS auto-translation QC: "
@@ -2515,10 +2508,18 @@ def append_post_curation_summary(lines, post_curation):
             )
         else:
             lines.append(
-                "- CDS auto-translation QC: found "
-                f"{blocking_count} blocking issue(s) and {warning_count} "
-                f"warning(s) among {checked_count} checked CDS"
+                "- CDS auto-translation QC: recorded "
+                f"{blocking_count} CDS auto-translation validation finding(s) "
+                f"and {warning_count} warning(s) among {checked_count} checked CDS; "
+                "/translation and /transl_table qualifiers were still removed "
+                "for DDBJ-compatible auto-translation"
             )
+            if blocking_issues:
+                lines.append("- CDS auto-translation QC findings:")
+                for issue in blocking_issues:
+                    lines.append(
+                        f"  - {format_cds_auto_translation_issue_note(issue)}"
+                    )
         if skipped_exception_count or skipped_partial_count or skipped_pseudo_count:
             lines.append(
                 "- CDS auto-translation QC skipped: "

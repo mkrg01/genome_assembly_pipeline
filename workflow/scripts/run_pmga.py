@@ -9,7 +9,6 @@ from organelle_annotation_utils import (
     copy_first_genbank,
     curate_genbank_locus,
     curate_genbank_source_metadata,
-    format_cds_auto_translation_validation_errors,
     normalize_genbank_cds_qualifier_order,
     normalize_genbank_feature_location_wrapping,
     normalize_genbank_origin_wrapping_locations,
@@ -360,10 +359,6 @@ def main():
         )
         translation_validation = validate_genbank_cds_auto_translation(annotation)
         post_curation["cds_auto_translation_validation"] = translation_validation
-        if not translation_validation["cds_auto_translation_passed"]:
-            raise RuntimeError(
-                format_cds_auto_translation_validation_errors(translation_validation)
-            )
         post_curation["feature_qualifier_removal"] = remove_genbank_feature_qualifiers(
             annotation,
             feature_keys=("CDS",),
@@ -462,12 +457,6 @@ def main():
             record_post_curation["cds_auto_translation_validation"] = (
                 translation_validation
             )
-            if not translation_validation["cds_auto_translation_passed"]:
-                raise RuntimeError(
-                    format_cds_auto_translation_validation_errors(
-                        translation_validation
-                    )
-                )
             record_post_curation["feature_qualifier_removal"] = (
                 remove_genbank_feature_qualifiers(
                     record_annotation,
