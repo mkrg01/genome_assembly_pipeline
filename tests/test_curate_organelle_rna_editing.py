@@ -222,7 +222,7 @@ class ReferenceInferenceTest(unittest.TestCase):
             "codon_index": 3,
             "effect": "stop_gain",
             "dna_depth": 20,
-            "dna_alt_fraction": 0.0,
+            "dna_alt_fraction": 1.0,
             "evidence_row": {"applied": False},
         }
 
@@ -249,7 +249,6 @@ class ReferenceInferenceTest(unittest.TestCase):
                 ]
             },
             references_by_product={},
-            args=SimpleNamespace(min_dna_depth=10, max_dna_alt_fraction=0.1),
         )
 
         self.assertIsNotNone(rescue)
@@ -345,6 +344,8 @@ class RnaEditingPostCurationSectionTest(unittest.TestCase):
             section,
         )
         self.assertIn("exactly one not-yet-applied C-to-U site", section)
+        self.assertIn("does not require HiFi/DNA support", section)
+        self.assertNotIn("and passes DNA/HiFi depth", section)
         self.assertIn("identity/coverage >= 0.7/0.7", section)
         self.assertIn(
             (

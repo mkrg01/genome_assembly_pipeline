@@ -592,13 +592,8 @@ def site_was_applied(site):
     return bool(site.get("evidence_row", {}).get("applied"))
 
 
-def has_reference_inferred_support(site, args):
-    return (
-        not site_was_applied(site)
-        and site["dna_depth"] is not None
-        and site["dna_depth"] >= args.min_dna_depth
-        and site["dna_alt_fraction"] <= args.max_dna_alt_fraction
-    )
+def has_reference_inferred_support(site):
+    return not site_was_applied(site)
 
 
 def single_reference_rescue_site(choices):
@@ -614,7 +609,6 @@ def reference_inferred_candidate_sites(
     validation_errors,
     site_records,
     terminal_codon_index,
-    args,
 ):
     candidates = []
     used_indices = set()
@@ -627,7 +621,7 @@ def reference_inferred_candidate_sites(
                 for site in site_records
                 if site["codon_index"] == 1
                 and site["effect"] == "start_gain"
-                and has_reference_inferred_support(site, args)
+                and has_reference_inferred_support(site)
             ]
             site = single_reference_rescue_site(choices)
             if site is None:
@@ -640,7 +634,7 @@ def reference_inferred_candidate_sites(
                 for site in site_records
                 if site["codon_index"] == terminal_codon_index
                 and site["effect"] == "stop_gain"
-                and has_reference_inferred_support(site, args)
+                and has_reference_inferred_support(site)
             ]
             site = single_reference_rescue_site(choices)
             if site is None:
@@ -659,7 +653,7 @@ def reference_inferred_candidate_sites(
             for site in site_records
             if site["codon_index"] == codon_index
             and site["effect"] == "premature_stop_rescue"
-            and has_reference_inferred_support(site, args)
+            and has_reference_inferred_support(site)
         ]
         site = single_reference_rescue_site(choices)
         if site is None:
@@ -752,7 +746,6 @@ def reference_inferred_rescue(
     product,
     references_by_gene,
     references_by_product,
-    args,
     rescue_sites=None,
 ):
     if rescue_sites is None:
@@ -760,7 +753,6 @@ def reference_inferred_rescue(
             validation_errors,
             site_records,
             terminal_codon_index,
-            args,
         )
     if not rescue_sites:
         return None
@@ -1240,44 +1232,6 @@ def essential_rescue_dna_candidate_sites(
     return candidates
 
 
-def reference_inferred_dna_candidate_sites(
-    validation_errors,
-    site_records,
-    terminal_codon_index,
-):
-    candidates = []
-    internal_stop_positions = set()
-
-    for error in validation_errors:
-        if error.startswith("invalid_start_codon:"):
-            candidates.extend(
-                site
-                for site in site_records
-                if site["codon_index"] == 1 and site["effect"] == "start_gain"
-            )
-        elif error.startswith("missing_terminal_stop:"):
-            candidates.extend(
-                site
-                for site in site_records
-                if site["codon_index"] == terminal_codon_index
-                and site["effect"] == "stop_gain"
-            )
-        elif error.startswith("internal_stop_codon:"):
-            internal_stop_positions.update(internal_stop_positions_from_error(error))
-        elif error not in {"length_not_multiple_of_three"}:
-            return []
-
-    for codon_index in sorted(internal_stop_positions):
-        candidates.extend(
-            site
-            for site in site_records
-            if site["codon_index"] == codon_index
-            and site["effect"] == "premature_stop_rescue"
-        )
-
-    return candidates
-
-
 def candidate_positions_for_cds_block(block, record_sequence):
     is_pseudo = genbank_feature_has_qualifier(
         block.lines,
@@ -1722,20 +1676,10 @@ def evaluate_cds_feature(
     reference_rescue_sites = []
     if references_by_gene is not None:
         summary["reference_inferred_rescue_attempted"] = True
-        ensure_dna_counts_for_sites(
-            reference_inferred_dna_candidate_sites(
-                validation["errors"],
-                site_records,
-                complete_coding_length // 3,
-            ),
-            dna_pileups=dna_pileups,
-            record_name=record_name,
-        )
         reference_rescue_sites = reference_inferred_candidate_sites(
             validation["errors"],
             site_records,
             complete_coding_length // 3,
-            args,
         )
         summary["reference_inferred_candidate_sites"] = len(reference_rescue_sites)
     reference_rescue = None
@@ -1751,7 +1695,6 @@ def evaluate_cds_feature(
             product=product,
             references_by_gene=references_by_gene,
             references_by_product=references_by_product,
-            args=args,
             rescue_sites=reference_rescue_sites,
         )
     if reference_rescue is not None:
@@ -1764,6 +1707,9 @@ def evaluate_cds_feature(
             editing_effects.append(site["effect"])
             applied_decisions.append("reference_inferred")
             evidence_row = site["evidence_row"]
+            was_likely_genomic_variant = (
+                evidence_row["decision"] == "likely_genomic_variant"
+            )
             evidence_row["original_decision"] = evidence_row["decision"]
             evidence_row["decision"] = "reference_inferred"
             evidence_row["rescue_reason"] = rescue_reason
@@ -1790,6 +1736,7 @@ def evaluate_cds_feature(
             )
             summary["applied_sites"] += 1
             summary["reference_inferred_sites"] += 1
+            summary["likely_genomic_variant_sites"] -= int(was_likely_genomic_variant)
 
         add_exception = bool(applied_indices) and any(
             effect != "synonymous" for effect in editing_effects
@@ -2065,7 +2012,9 @@ def format_rna_editing_post_curation_section(
             "terminal stop codon, or internal premature-stop rescue, and "
             "reference-inferred sites that rescue otherwise invalid CDS "
             "translation. DNA/HiFi pileup is evaluated only for sites with "
-            "normal RNA-editing candidate support or CDS-rescue relevance."
+            "normal RNA-editing candidate support or CDS-essential rescue "
+            "relevance; reference-inferred rescue does not require HiFi/DNA "
+            "support."
         ),
         (
             "- RNA editing CDS-essential rescue thresholds: RNA depth >= "
@@ -2126,10 +2075,8 @@ def format_rna_editing_post_curation_section(
             "reference-inferred site(s). Candidate sites are selected only "
             "when exactly one not-yet-applied C-to-U site directly addresses "
             "a remaining validation error (start gain at the first codon, "
-            "terminal stop gain, or internal premature-stop rescue) and passes "
-            f"DNA/HiFi depth >= {args.min_dna_depth} with DNA alternate "
-            f"fraction <= {args.max_dna_alt_fraction:g}. A fix is applied "
-            "only if the edited CDS passes complete-CDS translation validation "
+            "terminal stop gain, or internal premature-stop rescue). A fix is "
+            "applied only if the edited CDS passes complete-CDS translation validation "
             "and the translated protein matches the best same-gene/product "
             "reference with identity/coverage >= "
             f"{REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY:g}/"
