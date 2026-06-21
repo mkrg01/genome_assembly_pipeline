@@ -11,6 +11,7 @@ import re
 from typing import Iterable
 
 from Bio import SeqIO
+from pandas import DataFrame
 from gbdraw.api import assemble_circular_diagram_from_record, save_figure_to
 from gbdraw.config.modify import modify_config_dict
 from gbdraw.config.toml import load_config_toml
@@ -18,6 +19,7 @@ from gbdraw.labels.filtering import read_qualifier_priority_file
 from gbdraw.render.drawers.circular.definition import DefinitionDrawer
 
 DEFAULT_FEATURES = "CDS,rRNA,tRNA,tmRNA,ncRNA,misc_RNA"
+GENE_LABEL_PRIORITY = "gene,locus_tag,product,protein_id,old_locus_tag,note"
 
 
 def parse_formats(value: str) -> list[str]:
@@ -89,6 +91,16 @@ def parse_features(value: str) -> list[str]:
 def has_selected_features(record, selected_features: Iterable[str]) -> bool:
     selected = set(selected_features)
     return any(feature.type in selected for feature in record.features)
+
+
+def build_gene_label_priority_df(selected_features: Iterable[str]) -> DataFrame:
+    rows = []
+    for feature_type in selected_features:
+        if feature_type == "repeat_region":
+            rows.append((feature_type, "rpt_family,rpt_type,note"))
+        else:
+            rows.append((feature_type, GENE_LABEL_PRIORITY))
+    return DataFrame(rows, columns=("feature_type", "priorities"))
 
 
 def safe_record_name(record, index: int) -> str:
@@ -253,9 +265,14 @@ def main() -> None:
         strandedness=not args.single_strand_ring,
         track_type=args.track_type,
     )
+    filtering_config = config_dict.setdefault("labels", {}).setdefault("filtering", {})
     if args.qualifier_priority:
-        config_dict["labels"]["filtering"]["qualifier_priority_df"] = (
-            read_qualifier_priority_file(str(args.qualifier_priority))
+        filtering_config["qualifier_priority_df"] = read_qualifier_priority_file(
+            str(args.qualifier_priority)
+        )
+    else:
+        filtering_config["qualifier_priority_df"] = build_gene_label_priority_df(
+            selected_features
         )
 
     all_written: list[Path] = []
