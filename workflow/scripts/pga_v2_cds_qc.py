@@ -406,6 +406,7 @@ def map_hifi_reads(reference_fasta: Path, hifi_reads: Path, sam_path: Path, thre
     cmd = [
         "minimap2",
         "-a",
+        "--sam-hit-only",
         "-x",
         "map-hifi",
         "-t",
