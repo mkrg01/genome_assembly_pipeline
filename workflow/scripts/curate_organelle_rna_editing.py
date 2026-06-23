@@ -20,6 +20,7 @@ from organelle_annotation_utils import (  # noqa: E402
     clean_genbank_location_position,
     extract_genbank_location_sequence,
     first_genbank_qualifier_value,
+    format_genbank_feature_location_lines,
     genbank_feature_has_qualifier,
     genbank_qualifier_block_value,
     genbank_qualifier_name,
@@ -57,12 +58,18 @@ REFERENCE_SITE_EVIDENCE_NOTE_PREFIXES = (
 )
 RNA_EDITING_START_GAIN_NOTE = "start codon is created by C to U RNA editing"
 RNA_EDITING_STOP_GAIN_NOTE = "stop codon is created by C to U RNA editing"
+START_CODON_UNDETERMINED_NOTE = "start codon is not determined"
+STOP_CODON_UNDETERMINED_NOTE = "stop codon is not determined"
+TERMINAL_UNDETERMINED_NOTES = {
+    START_CODON_UNDETERMINED_NOTE,
+    STOP_CODON_UNDETERMINED_NOTE,
+}
 RNA_EDITING_OBSOLETE_NOTE_REPLACEMENTS = {
     RNA_EDITING_START_GAIN_NOTE: {
-        "start codon is not determined",
+        START_CODON_UNDETERMINED_NOTE,
     },
     RNA_EDITING_STOP_GAIN_NOTE: {
-        "stop codon is not determined",
+        STOP_CODON_UNDETERMINED_NOTE,
     },
 }
 REFSEQ_ACCESSION_PREFIXES = (
@@ -838,6 +845,136 @@ def translate_cds_for_genbank(sequence, table_id):
     return protein
 
 
+def validation_has_error(errors, prefix):
+    return any(error == prefix or error.startswith(f"{prefix}:") for error in errors)
+
+
+def validation_errors_allow_undetermined_terminal(errors):
+    allowed = {
+        "invalid_start_codon",
+        "missing_terminal_stop",
+        "length_not_multiple_of_three",
+    }
+    if not errors:
+        return False
+    if any(
+        not any(error == prefix or error.startswith(f"{prefix}:") for prefix in allowed)
+        for error in errors
+    ):
+        return False
+    has_incomplete_codon = validation_has_error(errors, "length_not_multiple_of_three")
+    has_missing_stop = validation_has_error(errors, "missing_terminal_stop")
+    if has_incomplete_codon and not has_missing_stop:
+        return False
+    return validation_has_error(errors, "invalid_start_codon") or has_missing_stop
+
+
+def validate_cds_translation_allowing_undetermined_terminal(sequence, table_id):
+    validation = validate_complete_cds_translation(sequence, table_id)
+    if validation["valid"]:
+        return {
+            "valid": True,
+            "start_undetermined": False,
+            "stop_undetermined": False,
+            "errors": [],
+            "warnings": validation["warnings"],
+        }
+    errors = validation["errors"]
+    start_undetermined = validation_has_error(errors, "invalid_start_codon")
+    stop_undetermined = validation_has_error(errors, "missing_terminal_stop")
+    if not validation_errors_allow_undetermined_terminal(errors):
+        return {
+            "valid": False,
+            "start_undetermined": start_undetermined,
+            "stop_undetermined": stop_undetermined,
+            "errors": errors,
+            "warnings": validation["warnings"],
+        }
+    return {
+        "valid": True,
+        "start_undetermined": start_undetermined,
+        "stop_undetermined": stop_undetermined,
+        "errors": errors,
+        "warnings": validation["warnings"],
+    }
+
+
+def add_partial_markers_to_simple_location(location, *, five_prime, three_prime):
+    import re
+
+    range_match = re.fullmatch(r"([<>]?)(\d+)\.\.([<>]?)(\d+)", location)
+    if range_match:
+        left_marker = "<" if five_prime else range_match.group(1)
+        right_marker = ">" if three_prime else range_match.group(3)
+        return (
+            f"{left_marker}{range_match.group(2)}.."
+            f"{right_marker}{range_match.group(4)}"
+        )
+
+    position_match = re.fullmatch(r"([<>]?)(\d+)", location)
+    if position_match:
+        marker = "<" if five_prime else ">" if three_prime else position_match.group(1)
+        return f"{marker}{position_match.group(2)}"
+
+    return location
+
+
+def add_partial_markers_to_location(location, *, five_prime=False, three_prime=False):
+    normalized = "".join(location.split())
+    function_name, inner = unwrap_genbank_location_function(normalized)
+    if function_name == "complement":
+        return (
+            "complement("
+            + add_partial_markers_to_location(
+                inner,
+                five_prime=three_prime,
+                three_prime=five_prime,
+            )
+            + ")"
+        )
+    if function_name in {"join", "order"}:
+        parts = split_genbank_location_arguments(inner)
+        if not parts:
+            return normalized
+        marked_parts = [
+            add_partial_markers_to_location(
+                part,
+                five_prime=five_prime and index == 0,
+                three_prime=three_prime and index == len(parts) - 1,
+            )
+            for index, part in enumerate(parts)
+        ]
+        return f"{function_name}(" + ",".join(marked_parts) + ")"
+    if "," in normalized:
+        parts = split_genbank_location_arguments(normalized)
+        return ",".join(
+            add_partial_markers_to_location(
+                part,
+                five_prime=five_prime and index == 0,
+                three_prime=three_prime and index == len(parts) - 1,
+            )
+            for index, part in enumerate(parts)
+        )
+    return add_partial_markers_to_simple_location(
+        normalized,
+        five_prime=five_prime,
+        three_prime=three_prime,
+    )
+
+
+def replace_cds_block_location(block_lines, location):
+    qualifier_start = len(block_lines)
+    for index, line in enumerate(block_lines):
+        if genbank_qualifier_name(line) is not None:
+            qualifier_start = index
+            break
+    feature_key = block_lines[0][len(FEATURE_INDENT) : len(FEATURE_INDENT) + 16].strip()
+    return [
+        *format_genbank_feature_location_lines(feature_key or "CDS", location),
+        *block_lines[qualifier_start:],
+    ]
+
+
 def format_quoted_qualifier(name, value, width=58):
     prefix = f"/{name}=\""
     if len(value) <= width:
@@ -958,10 +1095,21 @@ def update_cds_block_lines(
     translation,
     table_id,
     add_rna_editing_exception,
+    location=None,
+    recalculate_terminal_notes=False,
     rna_editing_note=None,
     rna_editing_inferences=None,
+    extra_notes=None,
 ):
     cleaned = remove_qualifiers(block_lines, {"translation"})
+    if location is not None:
+        cleaned = replace_cds_block_location(cleaned, location)
+    if recalculate_terminal_notes:
+        cleaned = remove_qualifier_values(
+            cleaned,
+            "note",
+            TERMINAL_UNDETERMINED_NOTES,
+        )
     existing_exceptions = genbank_qualifier_values(cleaned, "exception")
     has_rna_editing_exception = any(
         value.lower() == RNA_EDITING_EXCEPTION.lower() for value in existing_exceptions
@@ -990,6 +1138,15 @@ def update_cds_block_lines(
             if inference.lower() not in existing_inferences:
                 cleaned.extend(format_quoted_qualifier("inference", inference))
                 existing_inferences.add(inference.lower())
+    extra_notes = listify_qualifier_values(extra_notes)
+    if extra_notes:
+        existing_notes = {
+            value.lower() for value in genbank_qualifier_values(cleaned, "note")
+        }
+        for note in extra_notes:
+            if note.lower() not in existing_notes:
+                cleaned.extend(format_quoted_qualifier("note", note))
+                existing_notes.add(note.lower())
     if table_id != "1" and not any(
         genbank_qualifier_name(line) == "transl_table" for line in cleaned
     ):
@@ -1010,6 +1167,18 @@ def rna_editing_cds_note(editing_effects, applied_decisions):
     if len(notes) == 1:
         return notes[0]
     return notes
+
+
+def undetermined_terminal_translation_status(start_undetermined, stop_undetermined):
+    if start_undetermined and stop_undetermined:
+        return "updated_with_undetermined_start_and_stop"
+    if start_undetermined:
+        return "updated_with_undetermined_start"
+    return "updated_with_undetermined_stop"
+
+
+def should_recalculate_terminal_notes(args):
+    return args.organelle == "mitochondrion" and args.tool == "pmga"
 
 
 def rna_editing_site_location(site):
@@ -1304,8 +1473,8 @@ def evaluate_cds_feature(
         block.lines,
         "pseudo",
     ) or genbank_feature_has_qualifier(block.lines, "pseudogene")
-    is_partial = "<" in block.location or ">" in block.location
     strand = infer_location_strand(block.location)
+    recalculate_terminal_notes = should_recalculate_terminal_notes(args)
 
     summary = {
         "record": record_name,
@@ -1570,11 +1739,6 @@ def evaluate_cds_feature(
         summary["mean_candidate_rna_depth"] = f"{statistics.fmean(rna_depths):.3f}"
 
     edited_coding_sequence = "".join(edited_cds)[codon_offset:]
-    if is_partial:
-        summary["translation_status"] = "skipped_partial"
-        feature_decision["translation_status"] = summary["translation_status"]
-        return block.lines, evidence_rows, summary, feature_decision
-
     validation = validate_complete_cds_translation(edited_coding_sequence, table_id)
     if validation["valid"]:
         translation = translate_cds_for_genbank(edited_coding_sequence, table_id)
@@ -1586,6 +1750,7 @@ def evaluate_cds_feature(
             translation=translation,
             table_id=table_id,
             add_rna_editing_exception=add_exception,
+            recalculate_terminal_notes=recalculate_terminal_notes,
             rna_editing_note=rna_editing_cds_note(editing_effects, applied_decisions),
             rna_editing_inferences=[RNA_EDITING_INFERENCE],
         )
@@ -1660,7 +1825,11 @@ def evaluate_cds_feature(
                 translation=translation,
                 table_id=table_id,
                 add_rna_editing_exception=add_exception,
-                rna_editing_note=rna_editing_cds_note(editing_effects, applied_decisions),
+                recalculate_terminal_notes=recalculate_terminal_notes,
+                rna_editing_note=rna_editing_cds_note(
+                    editing_effects,
+                    applied_decisions,
+                ),
                 rna_editing_inferences=[RNA_EDITING_INFERENCE],
             )
             summary["translation_added"] = True
@@ -1753,6 +1922,7 @@ def evaluate_cds_feature(
             translation=reference_rescue["translation"],
             table_id=table_id,
             add_rna_editing_exception=add_exception,
+            recalculate_terminal_notes=recalculate_terminal_notes,
             rna_editing_note=rna_editing_cds_note(
                 editing_effects,
                 applied_decisions,
@@ -1764,6 +1934,58 @@ def evaluate_cds_feature(
             value.lower() == "rna editing" for value in exceptions
         )
         summary["translation_status"] = "updated_with_reference_inference"
+        feature_decision["translation_added"] = True
+        feature_decision["exception_added"] = summary["exception_added"]
+        feature_decision["translation_status"] = summary["translation_status"]
+        return updated_lines, evidence_rows, summary, feature_decision
+
+    undetermined_terminal_validation = (
+        validate_cds_translation_allowing_undetermined_terminal(
+            edited_coding_sequence,
+            table_id,
+        )
+    )
+    if undetermined_terminal_validation["valid"]:
+        start_undetermined = undetermined_terminal_validation["start_undetermined"]
+        stop_undetermined = undetermined_terminal_validation["stop_undetermined"]
+        translation = translate_cds_for_genbank(edited_coding_sequence, table_id)
+        updated_location = add_partial_markers_to_location(
+            block.location,
+            five_prime=start_undetermined,
+            three_prime=stop_undetermined,
+        )
+        extra_notes = []
+        if start_undetermined:
+            extra_notes.append(START_CODON_UNDETERMINED_NOTE)
+        if stop_undetermined:
+            extra_notes.append(STOP_CODON_UNDETERMINED_NOTE)
+        add_exception = bool(applied_indices) and any(
+            effect != "synonymous" for effect in editing_effects
+        )
+        updated_lines = update_cds_block_lines(
+            block.lines,
+            translation=translation,
+            table_id=table_id,
+            add_rna_editing_exception=add_exception,
+            location=updated_location,
+            recalculate_terminal_notes=recalculate_terminal_notes,
+            rna_editing_note=rna_editing_cds_note(
+                editing_effects,
+                applied_decisions,
+            ),
+            rna_editing_inferences=[RNA_EDITING_INFERENCE],
+            extra_notes=extra_notes,
+        )
+        summary["location"] = updated_location
+        summary["translation_added"] = True
+        summary["exception_added"] = add_exception and not any(
+            value.lower() == "rna editing" for value in exceptions
+        )
+        summary["translation_status"] = undetermined_terminal_translation_status(
+            start_undetermined,
+            stop_undetermined,
+        )
+        feature_decision["location"] = updated_location
         feature_decision["translation_added"] = True
         feature_decision["exception_added"] = summary["exception_added"]
         feature_decision["translation_status"] = summary["translation_status"]

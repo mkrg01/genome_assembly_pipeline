@@ -174,6 +174,158 @@ class RnaEditingCdsNoteTest(unittest.TestCase):
         self.assertNotIn('/transl_table="11"', updated_text)
 
 
+class UndeterminedTerminalTranslationTest(unittest.TestCase):
+    def args(self):
+        return SimpleNamespace(
+            organelle="mitochondrion",
+            tool="pmga",
+            transl_table="1",
+            min_rna_depth=10,
+            min_edited_reads=3,
+            min_edit_fraction=0.1,
+            min_base_quality=30,
+            min_mapping_quality=30,
+            min_dna_depth=10,
+            max_dna_alt_fraction=0.1,
+            essential_rescue_min_rna_depth=1,
+            essential_rescue_min_edited_reads=1,
+            essential_rescue_min_edit_fraction=0.1,
+            essential_rescue_max_dna_alt_fraction=0.1,
+        )
+
+    def test_partial_marker_uses_biological_strand(self):
+        self.assertEqual(
+            "<10..30",
+            script.add_partial_markers_to_location("10..30", five_prime=True),
+        )
+        self.assertEqual(
+            "10..>30",
+            script.add_partial_markers_to_location("10..30", three_prime=True),
+        )
+        self.assertEqual(
+            "complement(10..>30)",
+            script.add_partial_markers_to_location(
+                "complement(10..30)",
+                five_prime=True,
+            ),
+        )
+        self.assertEqual(
+            "complement(<10..30)",
+            script.add_partial_markers_to_location(
+                "complement(10..30)",
+                three_prime=True,
+            ),
+        )
+        self.assertEqual(
+            "join(complement(10..>30),40..50)",
+            script.add_partial_markers_to_location(
+                "join(complement(10..30),40..50)",
+                five_prime=True,
+            ),
+        )
+
+    def test_start_undetermined_translation_updates_location_and_note(self):
+        block = GenBankFeatureBlock(
+            key="CDS",
+            start=0,
+            end=4,
+            lines=[
+                "     CDS             1..9\n",
+                '                     /gene="abc"\n',
+                '                     /product="example protein"\n',
+            ],
+            feature_index=1,
+            location="1..9",
+        )
+
+        updated_lines, _evidence, summary, _decision = script.evaluate_cds_feature(
+            record_name="record1",
+            record_sequence="ATAAAATAA",
+            block=block,
+            args=self.args(),
+            rna_pileups=SimpleNamespace(counts=lambda *_args: None),
+            dna_pileups=None,
+        )
+
+        updated_text = "".join(updated_lines)
+        self.assertIn("     CDS             <1..9\n", updated_text)
+        self.assertIn(
+            f'/note="{script.START_CODON_UNDETERMINED_NOTE}"',
+            updated_text,
+        )
+        self.assertIn('/translation="IK"', updated_text)
+        self.assertEqual(
+            "updated_with_undetermined_start",
+            summary["translation_status"],
+        )
+        self.assertTrue(summary["translation_added"])
+
+    def test_complete_translation_removes_stale_pmga_terminal_note(self):
+        block = GenBankFeatureBlock(
+            key="CDS",
+            start=0,
+            end=5,
+            lines=[
+                "     CDS             1..9\n",
+                '                     /gene="abc"\n',
+                f'                     /note="{script.START_CODON_UNDETERMINED_NOTE}"\n',
+                '                     /product="example protein"\n',
+            ],
+            feature_index=1,
+            location="1..9",
+        )
+
+        updated_lines, _evidence, summary, _decision = script.evaluate_cds_feature(
+            record_name="record1",
+            record_sequence="ATGAAATAA",
+            block=block,
+            args=self.args(),
+            rna_pileups=SimpleNamespace(counts=lambda *_args: None),
+            dna_pileups=None,
+        )
+
+        updated_text = "".join(updated_lines)
+        self.assertNotIn(script.START_CODON_UNDETERMINED_NOTE, updated_text)
+        self.assertIn('/translation="MK"', updated_text)
+        self.assertEqual("updated", summary["translation_status"])
+
+    def test_stop_undetermined_translation_updates_location_and_note(self):
+        block = GenBankFeatureBlock(
+            key="CDS",
+            start=0,
+            end=4,
+            lines=[
+                "     CDS             1..9\n",
+                '                     /gene="abc"\n',
+                '                     /product="example protein"\n',
+            ],
+            feature_index=1,
+            location="1..9",
+        )
+
+        updated_lines, _evidence, summary, _decision = script.evaluate_cds_feature(
+            record_name="record1",
+            record_sequence="ATGAAAATA",
+            block=block,
+            args=self.args(),
+            rna_pileups=SimpleNamespace(counts=lambda *_args: None),
+            dna_pileups=None,
+        )
+
+        updated_text = "".join(updated_lines)
+        self.assertIn("     CDS             1..>9\n", updated_text)
+        self.assertIn(
+            f'/note="{script.STOP_CODON_UNDETERMINED_NOTE}"',
+            updated_text,
+        )
+        self.assertIn('/translation="MKI"', updated_text)
+        self.assertEqual(
+            "updated_with_undetermined_stop",
+            summary["translation_status"],
+        )
+        self.assertTrue(summary["translation_added"])
+
+
 class ReferenceInferenceTest(unittest.TestCase):
     def test_refseq_nucleotide_accession_uses_refseq_inference(self):
         self.assertEqual(
