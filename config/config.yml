@@ -61,6 +61,6 @@ organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle an
   chloroplast:
     reference_dir: "plastid_reference" # Required for chloroplast "pga_v2"; GenBank references are used for annotation transfer (pga_v2), CDS/protein QC, and reference-inferred RNA-editing rescue.
     fix_hifi_frameshifts: false
-    fix_feature_boundaries: false
+    fix_feature_boundaries: true
   mitochondrion:
     reference_dir: null # Optional for mitochondrion "pmga"; GenBank references enable CDS/protein QC and reference-inferred RNA-editing rescue.

@@ -705,10 +705,11 @@ def organelle_reference_cds_qc_settings(organelle):
         settings.get("fix_hifi_frameshifts", False),
         default=False,
     )
+    default_fix_feature_boundaries = organelle == "chloroplast"
     fix_feature_boundaries = normalize_bool_config(
         f"organelle_reference_cds_qc.{organelle}.fix_feature_boundaries",
-        settings.get("fix_feature_boundaries", False),
-        default=False,
+        settings.get("fix_feature_boundaries", default_fix_feature_boundaries),
+        default=default_fix_feature_boundaries,
     )
     if organelle == "mitochondrion" and fix_hifi_frameshifts:
         raise ValueError(
