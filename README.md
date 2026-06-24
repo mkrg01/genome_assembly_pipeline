@@ -42,6 +42,8 @@ cd /path/to/repo
 snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 all
 ```
 
+The output will be generated in the [`results` directory](docs/output_directory_structure.md).
+
 > [!NOTE]
 > Adjust the `--cores` value based on your available computational resources.
 
@@ -71,8 +73,6 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 org
 
 After manual GenBank curation, the dry-run should schedule only downstream steps such as organelle map drawing and release staging.
 If GenBank-producing rules are listed, check the upstream file timestamps before running the command without `-n`.
-
-The output will be generated in the [`results` directory](docs/output_directory_structure.md).
 
 ## Annotating an External Assembly
 
