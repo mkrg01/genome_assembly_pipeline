@@ -1,5 +1,5 @@
 # Runtime
-pipeline_version: "v0.8.4" # Container image tag used by the entrypoint Snakefiles.
+pipeline_version: "v0.8.5" # Container image tag used by the entrypoint Snakefiles.
 organism_name: "Dioncophyllum_thollonii" # Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces.
 genome_version: "v1.0" # Version label for this genome release. Used for release directories and output file names.
 external_assembly: null # Required only with workflow/Snakefile.annotation. Use a FASTA path string such as "raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna".
