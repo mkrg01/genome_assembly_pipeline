@@ -64,5 +64,3 @@ organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle an
     fix_feature_boundaries: false
   mitochondrion:
     reference_dir: null # Optional for mitochondrion "pmga"; GenBank references enable CDS/protein QC and reference-inferred RNA-editing rescue.
-    fix_hifi_frameshifts: false
-    fix_feature_boundaries: false
