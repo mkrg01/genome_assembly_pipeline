@@ -91,6 +91,8 @@ REFSEQ_ACCESSION_PREFIXES = (
 )
 REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY = 0.70
 REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE = 0.70
+REFERENCE_PRODUCT_FILL_MIN_PROTEIN_IDENTITY = 0.70
+REFERENCE_PRODUCT_FILL_MIN_PROTEIN_COVERAGE = 0.70
 EVIDENCE_FIELDS = [
     "record",
     "organelle",
@@ -142,6 +144,13 @@ SUMMARY_FIELDS = [
     "tool",
     "gene",
     "product",
+    "product_filled",
+    "product_fill_reference_id",
+    "product_fill_reference_gene",
+    "product_fill_reference_product",
+    "product_fill_reference_protein_id",
+    "product_fill_protein_identity",
+    "product_fill_protein_coverage",
     "feature_index",
     "location",
     "candidate_c_sites",
@@ -741,6 +750,99 @@ def best_reference_for_feature(
     )
 
 
+def product_qualifier_needs_fill(product_values):
+    return not product_values or all(not str(value).strip() for value in product_values)
+
+
+def reference_product_fill_candidate(
+    *,
+    gene,
+    product_values,
+    coding_sequence,
+    cds_length,
+    table_id,
+    references_by_gene,
+):
+    if not references_by_gene or not product_qualifier_needs_fill(product_values):
+        return None
+    if not gene or gene == "?":
+        return None
+
+    query_protein = translate_cds_for_genbank(coding_sequence, table_id)
+    if not query_protein:
+        return None
+
+    candidates = []
+    for reference in references_by_gene.get(gene, []):
+        reference_product = str(reference.get("product", "")).strip()
+        reference_protein = reference.get("protein", "")
+        if not reference_product or not reference_protein:
+            continue
+        metrics = protein_match_metrics(query_protein, reference_protein)
+        if (
+            metrics["protein_identity"] is None
+            or metrics["protein_coverage"] is None
+            or metrics["protein_identity"] < REFERENCE_PRODUCT_FILL_MIN_PROTEIN_IDENTITY
+            or metrics["protein_coverage"] < REFERENCE_PRODUCT_FILL_MIN_PROTEIN_COVERAGE
+        ):
+            continue
+        reference_length = reference.get("length") or 0
+        length_delta = abs(reference_length - cds_length) if reference_length else 0
+        candidates.append(
+            {
+                "reference": reference,
+                "product": reference_product,
+                "metrics": metrics,
+                "score": (
+                    metrics["protein_identity"],
+                    metrics["protein_coverage"],
+                    -length_delta,
+                ),
+            }
+        )
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda candidate: candidate["score"], reverse=True)
+    best_score = candidates[0]["score"]
+    best_products = {
+        candidate["product"].lower()
+        for candidate in candidates
+        if candidate["score"] == best_score
+    }
+    if len(best_products) > 1:
+        return None
+    return candidates[0]
+
+
+def reference_product_fill_from_reference(
+    *,
+    gene,
+    product_values,
+    reference,
+    metrics,
+):
+    if not product_qualifier_needs_fill(product_values):
+        return None
+    if reference is None or reference.get("gene") != gene:
+        return None
+    reference_product = str(reference.get("product", "")).strip()
+    if not reference_product:
+        return None
+    if (
+        metrics.get("protein_identity") is None
+        or metrics.get("protein_coverage") is None
+        or metrics["protein_identity"] < REFERENCE_PRODUCT_FILL_MIN_PROTEIN_IDENTITY
+        or metrics["protein_coverage"] < REFERENCE_PRODUCT_FILL_MIN_PROTEIN_COVERAGE
+    ):
+        return None
+    return {
+        "reference": reference,
+        "product": reference_product,
+        "metrics": metrics,
+    }
+
+
 def reference_inferred_rescue(
     *,
     validation_errors,
@@ -990,6 +1092,59 @@ def format_quoted_qualifier(name, value, width=58):
 
 def format_simple_qualifier(name, value):
     return [f"{QUALIFIER_INDENT}/{name}={value}\n"]
+
+
+def qualifier_block_end(block_lines, start_index):
+    end_index = start_index + 1
+    while (
+        end_index < len(block_lines)
+        and genbank_qualifier_name(block_lines[end_index]) is None
+    ):
+        end_index += 1
+    return end_index
+
+
+def fill_cds_product_qualifier(block_lines, product):
+    cleaned = remove_qualifiers(block_lines, {"product"})
+    insert_index = len(cleaned)
+    for index, line in enumerate(cleaned):
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name in {"gene", "locus_tag", "old_locus_tag"}:
+            insert_index = qualifier_block_end(cleaned, index)
+    return [
+        *cleaned[:insert_index],
+        *format_quoted_qualifier("product", product),
+        *cleaned[insert_index:],
+    ]
+
+
+def product_fill_reference_summary(product_fill):
+    reference = product_fill["reference"]
+    metrics = product_fill["metrics"]
+    return {
+        "product_filled": True,
+        "product_fill_reference_id": reference.get("record_id", ""),
+        "product_fill_reference_gene": reference.get("gene", ""),
+        "product_fill_reference_product": reference.get("product", ""),
+        "product_fill_reference_protein_id": reference.get("protein_id", ""),
+        "product_fill_protein_identity": f"{metrics['protein_identity']:.6f}",
+        "product_fill_protein_coverage": f"{metrics['protein_coverage']:.6f}",
+    }
+
+
+def product_fill_reference_decision(product_fill):
+    reference = product_fill["reference"]
+    metrics = product_fill["metrics"]
+    return {
+        "reference_id": reference.get("record_id", ""),
+        "reference_accession": reference.get("accession", ""),
+        "reference_gene": reference.get("gene", ""),
+        "reference_product": reference.get("product", ""),
+        "reference_protein_id": reference.get("protein_id", ""),
+        "reference_path": reference.get("path", ""),
+        "protein_identity": metrics["protein_identity"],
+        "protein_coverage": metrics["protein_coverage"],
+    }
 
 
 def remove_qualifiers(block_lines, qualifiers):
@@ -1466,7 +1621,8 @@ def evaluate_cds_feature(
     if table_id not in GENETIC_CODES:
         table_id = str(args.transl_table)
     gene = first_genbank_qualifier_value(block.lines, "gene", "?")
-    product = first_genbank_qualifier_value(block.lines, "product", "")
+    product_values = genbank_qualifier_values(block.lines, "product")
+    product = product_values[0] if product_values else ""
     exceptions = genbank_qualifier_values(block.lines, "exception")
     candidate_source = feature_candidate_sources(args.tool, exceptions)
     is_pseudo = genbank_feature_has_qualifier(
@@ -1482,6 +1638,13 @@ def evaluate_cds_feature(
         "tool": args.tool,
         "gene": gene,
         "product": product,
+        "product_filled": False,
+        "product_fill_reference_id": "",
+        "product_fill_reference_gene": "",
+        "product_fill_reference_product": "",
+        "product_fill_reference_protein_id": "",
+        "product_fill_protein_identity": "",
+        "product_fill_protein_coverage": "",
         "feature_index": block.feature_index,
         "location": block.location,
         "candidate_c_sites": 0,
@@ -1504,6 +1667,8 @@ def evaluate_cds_feature(
         "feature_index": block.feature_index,
         "gene": gene,
         "product": product,
+        "product_filled": False,
+        "product_fill_reference": None,
         "location": block.location,
         "candidate_source": candidate_source,
         "accepted_sites": [],
@@ -1551,6 +1716,27 @@ def evaluate_cds_feature(
         codon_offset = 0
     if codon_offset not in {0, 1, 2}:
         codon_offset = 0
+
+    block_lines = block.lines
+    product_fill = reference_product_fill_candidate(
+        gene=gene,
+        product_values=product_values,
+        coding_sequence=cds_sequence[codon_offset:],
+        cds_length=len(cds_sequence),
+        table_id=table_id,
+        references_by_gene=references_by_gene,
+    )
+    if product_fill is not None:
+        product = product_fill["product"]
+        product_values = [product]
+        block_lines = fill_cds_product_qualifier(block_lines, product)
+        summary["product"] = product
+        summary.update(product_fill_reference_summary(product_fill))
+        feature_decision["product"] = product
+        feature_decision["product_filled"] = True
+        feature_decision["product_fill_reference"] = product_fill_reference_decision(
+            product_fill
+        )
 
     edited_cds = list(cds_sequence)
     rna_depths = []
@@ -1746,7 +1932,7 @@ def evaluate_cds_feature(
             effect != "synonymous" for effect in editing_effects
         )
         updated_lines = update_cds_block_lines(
-            block.lines,
+            block_lines,
             translation=translation,
             table_id=table_id,
             add_rna_editing_exception=add_exception,
@@ -1821,7 +2007,7 @@ def evaluate_cds_feature(
                 effect != "synonymous" for effect in editing_effects
             )
             updated_lines = update_cds_block_lines(
-                block.lines,
+                block_lines,
                 translation=translation,
                 table_id=table_id,
                 add_rna_editing_exception=add_exception,
@@ -1870,6 +2056,26 @@ def evaluate_cds_feature(
         reference = reference_rescue["reference"]
         metrics = reference_rescue["metrics"]
         reference_inference = reference_rescue["inference"]
+        if not summary["product_filled"]:
+            product_fill = reference_product_fill_from_reference(
+                gene=gene,
+                product_values=product_values,
+                reference=reference,
+                metrics=metrics,
+            )
+            if product_fill is not None:
+                product = product_fill["product"]
+                product_values = [product]
+                block_lines = fill_cds_product_qualifier(block_lines, product)
+                summary["product"] = product
+                summary.update(product_fill_reference_summary(product_fill))
+                feature_decision["product"] = product
+                feature_decision["product_filled"] = True
+                feature_decision["product_fill_reference"] = (
+                    product_fill_reference_decision(product_fill)
+                )
+                for evidence_row in evidence_rows:
+                    evidence_row["product"] = product
         for site, rescue_reason in reference_rescue["sites"]:
             edited_cds[site["cds_index"]] = "T"
             applied_indices.add(site["cds_index"])
@@ -1918,7 +2124,7 @@ def evaluate_cds_feature(
             inferences.append(RNA_EDITING_INFERENCE)
         inferences.append(reference_inference)
         updated_lines = update_cds_block_lines(
-            block.lines,
+            block_lines,
             translation=reference_rescue["translation"],
             table_id=table_id,
             add_rna_editing_exception=add_exception,
@@ -1963,7 +2169,7 @@ def evaluate_cds_feature(
             effect != "synonymous" for effect in editing_effects
         )
         updated_lines = update_cds_block_lines(
-            block.lines,
+            block_lines,
             translation=translation,
             table_id=table_id,
             add_rna_editing_exception=add_exception,
@@ -1995,7 +2201,7 @@ def evaluate_cds_feature(
     summary["translation_errors"] = ";".join(validation["errors"])
     feature_decision["translation_status"] = summary["translation_status"]
     feature_decision["translation_errors"] = validation["errors"]
-    return block.lines, evidence_rows, summary, feature_decision
+    return block_lines, evidence_rows, summary, feature_decision
 
 
 def curate_records(args, rna_bams, dna_bams):
@@ -2168,6 +2374,7 @@ def format_rna_editing_post_curation_section(
     )
     translated_cds_count = count_true(summary_rows, "translation_added")
     exception_cds_count = count_true(summary_rows, "exception_added")
+    product_filled_cds_count = count_true(summary_rows, "product_filled")
     _ = evidence_rows
     validation_failed_count = sum(
         1
@@ -2285,6 +2492,16 @@ def format_rna_editing_post_curation_section(
             )
     if args.reference_dir is not None:
         reference_dir = format_path_for_markdown(args.reference_dir)
+        if product_filled_cds_count:
+            lines.append(
+                "- RNA editing reference product fill: filled "
+                f"{product_filled_cds_count} empty CDS `/product` qualifier(s) "
+                "from same-gene reference CDS/protein matches with "
+                "identity/coverage >= "
+                f"{REFERENCE_PRODUCT_FILL_MIN_PROTEIN_IDENTITY:g}/"
+                f"{REFERENCE_PRODUCT_FILL_MIN_PROTEIN_COVERAGE:g}; existing "
+                "non-empty `/product` qualifiers were left unchanged."
+            )
         lines.append(
             "- RNA editing reference-inferred rescue: "
             f"enabled with reference directory {reference_dir}; evaluated "
@@ -2397,6 +2614,12 @@ def main():
             ),
             "reference_inferred_min_protein_coverage": (
                 REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE
+            ),
+            "reference_product_fill_min_protein_identity": (
+                REFERENCE_PRODUCT_FILL_MIN_PROTEIN_IDENTITY
+            ),
+            "reference_product_fill_min_protein_coverage": (
+                REFERENCE_PRODUCT_FILL_MIN_PROTEIN_COVERAGE
             ),
         },
         "cds_qualifier_order": cds_qualifier_order,

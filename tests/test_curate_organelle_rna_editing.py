@@ -409,6 +409,137 @@ class ReferenceInferenceTest(unittest.TestCase):
         self.assertEqual(1.0, rescue["metrics"]["protein_identity"])
 
 
+class ReferenceProductFillTest(unittest.TestCase):
+    def args(self):
+        return SimpleNamespace(
+            organelle="chloroplast",
+            tool="pga_v2",
+            transl_table="11",
+            min_rna_depth=10,
+            min_edited_reads=3,
+            min_edit_fraction=0.1,
+            min_base_quality=30,
+            min_mapping_quality=30,
+            min_dna_depth=10,
+            max_dna_alt_fraction=0.1,
+            essential_rescue_min_rna_depth=1,
+            essential_rescue_min_edited_reads=1,
+            essential_rescue_min_edit_fraction=0.1,
+            essential_rescue_max_dna_alt_fraction=0.1,
+        )
+
+    def references_by_gene(self, product="example protein"):
+        return {
+            "abc": [
+                {
+                    "path": "reference.gbk",
+                    "record_id": "REF",
+                    "accession": "REF000001.1",
+                    "gene": "abc",
+                    "product": product,
+                    "protein_id": "YP_000001.1",
+                    "length": 9,
+                    "protein": "MK",
+                }
+            ]
+        }
+
+    def test_empty_product_is_filled_from_same_gene_reference(self):
+        block = GenBankFeatureBlock(
+            key="CDS",
+            start=0,
+            end=3,
+            lines=[
+                "     CDS             1..9\n",
+                '                     /gene="abc"\n',
+                '                     /product=""\n',
+            ],
+            feature_index=1,
+            location="1..9",
+        )
+
+        updated_lines, _evidence, summary, decision = script.evaluate_cds_feature(
+            record_name="record1",
+            record_sequence="ATGAAATAA",
+            block=block,
+            args=self.args(),
+            rna_pileups=SimpleNamespace(counts=lambda *_args: None),
+            dna_pileups=None,
+            references_by_gene=self.references_by_gene(),
+            references_by_product={},
+        )
+
+        updated_text = "".join(updated_lines)
+        self.assertIn('/product="example protein"', updated_text)
+        self.assertNotIn('/product=""', updated_text)
+        self.assertTrue(summary["product_filled"])
+        self.assertEqual("example protein", summary["product"])
+        self.assertEqual("REF", summary["product_fill_reference_id"])
+        self.assertTrue(decision["product_filled"])
+        self.assertEqual(
+            "REF",
+            decision["product_fill_reference"]["reference_id"],
+        )
+
+    def test_existing_product_is_not_overwritten(self):
+        block = GenBankFeatureBlock(
+            key="CDS",
+            start=0,
+            end=3,
+            lines=[
+                "     CDS             1..9\n",
+                '                     /gene="abc"\n',
+                '                     /product="existing protein"\n',
+            ],
+            feature_index=1,
+            location="1..9",
+        )
+
+        updated_lines, _evidence, summary, decision = script.evaluate_cds_feature(
+            record_name="record1",
+            record_sequence="ATGAAATAA",
+            block=block,
+            args=self.args(),
+            rna_pileups=SimpleNamespace(counts=lambda *_args: None),
+            dna_pileups=None,
+            references_by_gene=self.references_by_gene(product="reference protein"),
+            references_by_product={},
+        )
+
+        updated_text = "".join(updated_lines)
+        self.assertIn('/product="existing protein"', updated_text)
+        self.assertNotIn('/product="reference protein"', updated_text)
+        self.assertFalse(summary["product_filled"])
+        self.assertFalse(decision["product_filled"])
+
+    def test_ambiguous_best_reference_products_are_not_filled(self):
+        candidate = script.reference_product_fill_candidate(
+            gene="abc",
+            product_values=[""],
+            coding_sequence="ATGAAATAA",
+            cds_length=9,
+            table_id="11",
+            references_by_gene={
+                "abc": [
+                    {
+                        "gene": "abc",
+                        "product": "first protein",
+                        "length": 9,
+                        "protein": "MK",
+                    },
+                    {
+                        "gene": "abc",
+                        "product": "second protein",
+                        "length": 9,
+                        "protein": "MK",
+                    },
+                ]
+            },
+        )
+
+        self.assertIsNone(candidate)
+
+
 class RnaEditingPostCurationSectionTest(unittest.TestCase):
     def section_args(self, reference_dir=None):
         return SimpleNamespace(
@@ -505,6 +636,35 @@ class RnaEditingPostCurationSectionTest(unittest.TestCase):
                 "reference-inferred rescue, 1 CDS feature(s) were still not "
                 "updated"
             ),
+            section,
+        )
+
+    def test_reference_product_fill_is_reported_when_applied(self):
+        section = script.format_rna_editing_post_curation_section(
+            self.section_args(reference_dir=Path("references")),
+            evidence_rows=[],
+            summary_rows=[
+                {
+                    "candidate_c_sites": 0,
+                    "accepted_sites": 0,
+                    "applied_sites": 0,
+                    "rescued_sites": 0,
+                    "reference_inferred_sites": 0,
+                    "reference_inferred_rescue_attempted": False,
+                    "reference_inferred_candidate_sites": 0,
+                    "likely_genomic_variant_sites": 0,
+                    "translation_added": True,
+                    "exception_added": False,
+                    "translation_status": "updated",
+                    "product_filled": True,
+                }
+            ],
+        )
+
+        self.assertIn("RNA editing reference product fill", section)
+        self.assertIn("filled 1 empty CDS `/product` qualifier(s)", section)
+        self.assertIn(
+            "existing non-empty `/product` qualifiers were left unchanged",
             section,
         )
 
