@@ -705,15 +705,27 @@ def organelle_reference_cds_qc_settings(organelle):
         settings.get("fix_hifi_frameshifts", False),
         default=False,
     )
+    fix_feature_boundaries = normalize_bool_config(
+        f"organelle_reference_cds_qc.{organelle}.fix_feature_boundaries",
+        settings.get("fix_feature_boundaries", False),
+        default=False,
+    )
     if organelle == "mitochondrion" and fix_hifi_frameshifts:
         raise ValueError(
             "organelle_reference_cds_qc.mitochondrion.fix_hifi_frameshifts "
             "must be false; HiFi-supported sequence frameshift correction is "
             "supported only for chloroplast/PGA."
         )
+    if organelle == "mitochondrion" and fix_feature_boundaries:
+        raise ValueError(
+            "organelle_reference_cds_qc.mitochondrion.fix_feature_boundaries "
+            "must be false; reference-guided feature boundary rescue is "
+            "supported only for chloroplast/PGA."
+        )
     return {
         "reference_dir": reference_dir,
         "fix_hifi_frameshifts": fix_hifi_frameshifts,
+        "fix_feature_boundaries": fix_feature_boundaries,
     }
 
 
@@ -723,6 +735,10 @@ def organelle_reference_cds_qc_reference_dir(organelle):
 
 def organelle_reference_cds_qc_fix_hifi_frameshifts(organelle):
     return organelle_reference_cds_qc_settings(organelle)["fix_hifi_frameshifts"]
+
+
+def organelle_reference_cds_qc_fix_feature_boundaries(organelle):
+    return organelle_reference_cds_qc_settings(organelle)["fix_feature_boundaries"]
 
 
 def has_organelle_reference_cds_qc(organelle):

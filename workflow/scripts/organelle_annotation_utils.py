@@ -2465,6 +2465,34 @@ def append_post_curation_summary(lines, post_curation):
                 "(reported candidates only)"
             )
 
+    pga_boundary_rescue = post_curation.get("pga_v2_feature_boundary_rescue")
+    if pga_boundary_rescue:
+        candidate_count = pga_boundary_rescue["candidate_fix_count"]
+        applied_count = pga_boundary_rescue["applied_fix_count"]
+        if pga_boundary_rescue["enabled"]:
+            if applied_count:
+                changed_cds = pga_boundary_rescue["changed_cds_count"]
+                changed_exons = pga_boundary_rescue["changed_exon_count"]
+                lines.append(
+                    "- PGA v2 chloroplast feature boundary fixes applied: "
+                    f"{applied_count} reference-guided CDS boundary fix(es) "
+                    f"updated {changed_cds} CDS and {changed_exons} exon "
+                    "feature(s); the chloroplast sequence was not modified"
+                )
+            else:
+                lines.append(
+                    "- PGA v2 chloroplast feature boundary fixes applied: "
+                    "none met the conservative auto-apply criteria; the "
+                    "chloroplast sequence was not modified"
+                )
+        else:
+            lines.append(
+                "- PGA v2 chloroplast feature boundary fixes proposed: "
+                f"{candidate_count} candidate fix(es) were recorded; automatic "
+                "feature boundary changes were disabled and the chloroplast "
+                "sequence was not modified"
+            )
+
     translation_validation = post_curation.get("cds_auto_translation_validation")
     if translation_validation:
         checked_count = translation_validation[

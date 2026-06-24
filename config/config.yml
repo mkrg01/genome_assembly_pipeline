@@ -57,10 +57,12 @@ circos_plot_x_minor_tick_interval: 5_000_000 # Minor tick interval (in bp) for t
 organelle_annotation: # Annotation tools for Oatk-assembled organelle genomes. Set an organelle or this whole key to null, or omit an organelle key, to skip annotation.
   mitochondrion: "pmga" # {"pmga", null}
   chloroplast: "pga_v2" # {"pga_v2", null}
-organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle annotations. Set reference_dir to null to skip. fix_hifi_frameshifts is chloroplast/PGA only.
+organelle_reference_cds_qc: # Optional reference CDS/protein QC for organelle annotations. Set reference_dir to null to skip. fix_hifi_frameshifts and fix_feature_boundaries are chloroplast/PGA only.
   chloroplast:
     reference_dir: "plastid_reference" # Required for chloroplast "pga_v2"; GenBank references are used for annotation transfer (pga_v2), CDS/protein QC, and reference-inferred RNA-editing rescue.
     fix_hifi_frameshifts: false
+    fix_feature_boundaries: false
   mitochondrion:
     reference_dir: null # Optional for mitochondrion "pmga"; GenBank references enable CDS/protein QC and reference-inferred RNA-editing rescue.
     fix_hifi_frameshifts: false
+    fix_feature_boundaries: false

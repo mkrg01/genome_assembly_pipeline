@@ -6,13 +6,26 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from organelle_annotation_utils import (
+    extract_genbank_location_sequence,
+    format_genbank_feature_location_lines,
+    genbank_feature_qualifier_start,
+    genbank_interval_overlap,
+    genbank_location_intervals,
+    genbank_qualifier_name,
+    genbank_record_locus_metadata,
+    genbank_record_origin_sequence,
+    parse_genbank_feature_blocks,
     reverse_complement_dna,
+    split_genbank_records,
+    translate_complete_codons,
     validate_complete_cds_translation,
 )
 from reference_cds_qc import (
     SHORT_LENGTH_MISSING_BP,
     SHORT_LENGTH_RATIO,
     CdsFeature,
+    normalize_translation,
+    protein_match_metrics,
     parse_genbank_records_with_sequences,
     run_reference_cds_qc,
 )
@@ -26,6 +39,11 @@ READ_SUPPORT_MAX_CURRENT_FRACTION = 0.05
 READ_SUPPORT_MIN_MAPQ = 20
 READ_SUPPORT_FLANK_BP = 20
 READ_SUPPORT_INDEL_SLOP_BP = 8
+BOUNDARY_RESCUE_MIN_INTRON_GAP_BP = 30
+BOUNDARY_RESCUE_MIN_NT_IDENTITY = 0.98
+BOUNDARY_RESCUE_MIN_PROTEIN_IDENTITY = 0.98
+BOUNDARY_RESCUE_BLOCKING_FEATURE_KEYS = {"CDS", "tRNA", "rRNA", "ncRNA", "tmRNA"}
+
 
 @dataclass
 class SequenceFix:
@@ -37,6 +55,18 @@ class SequenceFix:
     sequence: str
     reason: str
     read_support: dict = field(default_factory=dict)
+
+
+@dataclass
+class FeatureBoundaryFix:
+    record_id: str
+    gene: str
+    feature_index: int
+    old_location: str
+    new_location: str
+    exon_updates: list[dict]
+    reason: str
+    metrics: dict = field(default_factory=dict)
 
 
 def parse_pga_warnings(path: Path):
@@ -332,6 +362,684 @@ def find_frameshift_candidates(
                     )
         candidates.append(candidate)
     return candidates
+
+
+def review_reason_set(row):
+    return {
+        reason
+        for reason in str(row.review_reason or "").split(";")
+        if reason
+    }
+
+
+def is_boundary_rescue_eligible(feature: CdsFeature, row, reference):
+    reasons = review_reason_set(row)
+    if reference is None:
+        return False, "no_reference_found"
+    if reference.get("gene") != feature.gene:
+        return False, "reference_gene_mismatch_or_product_fallback"
+    if row.reference_length is None or row.missing_bp is None:
+        return False, "missing_reference_length_metrics"
+    if row.missing_bp <= 0:
+        return False, "target_not_shorter_than_reference"
+    if not ({"short_vs_reference", "missing_bp_vs_reference"} & reasons):
+        return False, "no_strong_length_shortage"
+    if not is_supported_boundary_rescue_location(feature.location):
+        return False, "unsupported_location"
+    return True, None
+
+
+def is_supported_boundary_rescue_location(location: str):
+    normalized = "".join(location.split()).lower()
+    if any(marker in normalized for marker in ("<", ">", "^", ":")):
+        return False
+    if "order(" in normalized:
+        return False
+    if "complement(" in normalized and not normalized.startswith("complement("):
+        return False
+    if "join(complement(" in normalized:
+        return False
+    return True
+
+
+def add_alignment_span(current, ref_start, ref_end, target_start, target_end):
+    if ref_start == ref_end and target_start == target_end:
+        return current
+    if current is None:
+        return {
+            "ref_start": ref_start,
+            "ref_end": ref_end,
+            "coding_start": target_start,
+            "coding_end": target_end,
+        }
+    current["ref_end"] = ref_end
+    current["coding_end"] = target_end
+    return current
+
+
+def close_alignment_block(blocks, current):
+    if current is not None and current["coding_start"] < current["coding_end"]:
+        blocks.append(current)
+    return None
+
+
+def collinear_reference_blocks(reference_sequence: str, target_sequence: str):
+    matcher = difflib.SequenceMatcher(
+        None,
+        reference_sequence,
+        target_sequence,
+        autojunk=False,
+    )
+    blocks = []
+    current = None
+    unsupported_reasons = []
+    for tag, ref_start, ref_end, target_start, target_end in matcher.get_opcodes():
+        ref_length = ref_end - ref_start
+        target_length = target_end - target_start
+        if tag == "insert":
+            terminal_insert = ref_start in {0, len(reference_sequence)}
+            if terminal_insert:
+                continue
+            if target_length >= BOUNDARY_RESCUE_MIN_INTRON_GAP_BP:
+                current = close_alignment_block(blocks, current)
+                continue
+            unsupported_reasons.append("short_target_insertion_within_cds")
+            continue
+        if tag == "delete":
+            unsupported_reasons.append("reference_bases_absent_from_target_window")
+            continue
+        if tag == "replace" and ref_length != target_length:
+            unsupported_reasons.append("length-changing_exonic_difference")
+            continue
+        if tag in {"equal", "replace"}:
+            current = add_alignment_span(
+                current,
+                ref_start,
+                ref_end,
+                target_start,
+                target_end,
+            )
+    current = close_alignment_block(blocks, current)
+    if unsupported_reasons:
+        return None, ";".join(sorted(set(unsupported_reasons)))
+    if not blocks:
+        return None, "no_collinear_blocks"
+    if (
+        blocks[0]["ref_start"] != 0
+        or blocks[-1]["ref_end"] != len(reference_sequence)
+    ):
+        return None, "reference_not_fully_covered"
+    covered = sum(block["ref_end"] - block["ref_start"] for block in blocks)
+    if covered != len(reference_sequence):
+        return None, "reference_not_fully_covered"
+    return blocks, None
+
+
+def coding_block_to_genomic_interval(window, strand: str, block):
+    coding_start = block["coding_start"]
+    coding_end = block["coding_end"]
+    if strand == "-":
+        return (
+            window["genomic_end"] - coding_end + 1,
+            window["genomic_end"] - coding_start,
+        )
+    return (
+        window["genomic_start"] + coding_start,
+        window["genomic_start"] + coding_end - 1,
+    )
+
+
+def sorted_intervals(intervals):
+    return sorted((min(start, end), max(start, end)) for start, end in intervals)
+
+
+def cds_location_from_intervals(intervals, strand: str):
+    parts = [f"{start}..{end}" for start, end in sorted_intervals(intervals)]
+    inner = parts[0] if len(parts) == 1 else f"join({','.join(parts)})"
+    if strand == "-":
+        return f"complement({inner})"
+    return inner
+
+
+def simple_feature_location_from_interval(interval, strand: str):
+    start, end = interval
+    location = f"{start}..{end}"
+    if strand == "-":
+        return f"complement({location})"
+    return location
+
+
+def intervals_overlap(left, right):
+    return genbank_interval_overlap([left], [right]) > 0
+
+
+def exon_count_and_overlap_ok(current_intervals, candidate_intervals):
+    current_sorted = sorted_intervals(current_intervals)
+    candidate_sorted = sorted_intervals(candidate_intervals)
+    if len(current_sorted) != len(candidate_sorted):
+        return False
+    return all(
+        intervals_overlap(current, candidate)
+        for current, candidate in zip(current_sorted, candidate_sorted)
+    )
+
+
+def sequence_identity(left: str, right: str):
+    if not left or not right:
+        return 0.0
+    if len(left) != len(right):
+        matches = sum(
+            block.size
+            for block in difflib.SequenceMatcher(
+                None,
+                left,
+                right,
+                autojunk=False,
+            ).get_matching_blocks()
+        )
+        return matches / max(len(left), len(right))
+    matches = sum(
+        1
+        for left_base, right_base in zip(left, right)
+        if left_base == right_base
+    )
+    return matches / len(left)
+
+
+def translated_protein(sequence: str, transl_table: str):
+    protein, _ambiguous = translate_complete_codons(sequence, transl_table)
+    return normalize_translation(protein)
+
+
+def feature_gene_values(block):
+    return set(block.qualifiers.get("gene", []))
+
+
+def blocking_feature_overlaps(blocks, target_feature: CdsFeature, candidate_intervals):
+    target_genes = {target_feature.gene}
+    blocking = []
+    for block in blocks:
+        if block.key not in BOUNDARY_RESCUE_BLOCKING_FEATURE_KEYS:
+            continue
+        if block.key == "CDS" and block.feature_index == target_feature.feature_index:
+            continue
+        block_genes = feature_gene_values(block)
+        if block_genes and not block_genes.isdisjoint(target_genes):
+            continue
+        overlap = genbank_interval_overlap(block.intervals, candidate_intervals)
+        if overlap > 0:
+            blocking.append(
+                {
+                    "feature_index": block.feature_index,
+                    "key": block.key,
+                    "gene": sorted(block_genes),
+                    "location": block.location,
+                    "overlap_bp": overlap,
+                }
+            )
+    return blocking
+
+
+def matching_exon_updates(
+    blocks,
+    feature: CdsFeature,
+    current_intervals,
+    candidate_intervals,
+):
+    gene = feature.gene
+    same_gene_exons = [
+        block
+        for block in blocks
+        if block.key == "exon" and gene in feature_gene_values(block)
+    ]
+    if not same_gene_exons:
+        return [], None
+
+    updates = []
+    used = set()
+    for current_interval, candidate_interval in zip(
+        sorted_intervals(current_intervals),
+        sorted_intervals(candidate_intervals),
+    ):
+        matches = [
+            block
+            for block in same_gene_exons
+            if block.feature_index not in used
+            and len(block.intervals) == 1
+            and intervals_overlap(block.intervals[0], current_interval)
+        ]
+        if len(matches) != 1:
+            return [], "same_gene_exons_not_one_to_one_with_cds_exons"
+        block = matches[0]
+        used.add(block.feature_index)
+        updates.append(
+            {
+                "feature_index": block.feature_index,
+                "old_location": block.location,
+                "new_location": simple_feature_location_from_interval(
+                    candidate_interval,
+                    feature.strand,
+                ),
+            }
+        )
+    if len(used) != len(same_gene_exons):
+        return [], "same_gene_exons_not_one_to_one_with_cds_exons"
+    return updates, None
+
+
+def genbank_records_with_blocks(path: Path):
+    records = []
+    lines = path.read_text().splitlines(keepends=True)
+    for record_lines in split_genbank_records(lines):
+        metadata = genbank_record_locus_metadata(record_lines) or {}
+        records.append(
+            {
+                "id": metadata.get("name") or "record",
+                "sequence": genbank_record_origin_sequence(record_lines),
+                "blocks": parse_genbank_feature_blocks(record_lines)[2],
+                "lines": record_lines,
+            }
+        )
+    return records
+
+
+def boundary_rescue_candidate_for_feature(
+    feature: CdsFeature,
+    row,
+    reference,
+    record,
+):
+    current_intervals = genbank_location_intervals(feature.location)
+    window = window_for_feature(feature, record["sequence"], reference["length"])
+    blocks, block_skip_reason = collinear_reference_blocks(
+        reference["sequence"],
+        window["coding_sequence"],
+    )
+    candidate = {
+        "record_id": feature.record_id,
+        "gene": feature.gene,
+        "target_feature_index": feature.feature_index,
+        "target_location": feature.location,
+        "target_length": feature.length,
+        "reference_length": reference["length"],
+        "reference_path": reference["path"],
+        "reference_id": reference["record_id"],
+        "missing_bp": row.missing_bp,
+        "length_ratio": row.length_ratio,
+        "review_reason": row.review_reason,
+        "window": {
+            "genomic_start": window["genomic_start"],
+            "genomic_end": window["genomic_end"],
+        },
+        "candidate_fixes": [],
+        "skipped_reason": None,
+    }
+    if blocks is None:
+        candidate["skipped_reason"] = block_skip_reason
+        return candidate
+
+    candidate_intervals = [
+        coding_block_to_genomic_interval(window, feature.strand, block)
+        for block in blocks
+    ]
+    candidate_location = cds_location_from_intervals(candidate_intervals, feature.strand)
+    candidate_sequence = extract_genbank_location_sequence(
+        candidate_location,
+        record["sequence"],
+    )
+    validation = validate_complete_cds_translation(
+        candidate_sequence,
+        feature.transl_table,
+    )
+    nt_identity = sequence_identity(candidate_sequence, reference["sequence"])
+    candidate_protein = translated_protein(candidate_sequence, feature.transl_table)
+    protein_metrics = protein_match_metrics(
+        candidate_protein,
+        reference.get("protein", ""),
+    )
+    exon_structure_ok = exon_count_and_overlap_ok(current_intervals, candidate_intervals)
+    blocking_overlaps = blocking_feature_overlaps(
+        record["blocks"],
+        feature,
+        sorted_intervals(candidate_intervals),
+    )
+    exon_updates, exon_update_skip_reason = matching_exon_updates(
+        record["blocks"],
+        feature,
+        current_intervals,
+        candidate_intervals,
+    )
+    full_length = len(candidate_sequence) == reference["length"]
+    high_identity = (
+        nt_identity >= BOUNDARY_RESCUE_MIN_NT_IDENTITY
+        and (protein_metrics["protein_identity"] or 0.0)
+        >= BOUNDARY_RESCUE_MIN_PROTEIN_IDENTITY
+        and (protein_metrics["reference_coverage"] or 0.0) == 1.0
+        and (protein_metrics["query_coverage"] or 0.0) == 1.0
+    )
+    auto_apply_blockers = []
+    if candidate_location == feature.location:
+        auto_apply_blockers.append("candidate_location_unchanged")
+    if not exon_structure_ok:
+        auto_apply_blockers.append("candidate_exon_count_or_overlap_mismatch")
+    if not validation["valid"]:
+        auto_apply_blockers.append("candidate_not_complete_valid_cds")
+    if not full_length:
+        auto_apply_blockers.append("candidate_length_differs_from_reference")
+    if not high_identity:
+        auto_apply_blockers.append("candidate_below_identity_threshold")
+    if blocking_overlaps:
+        auto_apply_blockers.append("candidate_overlaps_other_feature")
+    if exon_update_skip_reason:
+        auto_apply_blockers.append(exon_update_skip_reason)
+
+    candidate["candidate_fixes"].append(
+        {
+            "old_location": feature.location,
+            "new_location": candidate_location,
+            "current_intervals": sorted_intervals(current_intervals),
+            "candidate_intervals": sorted_intervals(candidate_intervals),
+            "candidate_blocks": blocks,
+            "exon_updates": exon_updates,
+            "validation": validation,
+            "metrics": {
+                "candidate_cds_length": len(candidate_sequence),
+                "reference_cds_length": reference["length"],
+                "cds_nt_identity": nt_identity,
+                "protein_identity": protein_metrics["protein_identity"],
+                "protein_coverage": protein_metrics["protein_coverage"],
+                "query_protein_coverage": protein_metrics["query_coverage"],
+                "reference_protein_coverage": protein_metrics["reference_coverage"],
+                "min_cds_nt_identity": BOUNDARY_RESCUE_MIN_NT_IDENTITY,
+                "min_protein_identity": BOUNDARY_RESCUE_MIN_PROTEIN_IDENTITY,
+            },
+            "blocking_feature_overlaps": blocking_overlaps,
+            "auto_applicable": not auto_apply_blockers,
+            "auto_apply_blockers": auto_apply_blockers,
+            "reason": (
+                "reference CDS aligns across the target feature window with "
+                "collinear blocks that rescue a short PGA v2 CDS boundary "
+                "without changing the genome sequence"
+            ),
+        }
+    )
+    return candidate
+
+
+def find_feature_boundary_candidates(
+    target_features,
+    qc_rows,
+    reference_choice_by_feature,
+    annotation: Path,
+):
+    records = genbank_records_with_blocks(annotation)
+    records_by_id = {record["id"]: record for record in records}
+    row_by_key = {
+        (row.record_id, row.gene, row.location): row
+        for row in qc_rows
+    }
+    candidates = []
+    for feature in target_features:
+        row = row_by_key.get((feature.record_id, feature.gene, feature.location))
+        reference = reference_choice_by_feature.get(id(feature))
+        if row is None:
+            continue
+        eligible, skipped_reason = is_boundary_rescue_eligible(
+            feature,
+            row,
+            reference,
+        )
+        if not eligible:
+            continue
+        record = records_by_id.get(feature.record_id)
+        if record is None:
+            candidates.append(
+                {
+                    "record_id": feature.record_id,
+                    "gene": feature.gene,
+                    "target_feature_index": feature.feature_index,
+                    "target_location": feature.location,
+                    "candidate_fixes": [],
+                    "skipped_reason": "target_record_not_found",
+                }
+            )
+            continue
+        candidate = boundary_rescue_candidate_for_feature(
+            feature,
+            row,
+            reference,
+            record,
+        )
+        if skipped_reason:
+            candidate["eligibility_skip_reason"] = skipped_reason
+        candidates.append(candidate)
+    return candidates
+
+
+def selected_feature_boundary_fixes(candidates):
+    fixes = []
+    for candidate in candidates:
+        passing = [
+            fix
+            for fix in candidate.get("candidate_fixes", [])
+            if fix.get("auto_applicable")
+        ]
+        if len(passing) != 1:
+            continue
+        fix = passing[0]
+        fixes.append(
+            FeatureBoundaryFix(
+                record_id=candidate["record_id"],
+                gene=candidate["gene"],
+                feature_index=candidate["target_feature_index"],
+                old_location=fix["old_location"],
+                new_location=fix["new_location"],
+                exon_updates=fix.get("exon_updates", []),
+                reason=fix["reason"],
+                metrics=fix.get("metrics", {}),
+            )
+        )
+    return fixes
+
+
+def replace_feature_block_location(block_lines, location):
+    qualifier_start = genbank_feature_qualifier_start(block_lines)
+    feature_key = block_lines[0][len("     ") :].split()[0] if block_lines else "CDS"
+    return [
+        *format_genbank_feature_location_lines(feature_key, location),
+        *block_lines[qualifier_start:],
+    ]
+
+
+def remove_feature_block_qualifiers(block_lines, qualifiers):
+    qualifier_set = set(qualifiers)
+    cleaned = []
+    skipping = False
+    for line in block_lines:
+        qualifier_name = genbank_qualifier_name(line)
+        if qualifier_name is not None:
+            skipping = qualifier_name in qualifier_set
+            if skipping:
+                continue
+            cleaned.append(line)
+            continue
+        if skipping:
+            continue
+        cleaned.append(line)
+    return cleaned
+
+
+def apply_feature_boundary_fixes(annotation: Path, fixes):
+    fixes_by_record = {}
+    for fix in fixes:
+        fixes_by_record.setdefault(fix.record_id, []).append(fix)
+    if not fixes_by_record:
+        return {
+            "changed": False,
+            "changed_record_count": 0,
+            "changed_cds_count": 0,
+            "changed_exon_count": 0,
+        }
+
+    lines = annotation.read_text().splitlines(keepends=True)
+    updated_records = []
+    changed_record_count = 0
+    changed_cds_count = 0
+    changed_exon_count = 0
+    for record_lines in split_genbank_records(lines):
+        metadata = genbank_record_locus_metadata(record_lines) or {}
+        record_id = metadata.get("name") or "record"
+        record_fixes = fixes_by_record.get(record_id, [])
+        if not record_fixes:
+            updated_records.append(record_lines)
+            continue
+        fixes_by_feature = {fix.feature_index: fix for fix in record_fixes}
+        exon_updates = {
+            update["feature_index"]: update
+            for fix in record_fixes
+            for update in fix.exon_updates
+        }
+        features_index, origin_index, blocks = parse_genbank_feature_blocks(record_lines)
+        if features_index is None or origin_index is None:
+            updated_records.append(record_lines)
+            continue
+        changed = False
+        updated_blocks = []
+        for block in blocks:
+            updated_lines = block.lines
+            if block.key == "CDS" and block.feature_index in fixes_by_feature:
+                fix = fixes_by_feature[block.feature_index]
+                if block.location != fix.old_location:
+                    raise RuntimeError(
+                        "Refusing to apply PGA v2 feature boundary fix because "
+                        f"{record_id} feature {block.feature_index} location is "
+                        f"{block.location!r}, expected {fix.old_location!r}."
+                    )
+                updated_lines = replace_feature_block_location(
+                    updated_lines,
+                    fix.new_location,
+                )
+                updated_lines = remove_feature_block_qualifiers(
+                    updated_lines,
+                    {"translation"},
+                )
+                changed = True
+                changed_cds_count += 1
+            elif block.key == "exon" and block.feature_index in exon_updates:
+                update = exon_updates[block.feature_index]
+                if block.location != update["old_location"]:
+                    raise RuntimeError(
+                        "Refusing to apply PGA v2 exon boundary fix because "
+                        f"{record_id} feature {block.feature_index} location is "
+                        f"{block.location!r}, expected {update['old_location']!r}."
+                    )
+                updated_lines = replace_feature_block_location(
+                    updated_lines,
+                    update["new_location"],
+                )
+                changed = True
+                changed_exon_count += 1
+            updated_blocks.append(updated_lines)
+        if changed:
+            changed_record_count += 1
+        updated_records.append(
+            [
+                *record_lines[: features_index + 1],
+                *[line for block_lines in updated_blocks for line in block_lines],
+                *record_lines[origin_index:],
+            ]
+        )
+
+    updated_lines = [line for record in updated_records for line in record]
+    changed = updated_lines != lines
+    if changed:
+        annotation.write_text("".join(updated_lines))
+    return {
+        "changed": changed,
+        "changed_record_count": changed_record_count,
+        "changed_cds_count": changed_cds_count,
+        "changed_exon_count": changed_exon_count,
+    }
+
+
+def run_feature_boundary_rescue(
+    *,
+    annotation: Path,
+    reference_dir: Path,
+    warning_log: Path,
+    qc_tsv: Path,
+    candidates_json: Path,
+    fix_feature_boundaries=False,
+):
+    pga_warnings = parse_pga_warnings(warning_log)
+    qc_result = run_reference_cds_qc(
+        annotation=annotation,
+        reference_dir=reference_dir,
+        qc_tsv=qc_tsv,
+        organelle="chloroplast",
+        tool="pga_v2",
+        phase="pre_rna_editing",
+        pga_warnings=pga_warnings,
+        default_transl_table="11",
+    )
+    candidates = find_feature_boundary_candidates(
+        qc_result["target_features"],
+        qc_result["qc_rows"],
+        qc_result["reference_choice_by_feature"],
+        annotation,
+    )
+    fixes = selected_feature_boundary_fixes(candidates)
+    apply_result = (
+        apply_feature_boundary_fixes(annotation, fixes)
+        if fix_feature_boundaries
+        else {
+            "changed": False,
+            "changed_record_count": 0,
+            "changed_cds_count": 0,
+            "changed_exon_count": 0,
+        }
+    )
+    candidate_fix_count = sum(
+        len(candidate.get("candidate_fixes", [])) for candidate in candidates
+    )
+    data = {
+        "annotation": str(annotation),
+        "reference_dir": str(reference_dir),
+        "warning_log": str(warning_log),
+        "qc_tsv": str(qc_tsv),
+        "thresholds": {
+            "short_length_ratio": SHORT_LENGTH_RATIO,
+            "short_length_missing_bp": SHORT_LENGTH_MISSING_BP,
+            "min_intron_gap_bp": BOUNDARY_RESCUE_MIN_INTRON_GAP_BP,
+            "min_cds_nt_identity": BOUNDARY_RESCUE_MIN_NT_IDENTITY,
+            "min_protein_identity": BOUNDARY_RESCUE_MIN_PROTEIN_IDENTITY,
+        },
+        "fix_feature_boundaries": bool(fix_feature_boundaries),
+        "sequence_modified": False,
+        "qc_row_count": len(qc_result["qc_rows"]),
+        "alignment_candidate_count": len(candidates),
+        "candidate_fix_count": candidate_fix_count,
+        "selected_fix_count": len(fixes),
+        "applied_fix_count": len(fixes) if fix_feature_boundaries else 0,
+        "selected_fixes": [asdict(fix) for fix in fixes],
+        "apply_result": apply_result,
+        "candidates": candidates,
+    }
+    write_candidates_json(candidates_json, data)
+    return {
+        "enabled": bool(fix_feature_boundaries),
+        "sequence_modified": False,
+        "feature_boundary_candidates_json": str(candidates_json),
+        "feature_boundary_qc_tsv": str(qc_tsv),
+        "alignment_candidate_count": len(candidates),
+        "candidate_fix_count": candidate_fix_count,
+        "selected_fix_count": len(fixes),
+        "applied_fix_count": len(fixes) if fix_feature_boundaries else 0,
+        "applied_fixes": (
+            [asdict(fix) for fix in fixes] if fix_feature_boundaries else []
+        ),
+        **apply_result,
+    }
 
 
 def cigar_ops(cigar):

@@ -161,6 +161,10 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
             reference_cds_frameshift_candidates = (
                 "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/"
                 "{assembly_name}.chloroplast.reference_cds_qc.frameshift_candidates.json"
+            ),
+            reference_cds_feature_boundary_candidates = (
+                "results/organelle_annotation/chloroplast/pga_v2/{assembly_name}/"
+                "{assembly_name}.chloroplast.reference_cds_qc.feature_boundary_candidates.json"
             )
         log:
             out = "logs/annotate_chloroplast_with_pga_v2_{assembly_name}.out",
@@ -184,6 +188,11 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                 "--fix-hifi-frameshifts"
                 if organelle_reference_cds_qc_fix_hifi_frameshifts("chloroplast")
                 else ""
+            ),
+            fix_feature_boundaries_arg = (
+                "--fix-feature-boundaries"
+                if organelle_reference_cds_qc_fix_feature_boundaries("chloroplast")
+                else ""
             )
         shell:
             """
@@ -198,6 +207,7 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --post-curation {output.post_curation:q} \
                     --reference-cds-qc-pre {output.reference_cds_qc_pre:q} \
                     --reference-cds-frameshift-candidates {output.reference_cds_frameshift_candidates:q} \
+                    --reference-cds-feature-boundary-candidates {output.reference_cds_feature_boundary_candidates:q} \
                     --assembly-name {wildcards.assembly_name:q} \
                     --form {params.form:q} \
                     --ir {params.ir:q} \
@@ -209,7 +219,8 @@ if "chloroplast" in configured_oatk_organelles() and configured_organelle_annota
                     --taxid {params.taxid:q} \
                     --threads {threads} \
                     {params.hifi_reads_arg} \
-                    {params.fix_hifi_frameshifts_arg}
+                    {params.fix_hifi_frameshifts_arg} \
+                    {params.fix_feature_boundaries_arg}
             ) > {log.out:q} 2> {log.err:q}
             """
 

@@ -19,7 +19,12 @@ from organelle_annotation_utils import (
     write_post_curation_record,
     write_run_manifest,
 )
-from pga_v2_cds_qc import SequenceFix, apply_sequence_fixes, run_cds_qc
+from pga_v2_cds_qc import (
+    SequenceFix,
+    apply_sequence_fixes,
+    run_cds_qc,
+    run_feature_boundary_rescue,
+)
 
 
 PGA_V2_RANDOM_ALPHABET = "my @a = (0..9,'$','%','a'..'z','A'..'Z','-','+','_');"
@@ -42,6 +47,11 @@ def parse_args():
         type=Path,
         required=True,
     )
+    parser.add_argument(
+        "--reference-cds-feature-boundary-candidates",
+        type=Path,
+        required=True,
+    )
     parser.add_argument("--assembly-name", required=True)
     parser.add_argument("--form", default="circular")
     parser.add_argument("--ir", default="1000")
@@ -59,6 +69,14 @@ def parse_args():
         help=(
             "Correct only high-confidence HiFi read-supported chloroplast "
             "sequence frameshift indels and rerun PGA v2."
+        ),
+    )
+    parser.add_argument(
+        "--fix-feature-boundaries",
+        action="store_true",
+        help=(
+            "Correct only high-confidence reference-guided PGA v2 CDS/exon "
+            "feature boundaries without changing the chloroplast sequence."
         ),
     )
     return parser.parse_args()
@@ -218,8 +236,12 @@ def main():
     reference_cds_frameshift_candidates_path = (
         args.reference_cds_frameshift_candidates.resolve()
     )
+    reference_cds_feature_boundary_candidates_path = (
+        args.reference_cds_feature_boundary_candidates.resolve()
+    )
     hifi_reads = args.hifi_reads.resolve() if args.hifi_reads else None
     fix_sequence_frameshifts = bool(args.fix_hifi_frameshifts)
+    fix_feature_boundaries = bool(args.fix_feature_boundaries)
 
     if not reference_dir.is_dir():
         raise RuntimeError(
@@ -445,6 +467,31 @@ def main():
             initial_candidates_path,
             reference_cds_frameshift_candidates_path,
         )
+    feature_boundary_rescue = run_feature_boundary_rescue(
+        annotation=annotation,
+        reference_dir=copied_reference_dir,
+        warning_log=warning_log_path(raw_output_dir, args.warning),
+        qc_tsv=run_root / "feature_boundary_rescue.reference_cds_qc.tsv",
+        candidates_json=reference_cds_feature_boundary_candidates_path,
+        fix_feature_boundaries=fix_feature_boundaries,
+    )
+    post_curation["pga_v2_feature_boundary_rescue"] = feature_boundary_rescue
+    if feature_boundary_rescue["applied_fix_count"]:
+        post_curation["feature_sort"] = sort_genbank_features_by_location(annotation)
+        post_curation["cds_qualifier_order"] = normalize_genbank_cds_qualifier_order(
+            annotation,
+        )
+        final_cds_qc = run_cds_qc(
+            annotation=annotation,
+            reference_dir=copied_reference_dir,
+            warning_log=warning_log_path(raw_output_dir, args.warning),
+            qc_tsv=reference_cds_qc_pre_path,
+            candidates_json=reference_cds_frameshift_candidates_path,
+            fix_sequence_frameshifts=False,
+            work_dir=run_root,
+            threads=args.threads,
+        )
+        post_curation["pga_v2_cds_qc"] = final_cds_qc
     post_curation_record = write_post_curation_record(
         post_curation_path,
         post_curation,
@@ -481,7 +528,11 @@ def main():
             "reference_cds_frameshift_candidates": str(
                 reference_cds_frameshift_candidates_path
             ),
+            "reference_cds_feature_boundary_candidates": str(
+                reference_cds_feature_boundary_candidates_path
+            ),
             "fix_hifi_frameshifts": bool(args.fix_hifi_frameshifts),
+            "fix_feature_boundaries": bool(args.fix_feature_boundaries),
             "hifi_reads": str(hifi_reads) if hifi_reads else None,
             "post_curation": post_curation,
             **post_curation_record,

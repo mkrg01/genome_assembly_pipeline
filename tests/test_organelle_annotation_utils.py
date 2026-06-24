@@ -60,6 +60,24 @@ class PostCurationRecordTest(unittest.TestCase):
         self.assertIn("mt_ctg000001c rpl16 (strict_cds_translation_failed)", text)
         self.assertIn("location=complement(159269..159706)", text)
 
+    def test_feature_boundary_rescue_summary_records_sequence_unchanged(self):
+        text = format_post_curation_record(
+            {
+                "pga_v2_feature_boundary_rescue": {
+                    "enabled": True,
+                    "candidate_fix_count": 1,
+                    "applied_fix_count": 1,
+                    "changed_cds_count": 1,
+                    "changed_exon_count": 3,
+                    "sequence_modified": False,
+                }
+            }
+        )
+
+        self.assertIn("feature boundary fixes applied", text)
+        self.assertIn("updated 1 CDS and 3 exon", text)
+        self.assertIn("sequence was not modified", text)
+
 
 if __name__ == "__main__":
     unittest.main()
