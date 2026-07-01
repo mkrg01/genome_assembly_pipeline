@@ -1352,7 +1352,7 @@ rule minimap2_self_dotplot:
     conda:
         "../envs/minimap2.yml"
     threads:
-        max(1, int(workflow.cores * 0.3))
+        max(1, int(workflow.cores * 0.9))
     shell:
         """
         (
