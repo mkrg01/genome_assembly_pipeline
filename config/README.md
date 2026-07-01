@@ -114,7 +114,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `min_long_contig_length` | Minimum contig length to be considered a "long contig" for downstream visualization (e.g., Circos plots). | `1_000_000` |
+| `min_long_contig_length` | Minimum contig length to be considered a "long contig" for downstream visualization such as Circos plots and self-alignment dot plots. | `1_000_000` |
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |

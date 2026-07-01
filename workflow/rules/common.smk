@@ -549,6 +549,7 @@ def assembly_all_inputs(assembly_name):
         "results/hifiasm/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/hifiasm/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/hifiasm/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/hifiasm/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
@@ -566,6 +567,7 @@ def remove_organelle_all_inputs(assembly_name):
         "results/organelle_removal/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/organelle_removal/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/organelle_removal/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/organelle_removal/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
@@ -584,6 +586,7 @@ def remove_contamination_all_inputs(assembly_name):
         "results/fcs/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/fcs/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/fcs/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/fcs/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     inputs.append(
@@ -600,6 +603,12 @@ def longstitch_all_inputs(assembly_name):
     inputs.extend(
         expand_selected_assembly_paths(
             "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa",
+            assembly_name,
+        )
+    )
+    inputs.extend(
+        expand_selected_assembly_paths(
+            "results/longstitch/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
             assembly_name,
         )
     )
@@ -621,6 +630,7 @@ def scaffold_all_inputs(assembly_name):
         "results/yahs/assembly/{selected_assembly}/{assembly_name}.fa",
         "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
         "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam",
+        "results/yahs/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/juicebox/{selected_assembly}/{assembly_name}.hic",
         "results/juicebox/{selected_assembly}/{assembly_name}.assembly",
         "results/juicebox/{selected_assembly}/{assembly_name}.liftover.agp",

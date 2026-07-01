@@ -87,6 +87,8 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
   Used directly when Hi-C scaffolding is disabled.
 - `busco_genome/{selected_assembly}/`
   BUSCO results for the FCS-cleaned assembly.
+- `dotplot/{selected_assembly}/`
+  Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
   Depth is derived from HiFi read mappings to the Hifiasm assembly and then restricted to contigs present in the FCS-cleaned assembly.
@@ -115,6 +117,10 @@ Created when `longstitch_enabled` is `true`, which is the default.
 
 - `assembly/{selected_assembly}/`
   Assembly corrected and scaffolded by LongStitch.
+- `assembly_long_contigs/{selected_assembly}/`
+  Long contigs extracted from the LongStitch assemblies.
+- `dotplot/{selected_assembly}/`
+  Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
 - `run/{selected_assembly}/`
   LongStitch working directories containing symlinks to the FCS-cleaned assembly and curated HiFi reads, plus LongStitch intermediate outputs.
 
@@ -167,6 +173,8 @@ Raw Hifiasm outputs, selected assemblies, organelle-screening results, and QC su
   Long contigs extracted from the selected Hifiasm assemblies.
 - `busco_genome/{selected_assembly}/`
   BUSCO results for the selected Hifiasm assemblies.
+- `dotplot/{selected_assembly}/`
+  Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
 - `gc_content/{selected_assembly}/`
@@ -261,6 +269,8 @@ Assemblies after removing organelle contigs from the selected Hifiasm assemblies
   Long contigs extracted from the organelle-removed assemblies.
 - `busco_genome/{selected_assembly}/`
   BUSCO results.
+- `dotplot/{selected_assembly}/`
+  Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
 - `gc_content/{selected_assembly}/`
@@ -325,6 +335,8 @@ Created only when Hi-C reads are configured.
   Long contigs extracted from the YaHS assemblies for downstream plotting.
 - `agp/{selected_assembly}/`
   YaHS AGP files.
+- `dotplot/{selected_assembly}/`
+  Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
 - `bin/{selected_assembly}/`
   YaHS binary output files.
 - `run/{selected_assembly}/{organism_name}/`

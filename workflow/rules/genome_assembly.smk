@@ -1341,6 +1341,49 @@ rule extract_long_contigs:
         ) > {log.out} 2> {log.err}
         """
 
+rule minimap2_self_dotplot:
+    input:
+        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+    output:
+        "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}.self.paf"
+    log:
+        out = "logs/minimap2_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/minimap2_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    threads:
+        max(1, int(workflow.cores * 0.3))
+    shell:
+        """
+        (
+            minimap2 -t {threads} -x asm5 -c {input} {input} > {output}
+        ) > {log.out} 2> {log.err}
+        """
+
+rule plot_self_dotplot:
+    input:
+        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
+        paf = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}.self.paf"
+    output:
+        pdf = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
+        contigs = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.contigs.tsv"
+    log:
+        out = "logs/plot_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.out",
+        err = "logs/plot_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/plot_self_dotplot.py \
+                --fasta {input.assembly} \
+                --paf {input.paf} \
+                --pdf {output.pdf} \
+                --contigs {output.contigs} \
+                --organism-name {wildcards.assembly_name}
+        ) > {log.out} 2> {log.err}
+        """
+
 rule tidk_build:
     output:
         "results/downloads/tidk/tidk_database.csv"
