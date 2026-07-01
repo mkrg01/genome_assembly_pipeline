@@ -119,6 +119,8 @@ The sections below follow the order of `config/config.yml`.
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
+Self-alignment dot plots include long contigs selected by `min_long_contig_length`, show that contig-length cutoff in the axis labels, and draw minimap2 PAF alignments with length >= 10 kb and identity >= 90%.
+
 ### Organelle Annotation
 
 | Parameter | Description | Example |

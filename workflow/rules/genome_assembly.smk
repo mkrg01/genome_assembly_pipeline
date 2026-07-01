@@ -1372,6 +1372,8 @@ rule plot_self_dotplot:
         err = "logs/plot_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
+    params:
+        min_long_contig_length = config["min_long_contig_length"]
     shell:
         """
         (
@@ -1380,7 +1382,8 @@ rule plot_self_dotplot:
                 --paf {input.paf} \
                 --pdf {output.pdf} \
                 --contigs {output.contigs} \
-                --organism-name {wildcards.assembly_name}
+                --organism-name {wildcards.assembly_name} \
+                --min-long-contig-length {params.min_long_contig_length}
         ) > {log.out} 2> {log.err}
         """
 

@@ -18,11 +18,12 @@ from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter
 
 
-MIN_ALIGNMENT_LENGTH = 50_000
-MIN_IDENTITY = 95.0
+MIN_ALIGNMENT_LENGTH = 10_000
+MIN_IDENTITY = 90.0
 DIAGONAL_TOLERANCE_BP = 1_000
 ALIGNMENT_COLOR = "#111111"
-BOUNDARY_COLOR = "#A6D854"
+BOUNDARY_COLOR = "#A8A8A8"
+BOUNDARY_LINESTYLE = "dotted"
 
 
 def open_text(path):
@@ -160,13 +161,14 @@ def parse_paf(paf_path, offsets):
     }
 
 
-def add_line_collection(ax, segments, color, linewidth, alpha, zorder):
+def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle="solid"):
     if not segments:
         return
     collection = LineCollection(
         segments,
         colors=color,
         linewidths=linewidth,
+        linestyles=linestyle,
         alpha=alpha,
         rasterized=True,
         zorder=zorder,
@@ -180,8 +182,6 @@ def build_boundary_segments(contig_rows, total_length):
         if start > 0:
             segments.append([(start, 0), (start, total_length)])
             segments.append([(0, start), (total_length, start)])
-        segments.append([(end, 0), (end, total_length)])
-        segments.append([(0, end), (total_length, end)])
     return segments
 
 
@@ -239,15 +239,33 @@ def escape_mathtext(text):
     return "".join(replacements.get(character, character) for character in text)
 
 
-def genome_axis_label(organism_name):
+def format_length_label(length):
+    if length >= 1_000_000:
+        return f"{length / 1_000_000:g} Mb"
+    if length >= 1_000:
+        return f"{length / 1_000:g} kb"
+    return f"{length:,} bp"
+
+
+def genome_axis_label(organism_name, min_long_contig_length=None):
+    unit_label = "Mb"
+    if min_long_contig_length is not None:
+        unit_label = f"Mb; contigs >= {format_length_label(min_long_contig_length)}"
+
     display_name = " ".join(organism_name.replace("_", " ").split())
     if not display_name:
-        return "Genome (Mb)"
+        return f"Genome ({unit_label})"
     italic_name = r"\ ".join(escape_mathtext(word) for word in display_name.split())
-    return rf"$\it{{{italic_name}}}$ genome (Mb)"
+    return rf"$\it{{{italic_name}}}$ genome ({unit_label})"
 
 
-def plot_dotplot(contig_rows, total_length, paf_segments, output_pdf, axis_label):
+def plot_dotplot(
+    contig_rows,
+    total_length,
+    paf_segments,
+    output_pdf,
+    axis_label,
+):
     size = figure_size(len(contig_rows))
     fig, ax = plt.subplots(figsize=(size, size))
 
@@ -259,10 +277,10 @@ def plot_dotplot(contig_rows, total_length, paf_segments, output_pdf, axis_label
         return
 
     boundary_segments = build_boundary_segments(contig_rows, total_length)
-    add_line_collection(ax, boundary_segments, BOUNDARY_COLOR, 0.35, 0.85, 1)
-    add_line_collection(ax, paf_segments["diagonal"], ALIGNMENT_COLOR, 0.35, 0.55, 2)
-    add_line_collection(ax, paf_segments["forward"], ALIGNMENT_COLOR, 0.30, 0.45, 3)
-    add_line_collection(ax, paf_segments["reverse"], ALIGNMENT_COLOR, 0.30, 0.45, 3)
+    add_line_collection(ax, boundary_segments, BOUNDARY_COLOR, 0.35, 0.82, 1, BOUNDARY_LINESTYLE)
+    add_line_collection(ax, paf_segments["diagonal"], ALIGNMENT_COLOR, 0.50, 0.70, 2)
+    add_line_collection(ax, paf_segments["forward"], ALIGNMENT_COLOR, 0.45, 0.58, 3)
+    add_line_collection(ax, paf_segments["reverse"], ALIGNMENT_COLOR, 0.45, 0.58, 3)
 
     if paf_segments["kept_records"] == 0:
         ax.text(
@@ -298,6 +316,12 @@ def parse_args():
     parser.add_argument("--pdf", type=Path, required=True, help="Output PDF path.")
     parser.add_argument("--contigs", type=Path, required=True, help="Output contig coordinate TSV path.")
     parser.add_argument("--organism-name", required=True, help="Organism name used for axis labels.")
+    parser.add_argument(
+        "--min-long-contig-length",
+        type=int,
+        default=None,
+        help="Minimum contig length included in the plotted FASTA.",
+    )
     return parser.parse_args()
 
 
@@ -307,7 +331,13 @@ def main():
     offsets, contig_rows, total_length = build_contig_offsets(contigs)
     write_contig_table(contig_rows, args.contigs)
     paf_segments = parse_paf(args.paf, offsets)
-    plot_dotplot(contig_rows, total_length, paf_segments, args.pdf, genome_axis_label(args.organism_name))
+    plot_dotplot(
+        contig_rows,
+        total_length,
+        paf_segments,
+        args.pdf,
+        genome_axis_label(args.organism_name, args.min_long_contig_length),
+    )
     print(
         f"Plotted {paf_segments['kept_records']} of {paf_segments['total_records']} "
         f"PAF records with length >= {MIN_ALIGNMENT_LENGTH} bp and identity >= {MIN_IDENTITY:.1f}%."

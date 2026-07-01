@@ -89,6 +89,7 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
   BUSCO results for the FCS-cleaned assembly.
 - `dotplot/{selected_assembly}/`
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
+  Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
   Depth is derived from HiFi read mappings to the Hifiasm assembly and then restricted to contigs present in the FCS-cleaned assembly.
@@ -121,6 +122,7 @@ Created when `longstitch_enabled` is `true`, which is the default.
   Long contigs extracted from the LongStitch assemblies.
 - `dotplot/{selected_assembly}/`
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
+  Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `run/{selected_assembly}/`
   LongStitch working directories containing symlinks to the FCS-cleaned assembly and curated HiFi reads, plus LongStitch intermediate outputs.
 
@@ -175,6 +177,7 @@ Raw Hifiasm outputs, selected assemblies, organelle-screening results, and QC su
   BUSCO results for the selected Hifiasm assemblies.
 - `dotplot/{selected_assembly}/`
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
+  Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
 - `gc_content/{selected_assembly}/`
@@ -271,6 +274,7 @@ Assemblies after removing organelle contigs from the selected Hifiasm assemblies
   BUSCO results.
 - `dotplot/{selected_assembly}/`
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
+  Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `depth/{selected_assembly}/`
   Per-contig depth plots and tables.
 - `gc_content/{selected_assembly}/`
@@ -337,6 +341,7 @@ Created only when Hi-C reads are configured.
   YaHS AGP files.
 - `dotplot/{selected_assembly}/`
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
+  Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `bin/{selected_assembly}/`
   YaHS binary output files.
 - `run/{selected_assembly}/{organism_name}/`
