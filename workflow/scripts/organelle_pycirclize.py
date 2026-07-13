@@ -5,8 +5,16 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
+from plot_style import (
+    BASE_FONT_SIZE,
+    SMALL_FONT_SIZE,
+    TITLE_FONT_SIZE,
+    apply_matplotlib_style,
+)
+
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "matplotlib"))
+apply_matplotlib_style()
 
 FEATURE_ORDER = ("CDS", "rRNA", "tRNA")
 REPEAT_FEATURE_TYPE = "repeat_region"
@@ -185,7 +193,7 @@ def map_title_lines(assembly_name, organelle, seqid2size):
 
 def add_map_title(circos, assembly_name, organelle, seqid2size, title=None):
     if title:
-        circos.text(title, size=11)
+        circos.text(title, size=TITLE_FONT_SIZE, weight="bold")
         return
 
     species_name, genome_label, size_label = map_title_lines(
@@ -197,7 +205,8 @@ def add_map_title(circos, assembly_name, organelle, seqid2size, title=None):
             "transform": ax.transAxes,
             "ha": "center",
             "va": "center",
-            "size": 11,
+            "size": TITLE_FONT_SIZE,
+            "weight": "bold",
         }
         ax.text(
             0.5,
@@ -334,7 +343,7 @@ def add_feature_label(track, x, strand, label):
         label,
         x=x,
         r=layout["label_r"],
-        size=4.5,
+        size=SMALL_FONT_SIZE,
         adjust_rotation=False,
         color="#111111",
         **text_params,
@@ -374,7 +383,7 @@ def add_repeat_region_label(track, feature):
         repeat_label(feature),
         x=x,
         r=REPEAT_LABEL_R,
-        size=4.2,
+        size=SMALL_FONT_SIZE,
         orientation="vertical",
         color="#555555",
     )
@@ -431,7 +440,12 @@ def render_organelle_pycirclize(
 
     for sector in circos.sectors:
         if len(seqid2size) > 1:
-            sector.text(sector.name, r=108, size=7, orientation="vertical")
+            sector.text(
+                sector.name,
+                r=108,
+                size=BASE_FONT_SIZE,
+                orientation="vertical",
+            )
 
         sector.line(r=BASELINE_R, lw=0.55, color="#555555")
         track = sector.add_track((46, 94))

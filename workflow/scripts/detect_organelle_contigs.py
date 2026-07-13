@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 
+from plot_style import apply_matplotlib_style
+
+apply_matplotlib_style()
+
 parser = argparse.ArgumentParser(description="Detect contigs from organelles.")
 parser.add_argument("--input", type=Path, required=True, help="")
 parser.add_argument("--outdir", type=Path, required=True, help="")

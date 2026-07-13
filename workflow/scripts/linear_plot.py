@@ -2,6 +2,10 @@ from snakemake.script import snakemake
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from plot_style import BASE_FONT_SIZE, SMALL_FONT_SIZE, apply_matplotlib_style
+
+apply_matplotlib_style()
+
 def load_coverage_df(input_file):
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(input_file, sep="\t", header=None, names=cols)
@@ -110,7 +114,7 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         if row_idx == 0:
             # Adjust font size based on contig name length and size
             name_len = len(contig)
-            font_size = max(6, min(9, 80 / max(name_len, 1)))
+            font_size = max(SMALL_FONT_SIZE, min(BASE_FONT_SIZE, 80 / max(name_len, 1)))
             ax.set_title(contig, fontsize=font_size, fontweight='bold')
         
         # Y-axis label on the left side
@@ -123,11 +127,11 @@ for row_idx, track_cfg in enumerate(circos_tracks):
                 y_label = f"Count per\n{int(window_kb)}-kb window"
             else:
                 y_label = f"Count per\n{int(window_size_global)}-bp window"
-            ax.set_ylabel(y_label, rotation=90, ha='center', va='center', fontsize=8, labelpad=15)
+            ax.set_ylabel(y_label, rotation=90, ha='center', va='center', fontsize=BASE_FONT_SIZE, labelpad=15)
             
             # Add track label to the left of the y-axis label
             ax.text(-0.22, 0.5, track_cfg["label"], transform=ax.transAxes, 
-                   fontsize=9, fontweight='bold', color=track_cfg["color"],
+                   fontsize=BASE_FONT_SIZE, fontweight='bold', color=track_cfg["color"],
                    ha='center', va='center', rotation=90)
         else:
             ax.set_ylabel("")
@@ -143,14 +147,14 @@ for row_idx, track_cfg in enumerate(circos_tracks):
                 else:
                     return f"{mb:.1f}"
             ax.xaxis.set_major_formatter(FuncFormatter(format_mb))
-            ax.tick_params(axis='x', labelsize=7)
-            ax.set_xlabel("Position (Mb)", fontsize=8)
+            ax.tick_params(axis='x', labelsize=SMALL_FONT_SIZE)
+            ax.set_xlabel("Position (Mb)", fontsize=BASE_FONT_SIZE)
         else:
             ax.set_xlabel("")
             ax.set_xticklabels([])
         
         # Y-axis formatting
-        ax.tick_params(axis='y', labelsize=7)
+        ax.tick_params(axis='y', labelsize=SMALL_FONT_SIZE)
         
         # Remove spines for cleaner look
         ax.spines['top'].set_visible(False)

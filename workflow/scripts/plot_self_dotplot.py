@@ -17,6 +17,10 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter
 
+from plot_style import BASE_FONT_SIZE, SMALL_FONT_SIZE, apply_matplotlib_style
+
+apply_matplotlib_style()
+
 
 MIN_ALIGNMENT_LENGTH = 10_000
 MIN_IDENTITY = 90.0
@@ -194,7 +198,7 @@ def figure_size(contig_count):
 
 
 def contig_label_fontsize(contig_count):
-    return max(4.0, min(8.0, 10.0 - contig_count * 0.1))
+    return max(SMALL_FONT_SIZE, min(BASE_FONT_SIZE, 10.0 - contig_count * 0.1))
 
 
 def add_contig_label_axes(ax, contig_rows):

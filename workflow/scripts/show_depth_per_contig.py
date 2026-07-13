@@ -3,6 +3,10 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from plot_style import apply_matplotlib_style
+
+apply_matplotlib_style()
+
 parser = argparse.ArgumentParser(description="Extract target contig read depth and generate plot.")
 parser.add_argument("--mapping_tsv", type=Path, required=True, help="")
 parser.add_argument("--contig_names", type=Path, required=True, help="")

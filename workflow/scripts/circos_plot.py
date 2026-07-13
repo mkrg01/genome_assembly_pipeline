@@ -4,6 +4,19 @@ from pycirclize import Circos
 from matplotlib.lines import Line2D
 from collections import OrderedDict
 
+from plot_style import (
+    BASE_FONT_SIZE,
+    SMALL_FONT_SIZE,
+    TITLE_FONT_SIZE,
+    apply_matplotlib_style,
+    display_organism_name,
+)
+
+apply_matplotlib_style()
+
+OUTER_TRACK_RADIUS = 95
+INNER_TRACK_RADIUS = 20
+
 def load_gene_coverage_df():
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(snakemake.input.gene, sep="\t", header=None, names=cols)
@@ -33,7 +46,12 @@ def load_track_df(track_cfg):
         return load_tidk_df()
     raise ValueError(f"Unsupported track id: {track_id}")
 
-def track_height(idx, n_tracks, outer_r=95, inner_r=10):
+def track_height(
+    idx,
+    n_tracks,
+    outer_r=OUTER_TRACK_RADIUS,
+    inner_r=INNER_TRACK_RADIUS,
+):
     height = (outer_r - inner_r) / n_tracks
     r2 = outer_r - idx * height
     r1 = r2 - height * 0.9
@@ -53,7 +71,7 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_g
         track = sector.add_track((r1, r2))
         if sector.name == gap_name:
             track.axis(fc="none", ec="none")
-            track.text(str(idx + 1), x=sector.size * 0.5, r=(r1 + r2) / 2, size=8, orientation="horizontal")
+            track.text(str(idx + 1), x=sector.size * 0.5, r=(r1 + r2) / 2, size=BASE_FONT_SIZE, orientation="horizontal")
             continue
         track.axis(fc=(0.95, 0.95, 0.95, 0.6), ec="none")
         track.grid()
@@ -63,7 +81,7 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_g
         track.fill_between(x, y, color=track_cfg["color"], linewidth=0.1, alpha=0.7, vmin=0, vmax=y_max_global)
         if idx == 0:
             track.xticks_by_interval(interval=snakemake.config["circos_plot_x_minor_tick_interval"], outer=True, show_bottom_line=False, show_endlabel=False, label_formatter=lambda x: "", tick_length=0.5)
-            track.xticks_by_interval(interval=snakemake.config["circos_plot_x_major_tick_interval"], outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=5, tick_length=1, label_orientation="vertical")
+            track.xticks_by_interval(interval=snakemake.config["circos_plot_x_major_tick_interval"], outer=True, show_bottom_line=False, show_endlabel=True, label_formatter=lambda x: f"{int(x/1_000_000)} Mb", label_size=SMALL_FONT_SIZE, tick_length=1, label_orientation="vertical")
 
 contig_df = pd.read_csv(snakemake.input.contig, sep="\t", header=None, names=["contig", "length"])
 
@@ -77,10 +95,16 @@ sectors = OrderedDict(base_sectors)
 sectors[gap_name] = gap_len
 
 circos = Circos(sectors, space=1)
+circos.text(
+    display_organism_name(snakemake.wildcards.assembly_name),
+    size=TITLE_FONT_SIZE,
+    fontstyle="italic",
+    fontweight="bold",
+)
 for sector in circos.sectors:
     if sector.name == gap_name:
         continue
-    sector.text(sector.name, size=8, orientation="vertical")
+    sector.text(sector.name, size=BASE_FONT_SIZE, orientation="vertical")
 
 circos_tracks = [track for track in snakemake.config["circos_plot_tracks"]]
 n_tracks = len(circos_tracks)
@@ -101,7 +125,7 @@ for idx, track_cfg in enumerate(circos_tracks):
 fig = circos.plotfig()
 legend_handles = [Line2D([], [], linestyle="none") for _ in circos_tracks]
 legend_labels = [f"{idx + 1}. {track_cfg['label']}" for idx, track_cfg in enumerate(circos_tracks)]
-leg = fig.legend(handles=legend_handles, labels=legend_labels, loc="lower left", fontsize=8, frameon=False, handlelength=0)
+leg = fig.legend(handles=legend_handles, labels=legend_labels, loc="lower left", fontsize=BASE_FONT_SIZE, frameon=False, handlelength=0)
 for text, track_cfg in zip(leg.get_texts(), circos_tracks):
     text.set_color(track_cfg["color"])
     text.set_fontweight("bold")

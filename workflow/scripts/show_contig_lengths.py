@@ -4,6 +4,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+from plot_style import apply_matplotlib_style
+
+apply_matplotlib_style()
+
 parser = argparse.ArgumentParser(description="Plot contig lengths.")
 parser.add_argument("--input", type=Path, required=True, help="")
 parser.add_argument("--output", type=Path, required=True, help="")

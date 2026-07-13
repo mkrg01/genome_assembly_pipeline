@@ -3,6 +3,10 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from plot_style import apply_matplotlib_style
+
+apply_matplotlib_style()
+
 parser = argparse.ArgumentParser(description="Plot GC content per contig.")
 parser.add_argument("--input", type=Path, required=True, help="")
 parser.add_argument("--output", type=Path, required=True, help="")
