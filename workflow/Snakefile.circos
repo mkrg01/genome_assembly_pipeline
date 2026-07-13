@@ -2,8 +2,7 @@
 
 # Required input files (expected paths):
 # 1. Genome assembly:
-#    results/fcs/assembly/{selected_assembly}/{organism_name}.fa
-#    or, if Hi-C reads are configured, results/yahs/assembly/{selected_assembly}/{organism_name}.fa
+#    results/renamed/assembly/{selected_assembly}/{organism_name}.fa
 # 2. Gene annotation (GFF3):
 #    results/braker3/{selected_assembly}/{organism_name}/braker.gff3
 # 3. RepeatMasker output (.out.xm) [optional]:
@@ -25,8 +24,8 @@ rule extract_long_contigs:
     output:
         f"results/{downstream_assembly_name}/assembly_long_contigs/{{selected_assembly}}/{{assembly_name}}.fa"
     log:
-        out = "logs/extract_long_contigs_fcs_{selected_assembly}_{assembly_name}.out",
-        err = "logs/extract_long_contigs_fcs_{selected_assembly}_{assembly_name}.err"
+        out = "logs/extract_long_contigs_renamed_{selected_assembly}_{assembly_name}.out",
+        err = "logs/extract_long_contigs_renamed_{selected_assembly}_{assembly_name}.err"
     conda:
         "envs/seqkit.yml"
     params:

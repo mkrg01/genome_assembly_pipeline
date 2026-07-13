@@ -433,8 +433,14 @@ longstitch_enabled = normalize_bool_config(
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]
-downstream_assembly_name = (
+pre_rename_assembly_name = (
     "yahs" if hic_reads_enabled else "longstitch" if longstitch_enabled else "fcs"
+)
+downstream_assembly_name = "renamed"
+renamed_sequence_prefix = (
+    "scaffold"
+    if hic_reads_enabled or longstitch_enabled or hifiasm_dual_scaf
+    else "contig"
 )
 taxid = normalize_taxid_config()
 oatk_organelle = normalize_oatk_organelle_config(
@@ -490,6 +496,13 @@ def merged_hic_reads_path(assembly_name, pair):
 def downstream_assembly_path(assembly_name, selected_assembly):
     return (
         f"results/{downstream_assembly_name}/assembly/{selected_assembly}/{assembly_name}.fa"
+    )
+
+
+def pre_rename_assembly_path(assembly_name, selected_assembly):
+    return (
+        f"results/{pre_rename_assembly_name}/assembly/"
+        f"{selected_assembly}/{assembly_name}.fa"
     )
 
 
@@ -639,8 +652,31 @@ def scaffold_all_inputs(assembly_name):
     return inputs
 
 
+def renamed_all_inputs(assembly_name):
+    inputs = scaffold_all_inputs(assembly_name)
+    for pattern in (
+        "results/renamed/assembly/{selected_assembly}/{assembly_name}.fa",
+        "results/renamed/mapping/{selected_assembly}/{assembly_name}_rename.tsv",
+        "results/renamed/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
+        "results/renamed/length/{selected_assembly}/{assembly_name}_length.pdf",
+        "results/renamed/gc_content/{selected_assembly}/{assembly_name}_gc_content.pdf",
+        "results/renamed/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
+        "results/renamed/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
+        "results/renamed/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        "results/renamed/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
+        "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
+        "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
+        "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
+    ):
+        inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
+    inputs.append(
+        f"results/downloads/tidk/.{assembly_name}_.renamed_local_share_tidk_successfully_removed_or_restored.txt"
+    )
+    return inputs
+
+
 def softmask_all_inputs(assembly_name):
-    return scaffold_all_inputs(assembly_name) + expand_selected_assembly_paths(
+    return renamed_all_inputs(assembly_name) + expand_selected_assembly_paths(
         "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         assembly_name,
     )

@@ -1069,6 +1069,35 @@ rule build_juicebox_hic:
         ) > {log.out} 2> {log.err}
         """
 
+rule rename_assembly_by_length:
+    input:
+        assembly = lambda wildcards: pre_rename_assembly_path(
+            wildcards.assembly_name,
+            wildcards.selected_assembly,
+        )
+    output:
+        assembly = "results/renamed/assembly/{selected_assembly}/{assembly_name}.fa",
+        mapping = "results/renamed/mapping/{selected_assembly}/{assembly_name}_rename.tsv"
+    log:
+        out = "logs/rename_assembly_by_length_{selected_assembly}_{assembly_name}.out",
+        err = "logs/rename_assembly_by_length_{selected_assembly}_{assembly_name}.err"
+    params:
+        prefix = renamed_sequence_prefix,
+        source_stage = pre_rename_assembly_name
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/rename_assembly_by_length.py \
+                --input {input.assembly:q} \
+                --output {output.assembly:q} \
+                --mapping {output.mapping:q} \
+                --prefix {params.prefix:q} \
+                --source-stage {params.source_stage:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
 rule seqkit_stats:
     input:
         "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
@@ -1285,6 +1314,8 @@ rule show_hifi_read_depth_per_contig:
         err = "logs/show_hifi_read_depth_per_contig_{assembly}_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/pybase.yml"
+    wildcard_constraints:
+        assembly = "(hifiasm|organelle_removal|fcs)"
     shell:
         """
         (
@@ -1294,6 +1325,78 @@ rule show_hifi_read_depth_per_contig:
                 --outdir $(dirname {output.depth_plot}) \
                 --prefix {wildcards.assembly_name}
         ) > {log.out} 2> {log.err}
+        """
+
+rule map_hifi_reads_to_renamed_assembly:
+    input:
+        hifi_read = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
+        assembly = "results/renamed/assembly/{selected_assembly}/{assembly_name}.fa"
+    output:
+        bam = "results/renamed/read_mapping/{selected_assembly}/{assembly_name}_hifi_reads_to_renamed_assembly.bam",
+        bai = "results/renamed/read_mapping/{selected_assembly}/{assembly_name}_hifi_reads_to_renamed_assembly.bam.bai"
+    log:
+        out = "logs/map_hifi_reads_to_renamed_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/map_hifi_reads_to_renamed_assembly_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    threads:
+        max(1, int(workflow.cores * 0.95))
+    shell:
+        """
+        (
+            mkdir -p $(dirname {output.bam:q})
+            minimap2 \
+                -a \
+                -x map-hifi \
+                {input.assembly:q} \
+                {input.hifi_read:q} \
+                -t {threads} \
+            | samtools sort \
+                -m 2G \
+                -@ {threads} \
+                -o {output.bam:q}
+            samtools index {output.bam:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
+rule get_renamed_hifi_read_mapping_summary:
+    input:
+        "results/renamed/read_mapping/{selected_assembly}/{assembly_name}_hifi_reads_to_renamed_assembly.bam"
+    output:
+        "results/renamed/read_mapping/{selected_assembly}/{assembly_name}_hifi_reads_to_renamed_assembly.tsv"
+    log:
+        out = "logs/get_renamed_hifi_read_mapping_summary_{selected_assembly}_{assembly_name}.out",
+        err = "logs/get_renamed_hifi_read_mapping_summary_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/minimap2.yml"
+    shell:
+        """
+        (
+            samtools coverage {input:q} --output {output:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
+rule show_hifi_read_depth_for_renamed_assembly:
+    input:
+        mapping_result = "results/renamed/read_mapping/{selected_assembly}/{assembly_name}_hifi_reads_to_renamed_assembly.tsv",
+        contig_names = "results/renamed/seqkit/{selected_assembly}/{assembly_name}_contig_names.txt"
+    output:
+        depth_plot = "results/renamed/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
+        contig_info = "results/renamed/depth/{selected_assembly}/{assembly_name}_contig_info.tsv"
+    log:
+        out = "logs/show_hifi_read_depth_for_renamed_assembly_{selected_assembly}_{assembly_name}.out",
+        err = "logs/show_hifi_read_depth_for_renamed_assembly_{selected_assembly}_{assembly_name}.err"
+    conda:
+        "../envs/pybase.yml"
+    shell:
+        """
+        (
+            python3 workflow/scripts/show_depth_per_contig.py \
+                --mapping_tsv {input.mapping_result:q} \
+                --contig_names {input.contig_names:q} \
+                --outdir $(dirname {output.depth_plot:q}) \
+                --prefix {wildcards.assembly_name:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule show_hifi_read_depth_for_organelle_contigs:
@@ -1406,10 +1509,49 @@ rule tidk_build:
         ) > {log.out} 2> {log.err}
         """
 
+rule prepare_tidk_for_renamed_assembly:
+    input:
+        database = "results/downloads/tidk/tidk_database.csv",
+        intermediate_cleanup = "results/downloads/tidk/.{assembly_name}_.local_share_tidk_successfully_removed_or_restored.txt",
+        assemblies = lambda wildcards: expand(
+            "results/renamed/assembly/{selected_assembly}/{assembly_name}.fa",
+            selected_assembly=selected_assemblies,
+            assembly_name=wildcards.assembly_name,
+        ),
+        config_stamp = "config/config.yml"
+    output:
+        temp("results/downloads/tidk/.{assembly_name}_.renamed_tidk_home_prepared.txt")
+    log:
+        out = "logs/prepare_tidk_for_renamed_assembly_{assembly_name}.out",
+        err = "logs/prepare_tidk_for_renamed_assembly_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            backup=results/downloads/tidk/local_tidk_before_renamed
+            if [[ -e "$backup" ]]; then
+                echo "Refusing to overwrite stale TIDK backup: $backup" >&2
+                exit 1
+            fi
+            if [[ -d ~/.local/share/tidk ]]; then
+                mv ~/.local/share/tidk "$backup"
+            fi
+            mkdir -p ~/.local/share/tidk
+            cp {input.database:q} ~/.local/share/tidk/tidk_database.csv
+            touch {output:q}
+        ) > {log.out:q} 2> {log.err:q}
+        """
+
 rule tidk_find:
     input:
         assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
-        database = "results/downloads/tidk/tidk_database.csv"
+        database = "results/downloads/tidk/tidk_database.csv",
+        renamed_home = lambda wildcards: (
+            f"results/downloads/tidk/.{wildcards.assembly_name}_.renamed_tidk_home_prepared.txt"
+            if wildcards.assembly == "renamed"
+            else []
+        )
     output:
         "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_find_telomeric_repeat_windows.tsv"
     log:
@@ -1456,7 +1598,12 @@ rule tidk_find_plot:
 
 rule tidk_explore:
     input:
-        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
+        renamed_home = lambda wildcards: (
+            f"results/downloads/tidk/.{wildcards.assembly_name}_.renamed_tidk_home_prepared.txt"
+            if wildcards.assembly == "renamed"
+            else []
+        )
     output:
         "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv"
     log:
@@ -1470,13 +1617,18 @@ rule tidk_explore:
             tidk explore \
                 --minimum 5 \
                 --maximum 12 \
-                {input} > {output}
+                {input.assembly} > {output}
         ) > {log.out} 2> {log.err}
         """
 
 rule tidk_search:
     input:
-        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
+        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
+        renamed_home = lambda wildcards: (
+            f"results/downloads/tidk/.{wildcards.assembly_name}_.renamed_tidk_home_prepared.txt"
+            if wildcards.assembly == "renamed"
+            else []
+        )
     output:
         "results/{assembly}/tidk/{selected_assembly}/{assembly_name}_tidk_search_telomeric_repeat_windows.tsv"
     log:
@@ -1543,4 +1695,35 @@ rule tidk_cleanup:
             fi
             touch {output}
         ) > {log.out} 2> {log.err}
+        """
+
+rule cleanup_tidk_after_renamed_assembly:
+    input:
+        prepared = "results/downloads/tidk/.{assembly_name}_.renamed_tidk_home_prepared.txt",
+        flags = lambda wildcards: expand(
+            [
+                "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
+                "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
+                "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
+            ],
+            selected_assembly=selected_assemblies,
+            assembly_name=wildcards.assembly_name,
+        )
+    output:
+        "results/downloads/tidk/.{assembly_name}_.renamed_local_share_tidk_successfully_removed_or_restored.txt"
+    log:
+        out = "logs/cleanup_tidk_after_renamed_assembly_{assembly_name}.out",
+        err = "logs/cleanup_tidk_after_renamed_assembly_{assembly_name}.err"
+    conda:
+        "../envs/tidk.yml"
+    shell:
+        """
+        (
+            rm -rf ~/.local/share/tidk
+            backup=results/downloads/tidk/local_tidk_before_renamed
+            if [[ -d "$backup" ]]; then
+                mv "$backup" ~/.local/share/tidk
+            fi
+            touch {output:q}
+        ) > {log.out:q} 2> {log.err:q}
         """

@@ -33,6 +33,10 @@ rule scaffold_all:
     input:
         *scaffold_all_inputs(assembly_name)
 
+rule renamed_all:
+    input:
+        *renamed_all_inputs(assembly_name)
+
 rule softmask_all:
     input:
         *softmask_all_inputs(assembly_name)

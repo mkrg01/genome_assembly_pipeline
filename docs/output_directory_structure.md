@@ -84,7 +84,7 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
   Final FCS-cleaned assembly copied from `fcs_gx_clean/*.clean.fa`.
 - `assembly_long_contigs/{selected_assembly}/`
   Long contigs extracted from the FCS-cleaned assembly.
-  Used directly when Hi-C scaffolding is disabled.
+  Used for stage-specific QC before optional LongStitch/YaHS processing and final renaming.
 - `busco_genome/{selected_assembly}/`
   BUSCO results for the FCS-cleaned assembly.
 - `dotplot/{selected_assembly}/`
@@ -324,6 +324,19 @@ Final formatted release files produced for assemblies listed in `selected_assemb
 - `organelle/{organelle}/`
   Organelle-specific release files. Each organelle subdirectory contains a gzipped genome FASTA and a generated README describing file provenance. A gzipped GenBank annotation file is included only when `organelle_annotation` configures a non-null annotation tool for that organelle.
 
+## `results/renamed/`
+
+The selected post-FCS/LongStitch/YaHS assembly is sorted by decreasing sequence length and renamed once for downstream analysis. Records are named `scaffold1`, `scaffold2`, and so on when any scaffolding mode was used, or `contig1`, `contig2`, and so on when the FCS-cleaned contig assembly is used without scaffolding.
+
+- `assembly/{selected_assembly}/`
+  Length-sorted, renamed FASTA used by RepeatModeler, RepeatMasker, BRAKER3, plotting, and nuclear release generation.
+- `mapping/{selected_assembly}/`
+  TSV mapping of original record IDs and headers to renamed sequence IDs, including sequence length, rank, and source assembly stage.
+- `read_mapping/{selected_assembly}/`
+  BAM, BAI, and `samtools coverage` TSV files from mapping curated HiFi reads directly to the renamed assembly.
+- `busco_genome/{selected_assembly}/`, `depth/{selected_assembly}/`, `dotplot/{selected_assembly}/`, `gc_content/{selected_assembly}/`, `length/{selected_assembly}/`, `merqury/{selected_assembly}/`, `seqkit/{selected_assembly}/`, `tidk/{selected_assembly}/`
+  QC outputs calculated from the renamed assembly. Existing QC outputs for Hifiasm, organelle removal, and FCS stages remain unchanged.
+
 ## `results/yahs/`
 
 Created only when Hi-C reads are configured.
@@ -334,7 +347,7 @@ Created only when Hi-C reads are configured.
   Deduplicated Hi-C BAM files and BAM indices.
 - `assembly/{selected_assembly}/`
   Final scaffolded assemblies produced by YaHS.
-  These assemblies become the downstream input for RepeatModeler, RepeatMasker, BRAKER3, release formatting, and plotting when Hi-C is enabled.
+  These native YaHS assemblies and their original sequence IDs are retained for consistency with AGP and Juicebox outputs, then used as input to the `results/renamed/` stage.
 - `assembly_long_contigs/{selected_assembly}/`
   Long contigs extracted from the YaHS assemblies for downstream plotting.
 - `agp/{selected_assembly}/`
