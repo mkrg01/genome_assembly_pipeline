@@ -9,13 +9,14 @@ from plot_style import (
     SMALL_FONT_SIZE,
     TITLE_FONT_SIZE,
     apply_matplotlib_style,
-    display_organism_name,
+    multiline_organism_name,
 )
 
 apply_matplotlib_style()
 
 OUTER_TRACK_RADIUS = 95
 INNER_TRACK_RADIUS = 20
+SECTOR_LABEL_RADIUS = 108
 
 def load_gene_coverage_df():
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
@@ -96,7 +97,7 @@ sectors[gap_name] = gap_len
 
 circos = Circos(sectors, space=1)
 circos.text(
-    display_organism_name(snakemake.wildcards.assembly_name),
+    multiline_organism_name(snakemake.wildcards.assembly_name),
     size=TITLE_FONT_SIZE,
     fontstyle="italic",
     fontweight="bold",
@@ -104,7 +105,12 @@ circos.text(
 for sector in circos.sectors:
     if sector.name == gap_name:
         continue
-    sector.text(sector.name, size=BASE_FONT_SIZE, orientation="vertical")
+    sector.text(
+        sector.name,
+        r=SECTOR_LABEL_RADIUS,
+        size=BASE_FONT_SIZE,
+        orientation="vertical",
+    )
 
 circos_tracks = [track for track in snakemake.config["circos_plot_tracks"]]
 n_tracks = len(circos_tracks)

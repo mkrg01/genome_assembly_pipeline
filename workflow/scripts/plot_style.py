@@ -21,6 +21,12 @@ def display_organism_name(organism_name):
     return " ".join(str(organism_name).replace("_", " ").split())
 
 
+def multiline_organism_name(organism_name):
+    """Format an organism label on two lines, breaking after the genus."""
+    genus_and_rest = display_organism_name(organism_name).split(maxsplit=1)
+    return "\n".join(genus_and_rest)
+
+
 def _first_available_font(font_manager):
     for family in FONT_FALLBACKS:
         try:

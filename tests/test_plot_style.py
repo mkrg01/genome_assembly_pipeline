@@ -14,6 +14,7 @@ from plot_style import (  # noqa: E402
     TITLE_FONT_SIZE,
     apply_matplotlib_style,
     display_organism_name,
+    multiline_organism_name,
 )
 
 
@@ -34,6 +35,12 @@ def test_publication_typography_constants():
 def test_display_organism_name_replaces_filename_separators():
     assert display_organism_name("Dioncophyllum_thollonii") == (
         "Dioncophyllum thollonii"
+    )
+
+
+def test_multiline_organism_name_breaks_after_genus():
+    assert multiline_organism_name("Ancistrocladus_abbreviatus") == (
+        "Ancistrocladus\nabbreviatus"
     )
 
 
