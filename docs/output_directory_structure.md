@@ -22,42 +22,26 @@ The exact set of directories depends on the target you run and on the configurat
 
 ## Downstream Assembly Used by Later Steps
 
-Several downstream steps use a single "final" assembly after contamination removal:
+RepeatModeler, RepeatMasker, BRAKER4, release formatting, and Circos/linear plots use the following assembly for each entry in `selected_assemblies`:
 
 - The full workflow stages the final assembly in `results/renamed/assembly/{selected_assembly}/{organism_name}.fa` after sorting and renaming sequences by length.
 - Its source is YaHS when Hi-C reads are configured, otherwise LongStitch when enabled, otherwise the purge_dups assembly when purging is enabled, otherwise FCS.
 - With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
-This affects the inputs for RepeatModeler, RepeatMasker, BRAKER4, release formatting, and Circos/linear plots.
-
-## `results/purge_dups/`
-
-Created for each selected assembly when `purge_dups_enabled: true`.
-
-- `assembly/{selected_assembly}/{organism_name}.fa`: purged FASTA, used directly by subsequent assembly steps.
-- `removed/{selected_assembly}/{organism_name}.fa`: excluded sequences; an empty file is valid when nothing is removed.
-- `bed/{selected_assembly}/`: raw classifications (`*.raw.bed`) and `HAPLOTIG`/`OVLP` extraction calls (`*.haplotypic.bed`). Calls are not exact removed coordinates; internal overlaps are retained.
-- `self_alignment/{selected_assembly}/`: the split FASTA and compressed self-alignment PAF, including all contigs.
-- `coverage/{selected_assembly}/{organism_name}/`: HiFi alignments, `PB.stat` and `PB.base.cov` used for purging.
-- `cutoffs/{selected_assembly}/`: six resolved depth cutoffs and JSON recording automatic/manual mode and inference warnings.
-- `seqkit/`, `length/`, `gc_content/`, `busco_genome/`, `merqury/`, `dotplot/`: standard assembly QC, including Merqury spectra-cn plots. Self-dotplots use `min_long_contig_length`.
-
-Original assemblies and QC remain under `results/fcs/`. See [configuration and execution](../config/README.md#optional-haplotig-removal-with-purge_dups).
-
 ## `results/braker4/`
 
 BRAKER4 working directories for the RepeatMasker soft-masked downstream assemblies.
 
-- `results/braker4/{selected_assembly}/{organism_name}/`
+- `{selected_assembly}/{organism_name}/`
   Tracked outputs are the validated, decompressed `braker.gff3`, `braker.gtf`, `braker.codingseq`, `braker.aa`, and provenance record `run.json`.
-- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/`
+- `{selected_assembly}/{organism_name}/work/{run_id}/`
   Persistent child Snakemake working directory, including `samples.csv`, `config.ini`, `inputs.json`, `.snakemake/`, `augustus_config/`, logs, and benchmarks. Identical inputs and settings reuse this directory after a failure; changed inputs or annotation settings create another run ID.
-- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/results/`
+- `{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/results/`
   Native BRAKER4 compressed gene models, UTR GTF, evidence support, software versions, compleasm assessments, and HTML report when generated. In VARUS mode, this also contains `varus_runlist.tsv` and `varus_stats.txt`. `run.json` identifies the successful run and RNA-seq source/query. The internal sample name includes the selected assembly label.
-- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/varus/`
+- `{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/varus/`
   Present in VARUS mode: sampled RNA-seq data, the sorted BAM and index, and sampling logs/statistics retained for restart and evidence inspection.
 
-The working directories are retained for restart and training inspection. See [BRAKER4 execution and migration](braker4.md) before deleting intermediates.
+Rerun the workflow after a failure to reuse completed steps. Keep the working directories, including VARUS data when used, to preserve restart state. Logs are written to `logs/braker4_*.out` and `logs/braker4_*.err`.
 
 ## `results/circos_plot/`
 
@@ -109,7 +93,7 @@ Assemblies after NCBI FCS processing, plus associated QC outputs.
   Final FCS-cleaned assembly copied from `fcs_gx_clean/*.clean.fa`.
 - `assembly_long_contigs/{selected_assembly}/`
   Long contigs extracted from the FCS-cleaned assembly.
-  Used for stage-specific QC before optional LongStitch/YaHS processing and final renaming.
+  Used for stage-specific QC before optional purge_dups, LongStitch, YaHS, and final renaming.
 - `busco_genome/{selected_assembly}/`
   BUSCO results for the FCS-cleaned assembly.
 - `dotplot/{selected_assembly}/`
@@ -149,7 +133,7 @@ Created when `longstitch_enabled` is `true`, which is the default.
   Self-alignment dot plots for long contigs, plus the minimap2 PAF and contig-coordinate TSV used to draw each PDF.
   Plotted alignments are filtered to length >= 10 kb and identity >= 90%.
 - `run/{selected_assembly}/`
-  LongStitch working directories containing symlinks to the FCS-cleaned assembly and curated HiFi reads, plus LongStitch intermediate outputs.
+  LongStitch working directories containing symlinks to the FCS-cleaned or purge_dups assembly and curated HiFi reads, plus LongStitch intermediate outputs.
 
 ## `results/external/`
 
@@ -316,6 +300,27 @@ Assemblies after removing organelle contigs from the selected Hifiasm assemblies
 - `tidk/{selected_assembly}/`
   `tidk find`, `tidk explore`, and `tidk search` outputs and plots.
 
+## `results/purge_dups/`
+
+Assemblies after haplotig removal, plus associated QC outputs. Created when `purge_dups_enabled` is `true`.
+
+- `assembly/{selected_assembly}/`
+  Purged FASTA used by subsequent assembly steps.
+- `assembly_long_contigs/{selected_assembly}/`
+  Long contigs extracted from the purged assembly for self-alignment dot plots.
+- `bed/{selected_assembly}/`
+  Raw classifications (`*.raw.bed`) and filtered `HAPLOTIG`/`OVLP` calls (`*.haplotypic.bed`) used for sequence extraction. These calls do not give the exact removed coordinates because internal overlaps are retained.
+- `coverage/{selected_assembly}/{organism_name}/`
+  HiFi read alignments, `PB.stat`, and `PB.base.cov` used for purging.
+- `cutoffs/{selected_assembly}/`
+  Six resolved depth cutoffs and JSON metadata recording automatic or manual mode and inference warnings.
+- `removed/{selected_assembly}/`
+  Excluded sequences in FASTA format. The file is empty when no sequences are removed.
+- `self_alignment/{selected_assembly}/`
+  Split FASTA and compressed self-alignment PAF for all contigs.
+- `busco_genome/{selected_assembly}/`, `dotplot/{selected_assembly}/`, `gc_content/{selected_assembly}/`, `length/{selected_assembly}/`, `merqury/{selected_assembly}/`, `seqkit/{selected_assembly}/`
+  QC outputs for the purged assembly, including Merqury spectra-cn plots. Self-alignment dot plots use `min_long_contig_length`.
+
 ## `results/repeatmasker/`
 
 RepeatMasker inputs and outputs for the downstream assemblies.
@@ -334,8 +339,8 @@ RepeatMasker inputs and outputs for the downstream assemblies.
 
 RepeatModeler database files and de novo repeat-family outputs for the downstream assemblies.
 
-- `database/{selected_assembly}/{assembly_name}/`
-  BuildDatabase indexes, tracked as a directory so both single-volume and split BLAST databases are supported.
+- `database/{selected_assembly}/{organism_name}/`
+  BuildDatabase indexes for single-volume or split BLAST databases.
 - `{selected_assembly}/`
   RepeatModeler outputs such as `*-families.fa`, `*-families.stk`, and `*-rmod.log`.
   Additional RepeatModeler-generated working files such as `RM_*` directories may also appear here.
@@ -358,7 +363,7 @@ Final formatted release files produced for assemblies listed in `selected_assemb
 
 ## `results/renamed/`
 
-The selected post-FCS/LongStitch/YaHS assembly is sorted by decreasing sequence length and renamed once for downstream analysis. Records are named `scaffold1`, `scaffold2`, and so on when any scaffolding mode was used, or `contig1`, `contig2`, and so on when the FCS-cleaned contig assembly is used without scaffolding.
+The assembly selected after FCS cleanup, optional purge_dups, and optional LongStitch/YaHS scaffolding is sorted by decreasing sequence length and renamed for downstream analysis. Records are named `scaffold1`, `scaffold2`, and so on when any scaffolding mode was used, or `contig1`, `contig2`, and so on when no scaffolding was used.
 
 - `assembly/{selected_assembly}/`
   Length-sorted, renamed FASTA used by RepeatModeler, RepeatMasker, BRAKER4, plotting, and nuclear release generation.
@@ -367,14 +372,14 @@ The selected post-FCS/LongStitch/YaHS assembly is sorted by decreasing sequence 
 - `read_mapping/{selected_assembly}/`
   BAM, BAI, and `samtools coverage` TSV files from mapping curated HiFi reads directly to the renamed assembly.
 - `busco_genome/{selected_assembly}/`, `depth/{selected_assembly}/`, `dotplot/{selected_assembly}/`, `gc_content/{selected_assembly}/`, `length/{selected_assembly}/`, `merqury/{selected_assembly}/`, `seqkit/{selected_assembly}/`, `tidk/{selected_assembly}/`
-  QC outputs calculated from the renamed assembly. Existing QC outputs for Hifiasm, organelle removal, and FCS stages remain unchanged.
+  QC outputs calculated from the renamed assembly.
 
 ## `results/yahs/`
 
 Created only when Hi-C reads are configured.
 
 - `input/{selected_assembly}/`
-  Copies of the FCS-cleaned assemblies together with `samtools faidx` and `bwa-mem2` index files used for scaffolding.
+  Input assemblies from LongStitch when enabled, otherwise purge_dups when enabled, otherwise FCS, together with `samtools faidx` and `bwa-mem2` index files used for scaffolding.
 - `alignment/{selected_assembly}/`
   Deduplicated Hi-C BAM files and BAM indices.
 - `assembly/{selected_assembly}/`

@@ -45,7 +45,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.6.15"` |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.0"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
@@ -76,22 +76,14 @@ The sections below follow the order of `config/config.yml`.
 
 ### Optional Haplotig Removal with purge_dups
 
-[purge_dups](https://github.com/dfguan/purge_dups) removes residual haplotigs after FCS and before scaffolding. Each entry in `selected_assemblies` is processed independently.
+[purge_dups](https://github.com/dfguan/purge_dups) removes residual haplotigs after FCS cleanup and before LongStitch and YaHS. Each entry in `selected_assemblies` is processed independently.
 
-| Parameter | Description | Default |
+| Parameter | Description | Example |
 | --- | --- | --- |
-| `purge_dups_enabled` | Enable haplotig removal. | `false` |
-| `purge_dups_cutoffs` | Automatic `calcuts` inference per assembly, or `[low, mid, high]` with `0 <= low < mid < high <= 499`. Manual values apply to all selected assemblies. | `"auto"` |
+| `purge_dups_enabled` | Optional: Enable haplotig removal before LongStitch and YaHS. Disabled by default. `{true, false}` | `false` |
+| `purge_dups_cutoffs` | Use `"auto"` to infer depth cutoffs with `calcuts` for each assembly, or set `[low, mid, high]` integers with `0 <= low < mid < high <= 499`. Manual values apply to all selected assemblies. | `"auto"` |
 
-Set `purge_dups_enabled: true`, then run purging and standard assembly QC:
-
-```bash
-snakemake --sdm conda apptainer --cores 16 purge_dups_all
-```
-
-This target stops before scaffolding. Compare QC under `results/fcs/` and `results/purge_dups/`, then run a downstream target such as `longstitch_all`. Running `all` directly continues without a review pause. Disable purging to use the FCS assembly instead.
-
-See [purge_dups outputs](../docs/output_directory_structure.md#resultspurge_dups) for retained sequences, cutoffs and QC files.
+With `purge_dups_enabled: true`, `purge_dups_all` runs haplotig removal and QC before LongStitch and YaHS. Compare the QC results in `results/fcs/` and `results/purge_dups/` to assess the effect of purging. When disabled, this target runs through FCS cleanup and its associated QC, and subsequent assembly steps start from the FCS-cleaned assembly.
 
 ### LongStitch Misassembly Correction and Scaffolding
 
@@ -103,7 +95,7 @@ See [purge_dups outputs](../docs/output_directory_structure.md#resultspurge_dups
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding after FCS cleanup and optional LongStitch correction. Set to `null` to use YaHS defaults. This parameter is used only when both `hic_reads_r1` and `hic_reads_r2` are set. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
+| `yahs_restriction_enzymes` | Optional: Restriction enzyme motif(s) passed to YaHS with `-e` during Hi-C scaffolding after FCS cleanup, optional purge_dups, and optional LongStitch correction. Set to `null` to use YaHS defaults. This parameter is used only when both `hic_reads_r1` and `hic_reads_r2` are set. [See YaHS docs](https://github.com/c-zhou/yahs) | `"GATC"` |
 
 ### Quality Assessment
 
@@ -122,58 +114,28 @@ The workflow retains QC results for the pre-rename assembly stages. It also runs
 | `dfam_version`          | Supported Dfam release for the FamDB 3 consensus layout. | `"4.0"` |
 | `dfam_lineage_name`     | Name of the Dfam lineage to use.                             | `"Viridiplantae"`                          |
 
-Repeat analysis uses `dfam/tetools:2.00`: RepeatModeler 2.0.9, RepeatMasker 4.2.4,
-FamDB 3.0.0, and RMBlast 2.17.1. See the [TE Tools release](https://github.com/Dfam-consortium/TETools).
-Allocate at least four cores for actual masking: each RepeatMasker RMBlast batch
-uses four threads. The batch count is the allocated core count divided by four,
-rounded down, with a minimum of one batch.
+Repeat analysis uses `dfam/tetools:2.00`, which includes RepeatModeler 2.0.9, RepeatMasker 4.2.4, FamDB 3.0.0, and RMBlast 2.17.1. Allocate at least four cores for masking; each RepeatMasker RMBlast batch uses four threads. See the [TE Tools release](https://github.com/Dfam-consortium/TETools).
 
-The workflow downloads the Dfam 4.0 root (`dfam40.0.h5.gz`) and all consensus
-components (`dfam40.curated.consensus.0.h5.gz`,
-`dfam40.uncurated.consensus.0.h5.gz`, and `dfam40.uncurated.consensus.1.h5.gz`).
-Expect approximately 4 GB of compressed downloads, plus space for the unpacked DB
-and exported FASTA. HMM components are unnecessary for this RMBlast workflow.
-See the [Dfam 4.0 FamDB README](https://www.dfam.org/releases/Dfam_4.0/families/FamDB/README.txt).
+The workflow downloads the Dfam 4.0 root and all curated and uncurated consensus components, verifies their MD5 checksums, and exports sequences for `dfam_lineage_name` and its ancestors and descendants. Allow approximately 4 GB for compressed downloads, plus space for the unpacked database and exported FASTA. See the [Dfam 4.0 FamDB README](https://www.dfam.org/releases/Dfam_4.0/families/FamDB/README.txt).
 
-`dfam_partitions` is no longer used; remove it from existing configuration files.
-The complete consensus components avoid omissions when exporting a lineage and
-its ancestors and descendants. The exported library includes both curated and
-uncurated families; `dfam_lineage_name` still selects the taxonomic scope. An
-export with no sequences fails before masking. Downloads are checked against the
-published MD5 checksums using bounded memory.
-
-Dfam files are stored under release-specific directories; Dfam 3.9 files are not
-reused. The new RepeatModeler database directory also requires rebuilding the
-indexes. Rerun the repeat-analysis targets after updating, then regenerate any
-downstream annotations that should use the updated masking.
+When updating an existing analysis, remove the unused `dfam_partitions` setting and rerun the repeat-analysis targets to download Dfam 4.0 and rebuild the RepeatModeler database. Dfam 3.9 files are not reused. Regenerate downstream annotations to use the updated masking.
 
 ### Gene Prediction
 
-BRAKER4 runs in ETP mode with the existing RepeatMasker soft-masked genome,
-RNA-seq evidence (fastp-filtered local libraries or automated VARUS sampling), and OrthoDB proteins. Its source release and
-annotation containers are pinned in the workflow; there is no backend selector.
-`busco_lineage_dataset` must name an **odb12** lineage for this BRAKER4 release.
-The downloaded BUSCO lineage is also reused by compleasm.
+BRAKER4 v0.5.0-beta runs in ETP mode with the RepeatMasker soft-masked genome, RNA-seq evidence (fastp-filtered local libraries or VARUS sampling), and OrthoDB proteins. Set `busco_lineage_dataset` to an **odb12** lineage, which is also used by compleasm.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `braker4_rnaseq_source` | Nuclear annotation RNA-seq source: `local` (default) uses the local fastp-filtered pairs; `varus` searches and samples public SRA RNA-seq using the genus and species in `organism_name` (e.g. `Arabidopsis_thaliana`). VARUS requires network access on the compute node and suitable public reads. No automatic fallback between modes. | `"varus"` |
+| `braker4_rnaseq_source` | Nuclear annotation RNA-seq source: `local` (default) uses the local fastp-filtered pairs; `varus` samples public SRA RNA-seq. VARUS requires a binomial scientific name in `organism_name` (e.g. `Arabidopsis_thaliana`, without cultivar or accession suffixes), network access on the compute node, and suitable public reads. No automatic fallback between modes. | `"varus"` |
 | `orthodb_version`       | Version of the OrthoDB database (used by BRAKER4). [ProtHint instructions](https://github.com/gatech-genemark/ProtHint#protein-database-preparation) | `"12"`                                     |
 | `orthodb_lineage`       | OrthoDB lineage dataset to use. [Lineage list](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"Viridiplantae"`                          |
 | `orthodb_md5sum`        | MD5 checksum of the OrthoDB database. [Checksums](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"34c1f027a1a7b10f225b69fbd5500587"`       |
 
-CPU and memory requirements are defined directly in `rule braker4` in
-[`workflow/rules/gene_prediction.smk`](../workflow/rules/gene_prediction.smk):
-`threads: 48` and `resources: mem_mb=120000`. Snakemake caps threads to the allocated
-cores, and the child workflow receives the parent job's resources. For concurrent
-assemblies, also pass a total `--resources mem_mb=...` budget to the parent workflow.
+BRAKER4 requires Conda and Apptainer on the host; enable both with `--sdm conda apptainer`. Input and working paths must not contain spaces or shell metacharacters. Use an `organism_name` that starts with a letter and contains only letters, digits, and underscores.
 
-Advanced annotation settings are recorded in [`workflow/config/braker4.ini`](../workflow/config/braker4.ini).
-The defaults retain AUGUSTUS optimization, exclude compleasm hints from training,
-retain compleasm rescue, disable duplicate BUSCO/OMArk runs inside BRAKER4,
-and preserve intermediate files for resume. The parent workflow still evaluates
-isoform and representative proteins with BUSCO, and representative proteins with OMArk.
-See [BRAKER4 execution and migration](../docs/braker4.md).
+CPU and memory requirements are set in `rule braker4` in [`workflow/rules/gene_prediction.smk`](../workflow/rules/gene_prediction.smk): `threads: 48` and `resources: mem_mb=120000`. Snakemake caps threads to the allocated cores. For concurrent assemblies, pass a total `--resources mem_mb=...` budget to the workflow. Advanced annotation settings are in [`workflow/config/braker4.ini`](../workflow/config/braker4.ini).
+
+When migrating from BRAKER3, archive previous QC and release files if needed; downstream output paths are shared. Existing `results/braker3/` files are not reused. Check `gene_prediction_all` with `--dry-run` and the default rerun triggers so changes to inputs and code are detected. Use a new `genome_version` for a new release.
 
 ### Visualization
 
@@ -186,7 +148,7 @@ See [BRAKER4 execution and migration](../docs/braker4.md).
 
 Self-alignment dot plots include long contigs selected by `min_long_contig_length`, show that contig-length cutoff in the axis labels, and draw minimap2 PAF alignments with length >= 10 kb and identity >= 90%.
 
-Custom contig QC plots omit explanatory titles; put the description in the manuscript figure caption. GC and depth axes include units, and the Circos/linear plots use white backgrounds and black legend/track text, with colour swatches in the Circos legend. Linear plot count labels use each track's input window size (the largest coverage window, allowing for shorter terminal windows; the TIDK interval for telomeric repeats).
+Linear plot count labels show each track's input window size. Coverage tracks use the largest window in the input, and telomeric-repeat tracks use the TIDK interval; terminal windows may be shorter.
 
 ### Organelle Annotation
 

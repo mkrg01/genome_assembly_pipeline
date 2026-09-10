@@ -2,13 +2,11 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
-This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Nuclear gene prediction uses local paired-end RNA-seq reads by default, or optionally BRAKER4's VARUS sampling from public SRA data. Organelle RNA-editing curation requires local RNA-seq reads. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Gene prediction uses local paired-end RNA-seq reads by default, or optionally BRAKER4's VARUS sampling from public SRA data. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
 
-If you already have an assembly FASTA from another workflow, use `workflow/Snakefile.annotation` to run the downstream annotation path only: RepeatModeler/RepeatMasker softmasking, BRAKER4 gene prediction, protein/transcript QC, formatting, and Circos/linear plots. In that mode, set `external_assembly` in `config/config.yml` and either keep paired-end RNA-seq reads in `raw_data/` or set `braker4_rnaseq_source: "varus"`. See [RNA-seq source selection](docs/braker4.md#rna-seq-source-selection) for the scientific-name and network requirements.
+If you already have an assembly FASTA from another workflow, use `workflow/Snakefile.annotation` to run the downstream annotation path only: RepeatModeler/RepeatMasker softmasking, BRAKER4 gene prediction, protein/transcript QC, formatting, and Circos/linear plots.
 
 See [this page](docs/output_directory_structure.md) for details on the expected outputs.
-
-Gene prediction uses [BRAKER4 v0.5.0-beta](https://github.com/Gaius-Augustus/BRAKER4/releases/tag/v0.5.0-beta) in ETP mode. The workflow downloads verified source code automatically, runs its Snakemake controller in a dedicated host Conda environment, and uses Apptainer for the annotation tools. Use both `--sdm conda apptainer`. See [BRAKER4 execution and migration](docs/braker4.md) for resource settings, resume behavior, and migration from existing results.
 
 ## Requirements
 
@@ -55,14 +53,14 @@ The output will be generated in the [`results` directory](docs/output_directory_
 > 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
 > 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
 > 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
-> 4. `purge_dups_all`: Runs [optional haplotig removal](config/README.md#optional-haplotig-removal-with-purge_dups) and QC, stopping before scaffolding.
+> 4. `purge_dups_all`: Runs rules up to haplotig removal by purge_dups and its associated metrics when enabled.
 > 5. `longstitch_all`: Runs rules up to LongStitch correction/scaffolding.
 > 6. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding plus Juicebox-ready contact maps when Hi-C reads are configured.
-> 7. `renamed_all`: Renames the selected downstream assembly by decreasing sequence length and runs QC on the renamed assembly.
+> 7. `renamed_all`: Runs rules up to assembly renaming by decreasing sequence length and its associated metrics.
 > 8. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
 > 9. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
 > 10. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
-> 11. `organelle_annotation_all`: Annotates Oatk-assembled organelle genomes, draws pyCirclize and gbdraw circular maps, and stages organelle genome and annotation files for the release package.
+> 11. `organelle_annotation_all`: Runs rules up to organelle annotation, circular maps, and organelle release files.
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 
