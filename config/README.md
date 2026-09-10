@@ -74,11 +74,30 @@ The sections below follow the order of `config/config.yml`.
 | --- | --- | --- |
 | `taxid`          | NCBI Taxonomy ID for the target organism. Used by FCS-GX screening and organelle GenBank source `db_xref`. Legacy `fcs_gx_taxid` is still accepted as a fallback. [NCBI Taxonomy Tree](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/) | `"122299"` for *Dioncophyllum thollonii* |
 
+### Optional Haplotig Removal with purge_dups
+
+[purge_dups](https://github.com/dfguan/purge_dups) removes residual haplotigs after FCS and before scaffolding. Each entry in `selected_assemblies` is processed independently.
+
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `purge_dups_enabled` | Enable haplotig removal. | `false` |
+| `purge_dups_cutoffs` | Automatic `calcuts` inference per assembly, or `[low, mid, high]` with `0 <= low < mid < high <= 499`. Manual values apply to all selected assemblies. | `"auto"` |
+
+Set `purge_dups_enabled: true`, then run purging and standard assembly QC:
+
+```bash
+snakemake --sdm conda apptainer --cores 16 purge_dups_all
+```
+
+This target stops before scaffolding. Compare QC under `results/fcs/` and `results/purge_dups/`, then run a downstream target such as `longstitch_all`. Running `all` directly continues without a review pause. Disable purging to use the FCS assembly instead.
+
+See [purge_dups outputs](../docs/output_directory_structure.md#resultspurge_dups) for retained sequences, cutoffs and QC files.
+
 ### LongStitch Misassembly Correction and Scaffolding
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `longstitch_enabled` | Run LongStitch on the FCS-cleaned assembly before YaHS and downstream analysis. LongStitch uses the curated HiFi reads produced by this workflow. When enabled, the haploid genome size passed as `G` is derived from the FCS-cleaned assembly `sum_len` in the workflow-generated SeqKit stats table. Set to `false` to skip this step. `{true, false}` | `true` |
+| `longstitch_enabled` | Run LongStitch after FCS cleanup and optional purge_dups, before YaHS and downstream analysis. LongStitch uses the curated HiFi reads. The genome size passed as `G` comes from the actual input assembly's SeqKit `sum_len`. Set to `false` to skip. `{true, false}` | `true` |
 
 ### YaHS Scaffolding
 

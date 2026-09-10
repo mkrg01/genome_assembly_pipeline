@@ -19,8 +19,12 @@ oatk_minimum_kmer_coverage: "auto" # Minimum kmer coverage for Oatk. "auto" esti
 # Contamination screening
 taxid: "122299" # NCBI Taxonomy ID for the target organism. Used by FCS-GX and organelle GenBank source db_xref. https://www.ncbi.nlm.nih.gov/datasets/taxonomy/tree/
 
+# Haplotig removal
+purge_dups_enabled: false # Process each selected_assemblies entry independently. Never combines hap1 and hap2.
+purge_dups_cutoffs: "auto" # Wraps calcuts automatic inference or its -l/-m/-u options via [low, mid, high].
+
 # LongStitch misassembly correction and scaffolding
-longstitch_enabled: true # Run LongStitch on the FCS-cleaned assembly before YaHS/downstream analysis. Set to false to skip. Uses the curated HiFi reads produced by this workflow.
+longstitch_enabled: true # Run LongStitch after FCS and optional purge_dups, before YaHS/downstream analysis. Set to false to skip. Uses curated HiFi reads.
 
 # YaHS scaffolding
 yahs_restriction_enzymes: null # Optional: Restriction enzyme motif(s) for YaHS Hi-C scaffolding, e.g. "GATC" or "GATC,GANTC". Set to null to use YaHS defaults. See: https://github.com/c-zhou/yahs

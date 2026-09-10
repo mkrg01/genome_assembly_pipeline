@@ -48,6 +48,16 @@ jobs:
           --dry-run
           all
 
+      - name: Dry-run purge_dups with mixed assemblies and no LongStitch
+        run: >
+          snakemake
+          --snakefile "$GITHUB_WORKSPACE/workflow/Snakefile"
+          --directory "$GITHUB_WORKSPACE/tests/workdir"
+          --cores 4
+          --config purge_dups_enabled=True longstitch_enabled=False selected_assemblies='["primary","hap1","hap2"]'
+          --dry-run
+          renamed_all
+
       - name: Dry-run all selected assemblies
         run: >
           snakemake

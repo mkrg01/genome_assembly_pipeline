@@ -3,6 +3,7 @@ include: "rules/common.smk"
 containerized: pipeline_image_uri
 
 include: "rules/genome_assembly.smk"
+include: "rules/purge_dups.smk"
 include: "rules/organelle_annotation.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
@@ -24,6 +25,10 @@ rule remove_organelle_all:
 rule remove_contamination_all:
     input:
         *remove_contamination_all_inputs(assembly_name)
+
+rule purge_dups_all:
+    input:
+        *purge_dups_all_inputs(assembly_name)
 
 rule longstitch_all:
     input:

@@ -800,9 +800,9 @@ rule copy_fcs_gx_clean:
 
 rule longstitch:
     input:
-        assembly = "results/fcs/assembly/{selected_assembly}/{assembly_name}.fa",
+        assembly = lambda wc: post_fcs_assembly_path(wc.assembly_name, wc.selected_assembly),
         reads = "results/hifi_reads/merged/{assembly_name}_hifi_reads_curated.fastq.gz",
-        genome_stats = "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv"
+        genome_stats = lambda wc: post_fcs_stats_path(wc.assembly_name, wc.selected_assembly)
     output:
         assembly = "results/longstitch/assembly/{selected_assembly}/{assembly_name}.fa"
     log:
@@ -1083,7 +1083,7 @@ rule rename_assembly_by_length:
         err = "logs/rename_assembly_by_length_{selected_assembly}_{assembly_name}.err"
     params:
         prefix = renamed_sequence_prefix,
-        source_stage = pre_rename_assembly_name
+        source_stage = lambda wc: pre_rename_source_stage(wc.selected_assembly)
     conda:
         "../envs/pybase.yml"
     shell:
@@ -1263,7 +1263,8 @@ rule merqury:
         db = "results/hifi_reads/meryl/{assembly_name}",
         assembly = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa"
     output:
-        "results/{assembly}/merqury/{selected_assembly}/{assembly_name}.merqury.qv"
+        qv = "results/{assembly}/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
+        completeness = "results/{assembly}/merqury/{selected_assembly}/{assembly_name}.merqury.completeness.stats"
     log:
         out = "logs/merqury_{assembly}_{selected_assembly}_{assembly_name}.out",
         err = "logs/merqury_{assembly}_{selected_assembly}_{assembly_name}.err"
@@ -1274,14 +1275,22 @@ rule merqury:
         (
             db=$(realpath {input.db})
             assembly=$(realpath {input.assembly})
-            output_dir=$(dirname {output})
-            mkdir -p "$output_dir"
-            cd "$output_dir"
+            output_dir=$(dirname {output.qv})
+            output_dir=$(realpath -m "$output_dir")
+            mkdir -p $(dirname "$output_dir")
+            # Merqury reuses assembly k-mer caches and appends statistics. A fresh
+            # work directory is essential when a purge cutoff changes the FASTA.
+            run_dir=$(mktemp -d "$output_dir.run.XXXXXX")
+            cd "$run_dir"
             merqury.sh \
                 "$db" \
                 "$assembly" \
-                $(basename {output} .qv)
+                $(basename {output.qv} .qv)
+            test -s $(basename {output.qv})
+            test -s $(basename {output.completeness})
             cd "$OLDPWD"
+            rm -rf "$output_dir"
+            mv "$run_dir" "$output_dir"
         ) > {log.out} 2> {log.err}
         """
 

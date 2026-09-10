@@ -24,11 +24,25 @@ The exact set of directories depends on the target you run and on the configurat
 
 Several downstream steps use a single "final" assembly after contamination removal:
 
-- Without Hi-C reads, the downstream assembly is `results/fcs/assembly/{selected_assembly}/{organism_name}.fa`.
-- With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{organism_name}.fa`.
+- The full workflow stages the final assembly in `results/renamed/assembly/{selected_assembly}/{organism_name}.fa` after sorting and renaming sequences by length.
+- Its source is YaHS when Hi-C reads are configured, otherwise LongStitch when enabled, otherwise the purge_dups assembly when purging is enabled, otherwise FCS.
 - With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
 This affects the inputs for RepeatModeler, RepeatMasker, BRAKER4, release formatting, and Circos/linear plots.
+
+## `results/purge_dups/`
+
+Created for each selected assembly when `purge_dups_enabled: true`.
+
+- `assembly/{selected_assembly}/{organism_name}.fa`: purged FASTA, used directly by subsequent assembly steps.
+- `removed/{selected_assembly}/{organism_name}.fa`: excluded sequences; an empty file is valid when nothing is removed.
+- `bed/{selected_assembly}/`: raw classifications (`*.raw.bed`) and `HAPLOTIG`/`OVLP` extraction calls (`*.haplotypic.bed`). Calls are not exact removed coordinates; internal overlaps are retained.
+- `self_alignment/{selected_assembly}/`: the split FASTA and compressed self-alignment PAF, including all contigs.
+- `coverage/{selected_assembly}/{organism_name}/`: HiFi alignments, `PB.stat` and `PB.base.cov` used for purging.
+- `cutoffs/{selected_assembly}/`: six resolved depth cutoffs and JSON recording automatic/manual mode and inference warnings.
+- `seqkit/`, `length/`, `gc_content/`, `busco_genome/`, `merqury/`, `dotplot/`: standard assembly QC, including Merqury spectra-cn plots. Self-dotplots use `min_long_contig_length`.
+
+Original assemblies and QC remain under `results/fcs/`. See [configuration and execution](../config/README.md#optional-haplotig-removal-with-purge_dups).
 
 ## `results/braker4/`
 

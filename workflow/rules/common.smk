@@ -174,6 +174,21 @@ def normalize_bool_config(config_key, value, default=False):
     )
 
 
+def normalize_purge_dups_cutoffs(value):
+    if value == "auto":
+        return "auto"
+    if (
+        not isinstance(value, list) or len(value) != 3
+        or any(type(item) is not int for item in value)
+        or not 0 <= value[0] < value[1] < value[2] <= 499
+    ):
+        raise ValueError(
+            "'purge_dups_cutoffs' must be 'auto' or [low, mid, high] integers "
+            "with 0 <= low < mid < high <= 499 (pbcstat's coverage limit is 500)."
+        )
+    return value
+
+
 def normalize_oatk_minimum_kmer_coverage_config(value):
     if value is None:
         value = "auto"
@@ -414,6 +429,11 @@ longstitch_enabled = normalize_bool_config(
     "longstitch_enabled",
     config.get("longstitch_enabled", True),
 )
+purge_dups_enabled = normalize_bool_config(
+    "purge_dups_enabled", config.get("purge_dups_enabled", False),
+)
+purge_dups_targets = list(selected_assemblies) if purge_dups_enabled else []
+purge_dups_cutoffs = normalize_purge_dups_cutoffs(config.get("purge_dups_cutoffs", "auto"))
 hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
     "hic" if hic_reads_enabled else "default"
 ]
@@ -484,14 +504,33 @@ def downstream_assembly_path(assembly_name, selected_assembly):
 
 
 def pre_rename_assembly_path(assembly_name, selected_assembly):
+    if not hic_reads_enabled and not longstitch_enabled:
+        return post_fcs_assembly_path(assembly_name, selected_assembly)
     return (
         f"results/{pre_rename_assembly_name}/assembly/"
         f"{selected_assembly}/{assembly_name}.fa"
     )
 
 
+def pre_rename_source_stage(selected_assembly):
+    if not hic_reads_enabled and not longstitch_enabled and selected_assembly in purge_dups_targets:
+        return "purge_dups"
+    return pre_rename_assembly_name
+
+
 def fcs_assembly_path(assembly_name, selected_assembly):
     return f"results/fcs/assembly/{selected_assembly}/{assembly_name}.fa"
+
+
+def post_fcs_assembly_path(assembly_name, selected_assembly):
+    if selected_assembly in purge_dups_targets:
+        return f"results/purge_dups/assembly/{selected_assembly}/{assembly_name}.fa"
+    return fcs_assembly_path(assembly_name, selected_assembly)
+
+
+def post_fcs_stats_path(assembly_name, selected_assembly):
+    stage = "purge_dups" if selected_assembly in purge_dups_targets else "fcs"
+    return f"results/{stage}/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv"
 
 
 def longstitch_assembly_path(assembly_name, selected_assembly):
@@ -501,7 +540,7 @@ def longstitch_assembly_path(assembly_name, selected_assembly):
 def pre_yahs_assembly_path(assembly_name, selected_assembly):
     if longstitch_enabled:
         return longstitch_assembly_path(assembly_name, selected_assembly)
-    return fcs_assembly_path(assembly_name, selected_assembly)
+    return post_fcs_assembly_path(assembly_name, selected_assembly)
 
 
 def seqkit_stats_organelle_path():
@@ -580,8 +619,25 @@ def remove_contamination_all_inputs(assembly_name):
     return inputs
 
 
-def longstitch_all_inputs(assembly_name):
+def purge_dups_all_inputs(assembly_name):
     inputs = remove_contamination_all_inputs(assembly_name)
+    for selected in purge_dups_targets:
+        inputs.extend([
+            f"results/purge_dups/assembly/{selected}/{assembly_name}.fa",
+            f"results/purge_dups/removed/{selected}/{assembly_name}.fa",
+            f"results/purge_dups/seqkit/{selected}/{assembly_name}_seqkit_stats.tsv",
+            f"results/purge_dups/length/{selected}/{assembly_name}_length.pdf",
+            f"results/purge_dups/gc_content/{selected}/{assembly_name}_gc_content.pdf",
+            f"results/purge_dups/busco_genome/{selected}/BUSCO_{assembly_name}.fa",
+            f"results/purge_dups/merqury/{selected}/{assembly_name}.merqury.qv",
+            f"results/purge_dups/merqury/{selected}/{assembly_name}.merqury.completeness.stats",
+            f"results/purge_dups/dotplot/{selected}/{assembly_name}_self_dotplot.pdf",
+        ])
+    return inputs
+
+
+def longstitch_all_inputs(assembly_name):
+    inputs = purge_dups_all_inputs(assembly_name)
     if not longstitch_enabled:
         return inputs
 

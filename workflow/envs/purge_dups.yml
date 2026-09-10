@@ -1,0 +1,8 @@
+name: purge_dups
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - purge_dups=1.2.6
+  - minimap2=2.30
+  - python=3.12
