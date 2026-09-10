@@ -27,9 +27,8 @@ fig, ax = plt.subplots()
 ax.hist(mapping_df["identity"].clip(upper=0.999), bins=np.arange(0, 1.01, 0.01), color='grey')
 ax.axvline(args.min_identity, color='red', linestyle='dashed', linewidth=1, label=f'Threshold: {args.min_identity}')
 ax.legend()
-ax.set_xlabel("Identity")
+ax.set_xlabel("Alignment identity (fraction)")
 ax.set_ylabel("Number of alignments")
-ax.set_title("Identities per alignment")
 plt.savefig(args.outdir / f"{args.prefix}_mapped_alignment_identity.pdf", dpi=300)
 
 # Calculate coverage per contig
@@ -68,9 +67,8 @@ fig, ax = plt.subplots()
 ax.hist(coverage_df["coverage"].clip(upper=0.999), bins=np.arange(0, 1.01, 0.01), color='grey')
 ax.axvline(args.min_coverage, color='red', linestyle='dashed', linewidth=1, label=f'Threshold: {args.min_coverage}')
 ax.legend()
-ax.set_xlabel("Coverage")
+ax.set_xlabel("Aligned contig coverage (fraction)")
 ax.set_ylabel("Number of contigs")
-ax.set_title("Coverage per mapped contig")
 plt.savefig(args.outdir / f"{args.prefix}_mapped_contig_coverage.pdf", dpi=300)
 
 # Select organelle contigs
@@ -80,9 +78,8 @@ contigs_from_organelle_df.to_csv(args.outdir / f"{args.prefix}_organelle_contig_
 # Plot organelle contig lengths
 fig, ax = plt.subplots()
 ax.hist(contigs_from_organelle_df["query_length"], bins=50, color='grey')
-ax.set_xlabel("Contig length")
+ax.set_xlabel("Contig length (bp)")
 ax.set_ylabel("Number of contigs")
-ax.set_title("Lengths of organelle-derived contigs")
 plt.savefig(args.outdir / f"{args.prefix}_organelle_contig_length.pdf", dpi=300)
 
 # Plot organelle contig targets
@@ -92,7 +89,6 @@ bars = ax.bar(best_target_counts.index, best_target_counts.values, color='grey')
 ax.bar_label(bars, labels=best_target_counts.values, padding=1)
 ax.set_xlabel("Mapped organelle")
 ax.set_ylabel("Number of contigs")
-ax.set_title("Organelle-derived contigs")
 plt.savefig(args.outdir / f"{args.prefix}_organelle_contig_target.pdf", dpi=300)
 
 # Save organelle contig names

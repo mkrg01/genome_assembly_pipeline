@@ -186,6 +186,8 @@ See [BRAKER4 execution and migration](../docs/braker4.md).
 
 Self-alignment dot plots include long contigs selected by `min_long_contig_length`, show that contig-length cutoff in the axis labels, and draw minimap2 PAF alignments with length >= 10 kb and identity >= 90%.
 
+Custom contig QC plots omit explanatory titles; put the description in the manuscript figure caption. GC and depth axes include units, and the Circos/linear plots use white backgrounds and black legend/track text, with colour swatches in the Circos legend. Linear plot count labels use each track's input window size (the largest coverage window, allowing for shorter terminal windows; the TIDK interval for telomeric repeats).
+
 ### Organelle Annotation
 
 | Parameter | Description | Example |

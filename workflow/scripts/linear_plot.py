@@ -9,20 +9,18 @@ apply_matplotlib_style()
 def load_coverage_df(input_file):
     cols = ["contig", "start", "end", "n_feature", "n_base", "window_size", "coverage"]
     df = pd.read_csv(input_file, sep="\t", header=None, names=cols)
-    global window_size_global
-    window_size_global = df["window_size"].iloc[0]
-    return df[["contig", "start", "end", "n_feature"]].rename(columns={"n_feature": "count"})
+    # Terminal windows can be shorter, including the first row for a short contig.
+    window_size = int(df["window_size"].max())
+    return df[["contig", "start", "end", "n_feature"]].rename(columns={"n_feature": "count"}), window_size
 
 def load_tidk_df():
     df = pd.read_csv(snakemake.input.tidk, sep="\t")
     df = df.rename(columns={"id": "contig"})
     window_size = df["window"][0]
-    global window_size_global
-    window_size_global = window_size
     df["end"] = df["window"]
     df["start"] = (df["end"] - 1) // window_size * window_size
     df["count"] = df["forward_repeat_number"] + df["reverse_repeat_number"]
-    return df[["contig", "start", "end", "count"]]
+    return df[["contig", "start", "end", "count"]], window_size
 
 def load_track_df(track_cfg):
     track_id = track_cfg["id"]
@@ -33,9 +31,6 @@ def load_track_df(track_cfg):
     if track_id == "tidk":
         return load_tidk_df()
     raise ValueError(f"Unsupported track id: {track_id}")
-
-# Initialize global window size variable
-window_size_global = 10000  # Default value
 
 # Load contig information
 contig_df = pd.read_csv(snakemake.input.contig, sep="\t", header=None, names=["contig", "length"])
@@ -49,8 +44,10 @@ n_tracks = len(circos_tracks)
 track_data = {}
 for track_cfg in circos_tracks:
     track_id = track_cfg["id"]
+    coverage_df, window_size = load_track_df(track_cfg)
     track_data[track_id] = {
-        "df": load_track_df(track_cfg),
+        "df": coverage_df,
+        "window_size": window_size,
         "label": track_cfg["label"],
         "color": track_cfg["color"]
     }
@@ -75,6 +72,7 @@ for contig in contigs:
 # Plot each track and each contig
 for row_idx, track_cfg in enumerate(circos_tracks):
     track_id = track_cfg["id"]
+    window_size = track_data[track_id]["window_size"]
     
     # Find y-axis max across all contigs for this track
     all_y_for_track = track_data[track_id]["df"]["count"].to_numpy()
@@ -106,10 +104,6 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         # Use global y-max for all contigs to enable comparison
         ax.set_ylim(0, y_max_global)
         
-        # Set background color
-        ax.set_facecolor((0.95, 0.95, 0.95))
-        ax.grid(True, alpha=0.3, axis='y')
-        
         # Label the top row with contig names
         if row_idx == 0:
             # Adjust font size based on contig name length and size
@@ -119,19 +113,19 @@ for row_idx, track_cfg in enumerate(circos_tracks):
         
         # Y-axis label on the left side
         if col_idx == 0:
-            if window_size_global >= 1_000_000 and window_size_global % 1_000_000 == 0:
-                window_mb = window_size_global // 1_000_000
+            if window_size >= 1_000_000 and window_size % 1_000_000 == 0:
+                window_mb = window_size // 1_000_000
                 y_label = f"Count per\n{int(window_mb)}-Mb window"
-            elif window_size_global >= 1000 and window_size_global % 1000 == 0:
-                window_kb = window_size_global // 1000
+            elif window_size >= 1000 and window_size % 1000 == 0:
+                window_kb = window_size // 1000
                 y_label = f"Count per\n{int(window_kb)}-kb window"
             else:
-                y_label = f"Count per\n{int(window_size_global)}-bp window"
+                y_label = f"Count per\n{int(window_size)}-bp window"
             ax.set_ylabel(y_label, rotation=90, ha='center', va='center', fontsize=BASE_FONT_SIZE, labelpad=15)
             
             # Add track label to the left of the y-axis label
             ax.text(-0.22, 0.5, track_cfg["label"], transform=ax.transAxes, 
-                   fontsize=BASE_FONT_SIZE, fontweight='bold', color=track_cfg["color"],
+                   fontsize=BASE_FONT_SIZE, fontweight='bold', color='black',
                    ha='center', va='center', rotation=90)
         else:
             ax.set_ylabel("")

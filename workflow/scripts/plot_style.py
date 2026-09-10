@@ -60,6 +60,10 @@ def apply_matplotlib_style():
             "legend.fontsize": BASE_FONT_SIZE,
             "figure.titlesize": TITLE_FONT_SIZE,
             "figure.titleweight": "bold",
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "axes.grid": False,
+            "legend.frameon": False,
             # Match MathText (used for italic scientific names) to body text.
             "mathtext.fontset": "custom",
             "mathtext.rm": math_font,

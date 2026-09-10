@@ -32,7 +32,6 @@ if n_short_contigs > 0:
 
 fig, ax = plt.subplots()
 ax.bar(contig_df["#name"], contig_df["length"], color='black')
-ax.set_title("Contig length distribution")
 ax.set_xlabel("Contigs")
 x = np.arange(len(contig_df))
 ax.set_xticks(x)

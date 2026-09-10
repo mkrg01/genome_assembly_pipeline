@@ -1,7 +1,7 @@
 from snakemake.script import snakemake
 import pandas as pd
 from pycirclize import Circos
-from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from collections import OrderedDict
 
 from plot_style import (
@@ -74,8 +74,7 @@ def add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_g
             track.axis(fc="none", ec="none")
             track.text(str(idx + 1), x=sector.size * 0.5, r=(r1 + r2) / 2, size=BASE_FONT_SIZE, orientation="horizontal")
             continue
-        track.axis(fc=(0.95, 0.95, 0.95, 0.6), ec="none")
-        track.grid()
+        track.axis(fc="none", ec="none")
         coverage_contig_df = coverage_df[coverage_df["contig"] == sector.name]
         x = ((coverage_contig_df["start"] + coverage_contig_df["end"]) / 2).to_numpy()
         y = coverage_contig_df["count"].to_numpy()
@@ -129,11 +128,8 @@ for idx, track_cfg in enumerate(circos_tracks):
     add_hist_track_for_df(circos, coverage_df, track_cfg, idx, n_tracks, y_max_global=track_y_max[track_cfg["id"]], gap_name=gap_name)
 
 fig = circos.plotfig()
-legend_handles = [Line2D([], [], linestyle="none") for _ in circos_tracks]
+legend_handles = [Patch(facecolor=track_cfg["color"], edgecolor="none", alpha=0.7) for track_cfg in circos_tracks]
 legend_labels = [f"{idx + 1}. {track_cfg['label']}" for idx, track_cfg in enumerate(circos_tracks)]
-leg = fig.legend(handles=legend_handles, labels=legend_labels, loc="lower left", fontsize=BASE_FONT_SIZE, frameon=False, handlelength=0)
-for text, track_cfg in zip(leg.get_texts(), circos_tracks):
-    text.set_color(track_cfg["color"])
-    text.set_fontweight("bold")
+fig.legend(handles=legend_handles, labels=legend_labels, loc="lower left", fontsize=BASE_FONT_SIZE, frameon=False, labelcolor="black")
 
 fig.savefig(snakemake.output[0], dpi=300, bbox_inches="tight")
