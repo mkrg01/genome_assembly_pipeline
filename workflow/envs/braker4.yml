@@ -1,0 +1,8 @@
+name: braker4
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - snakemake-minimal=9.8.0
+  - pandas=2.2.3

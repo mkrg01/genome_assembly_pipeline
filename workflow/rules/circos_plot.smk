@@ -26,7 +26,7 @@ rule calculate_long_contig_lengths:
 
 rule make_gene_bed:
     input:
-        "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3"
+        "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3"
     output:
         "results/circos_plot/gene/{selected_assembly}/{assembly_name}_gene.bed"
     log:

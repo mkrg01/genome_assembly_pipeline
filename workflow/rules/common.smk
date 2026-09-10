@@ -962,8 +962,14 @@ def organelle_rna_editing_rnaseq_organelle_bam_path(
     )
 
 
-def organelle_rna_editing_rnaseq_bam_paths(wildcards):
-    sample_ids = require_sample_ids(
+def organelle_rna_editing_sample_ids():
+    if not rnaseq_sample_ids and braker4_rnaseq_config["source"] == "varus":
+        raise ValueError(
+            "Organelle RNA-editing curation requires local paired-end RNA-seq. "
+            "BRAKER4 VARUS supplies nuclear annotation evidence only. Provide local reads, "
+            "run gene_prediction_all, or explicitly set organelle_annotation: null."
+        )
+    return require_sample_ids(
         rnaseq_sample_ids,
         "RNA-Seq samples",
         [
@@ -971,6 +977,10 @@ def organelle_rna_editing_rnaseq_bam_paths(wildcards):
             rnaseq_fastp_search_path,
         ],
     )
+
+
+def organelle_rna_editing_rnaseq_bam_paths(wildcards):
+    sample_ids = organelle_rna_editing_sample_ids()
     return [
         organelle_rna_editing_rnaseq_bam_path(
             wildcards.assembly_name,
@@ -981,14 +991,7 @@ def organelle_rna_editing_rnaseq_bam_paths(wildcards):
 
 
 def organelle_rna_editing_rnaseq_organelle_bam_paths(wildcards):
-    sample_ids = require_sample_ids(
-        rnaseq_sample_ids,
-        "RNA-Seq samples",
-        [
-            *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
-            rnaseq_fastp_search_path,
-        ],
-    )
+    sample_ids = organelle_rna_editing_sample_ids()
     return [
         organelle_rna_editing_rnaseq_organelle_bam_path(
             wildcards.assembly_name,
@@ -1300,10 +1303,30 @@ def rnaseq_raw_input_path(rnaseq_sample_id, pair):
     )
 
 
-def braker3_rnaseq_inputs(_wildcards):
+def normalize_braker4_rnaseq_config():
+    source = config.get("braker4_rnaseq_source", "local")
+    if source not in ("local", "varus"):
+        raise ValueError("'braker4_rnaseq_source' in config.yml must be 'local' or 'varus'.")
+    if source == "local":
+        return {"source": source, "genus": "", "species": ""}
+    parts = organism_name.replace("_", " ").split()
+    if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z][A-Za-z-]*", part) for part in parts):
+        raise ValueError(
+            "VARUS requires 'organism_name' to contain a genus and species, "
+            "such as 'Dioncophyllum_thollonii'."
+        )
+    return {"source": source, "genus": parts[0], "species": parts[1]}
+
+
+braker4_rnaseq_config = normalize_braker4_rnaseq_config()
+
+
+def braker4_rnaseq_inputs(_wildcards):
+    if braker4_rnaseq_config["source"] == "varus":
+        return []
     sample_ids = require_sample_ids(
         rnaseq_sample_ids,
-        "RNA-Seq samples",
+        "local RNA-Seq samples for BRAKER4 (or set braker4_rnaseq_source: varus)",
         [
             *(pattern for pattern, _ in rnaseq_raw_pattern_suffix_pairs),
             rnaseq_fastp_search_path,

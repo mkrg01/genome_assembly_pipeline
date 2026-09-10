@@ -36,7 +36,8 @@ dfam_partitions: "0,5,6" # Dfam partitions (https://www.dfam.org/releases/curren
 dfam_lineage_name: "Viridiplantae" # Name of the Dfam lineage to use.
 
 # Gene prediction
-orthodb_version: "12" # Version of OrthoDB to download (used by Braker3). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
+braker4_rnaseq_source: "local" # {"local", "varus"}. "varus" samples public SRA RNA-seq using organism_name; requires internet on the compute node.
+orthodb_version: "12" # Version of OrthoDB to download (used by BRAKER4). See: https://github.com/gatech-genemark/ProtHint#protein-database-preparation
 orthodb_lineage: "Viridiplantae" # OrthoDB lineage dataset to use. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
 orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587" # MD5 checksum of the OrthoDB database. See: https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/
 

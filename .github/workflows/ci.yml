@@ -37,3 +37,35 @@ jobs:
           --cores 1
           --dry-run
           all
+
+      - name: Dry-run annotation workflow
+        run: >
+          snakemake
+          --snakefile "$GITHUB_WORKSPACE/workflow/Snakefile.annotation"
+          --directory "$GITHUB_WORKSPACE/tests/workdir"
+          --cores 2
+          --config external_assembly=raw_data/test_assembly.fa
+          --dry-run
+          all
+
+      - name: Dry-run all selected assemblies
+        run: >
+          snakemake
+          --snakefile "$GITHUB_WORKSPACE/workflow/Snakefile"
+          --directory "$GITHUB_WORKSPACE/tests/workdir"
+          --cores 4
+          --config selected_assemblies='["primary","hap1","hap2"]'
+          --dry-run
+          gene_prediction_all
+
+      - name: Dry-run VARUS annotation without local RNA-seq
+        run: |
+          varus_workdir=$(mktemp -d)
+          mkdir -p "$varus_workdir/config" "$varus_workdir/raw_data"
+          cp "$GITHUB_WORKSPACE/tests/workdir/config/config.yml" "$varus_workdir/config/"
+          cp "$GITHUB_WORKSPACE/tests/workdir/raw_data/test_assembly.fa" "$varus_workdir/raw_data/"
+          snakemake \
+            --snakefile "$GITHUB_WORKSPACE/workflow/Snakefile.annotation" \
+            --directory "$varus_workdir" --cores 2 --dry-run \
+            --config external_assembly=raw_data/test_assembly.fa braker4_rnaseq_source=varus \
+            -- all

@@ -1,6 +1,11 @@
 import os
 import re
 
+BRAKER4_VERSION = "v0.5.0-beta"
+BRAKER4_COMMIT = "c72618baa4631db4a4128391a40c8ba7392df17c"
+BRAKER4_ARCHIVE_SHA256 = "c4f22285595c1945fb97a0a4ef25a047e12e097a1eb595c09b230771c7a3fe42"
+BRAKER4_DOWNLOAD_DIR = f"results/downloads/braker4/{BRAKER4_VERSION}"
+
 rnaseq_raw_pattern_suffix_pairs = make_pattern_suffix_pairs(
     "raw_data/*_1{suffix}",
     "_1{suffix}",
@@ -54,8 +59,8 @@ rule download_orthodb_proteins:
     log:
         out = "logs/download_orthodb_proteins.out",
         err = "logs/download_orthodb_proteins.err"
-    container:
-        "docker://teambraker/braker3:v3.0.7.6"
+    conda:
+        "../envs/pybase.yml"
     params:
         url = f"https://bioinf.uni-greifswald.de/bioinf/partitioned_odb{config['orthodb_version']}/{config['orthodb_lineage']}.fa.gz",
         md5sum = config['orthodb_md5sum']
@@ -77,48 +82,92 @@ rule download_orthodb_proteins:
         ) > {log.out} 2> {log.err}
         """
 
-rule braker3:
+rule download_braker4:
     input:
-        assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
-        rnaseq = braker3_rnaseq_inputs,
-        protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa"
+        script = os.path.join(workflow.basedir, "scripts/download_braker4.py")
     output:
-        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
-        gtf = "results/braker3/{selected_assembly}/{assembly_name}/braker.gtf",
-        cds = "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq",
-        aa = "results/braker3/{selected_assembly}/{assembly_name}/braker.aa",
-        augustus_config = directory("results/braker3/{selected_assembly}/{assembly_name}/augustus_config")
+        archive = f"{BRAKER4_DOWNLOAD_DIR}/source.tar.gz",
+        source = directory(f"{BRAKER4_DOWNLOAD_DIR}/source"),
+        manifest = f"{BRAKER4_DOWNLOAD_DIR}/manifest.json"
     log:
-        out = "logs/braker3_{selected_assembly}_{assembly_name}.out",
-        err = "logs/braker3_{selected_assembly}_{assembly_name}.err"
-    container:
-        "docker://teambraker/braker3:v3.0.7.6"
-    threads:
-        48
+        out = "logs/download_braker4.out",
+        err = "logs/download_braker4.err"
+    conda:
+        "../envs/pybase.yml"
     params:
-        rnaseq_ids=",".join(rnaseq_sample_ids),
-        rnaseq_dir=lambda wildcards, input: os.path.commonpath(input.rnaseq)
+        url = f"https://codeload.github.com/Gaius-Augustus/BRAKER4/tar.gz/refs/tags/{BRAKER4_VERSION}",
+        sha256 = BRAKER4_ARCHIVE_SHA256,
+        version = BRAKER4_VERSION,
+        commit = BRAKER4_COMMIT
     shell:
         """
-        (
-            cp -r /opt/Augustus/config {output.augustus_config} # https://github.com/Gaius-Augustus/BRAKER/issues/609
-            export AUGUSTUS_CONFIG_PATH=$PWD/{output.augustus_config}
-            braker.pl \
-                --species={wildcards.assembly_name} \
-                --genome={input.assembly} \
-                --prot_seq={input.protein_dataset} \
-                --rnaseq_sets_ids={params.rnaseq_ids} \
-                --rnaseq_sets_dirs={params.rnaseq_dir} \
-                --workingdir=$(dirname {output.gff3}) \
-                --gff3 \
-                --threads {threads}
-        ) > {log.out} 2> {log.err}
+        python3 {input.script:q} \
+            --url {params.url:q} --sha256 {params.sha256:q} \
+            --version {params.version:q} --commit {params.commit:q} \
+            --archive {output.archive:q} --source {output.source:q} \
+            --manifest {output.manifest:q} > {log.out:q} 2> {log.err:q}
+        """
+
+
+rule braker4:
+    input:
+        assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
+        rnaseq = braker4_rnaseq_inputs,
+        protein_dataset = f"results/downloads/orthodb/{config['orthodb_lineage']}.fa",
+        source = f"{BRAKER4_DOWNLOAD_DIR}/source",
+        source_manifest = f"{BRAKER4_DOWNLOAD_DIR}/manifest.json",
+        busco_database = "results/downloads/busco_downloads",
+        template = os.path.join(workflow.basedir, "config/braker4.ini"),
+        script = os.path.join(workflow.basedir, "scripts/run_braker4.py"),
+        validation_script = os.path.join(workflow.basedir, "scripts/filter_gff_by_fasta_ids.py")
+    output:
+        gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3",
+        gtf = "results/braker4/{selected_assembly}/{assembly_name}/braker.gtf",
+        cds = "results/braker4/{selected_assembly}/{assembly_name}/braker.codingseq",
+        aa = "results/braker4/{selected_assembly}/{assembly_name}/braker.aa",
+        manifest = "results/braker4/{selected_assembly}/{assembly_name}/run.json"
+    log:
+        out = "logs/braker4_{selected_assembly}_{assembly_name}.out",
+        err = "logs/braker4_{selected_assembly}_{assembly_name}.err"
+    # The controller runs on the host; the child workflow launches Apptainer.
+    # Explicitly opt out of the entrypoint's global containerized image.
+    container:
+        None
+    conda:
+        "../envs/braker4.yml"
+    threads:
+        48
+    resources:
+        mem_mb = 120000
+    params:
+        rnaseq_r1 = lambda wildcards, input: list(input.rnaseq)[::2],
+        rnaseq_r2 = lambda wildcards, input: list(input.rnaseq)[1::2],
+        rnaseq_source = braker4_rnaseq_config["source"],
+        varus_genus = braker4_rnaseq_config["genus"],
+        varus_species = braker4_rnaseq_config["species"],
+        sample = "{assembly_name}_{selected_assembly}",
+        outdir = "results/braker4/{selected_assembly}/{assembly_name}",
+        lineage = config["busco_lineage_dataset"],
+        container_cache = "results/downloads/braker4/containers"
+    shell:
+        """
+        python3 {input.script:q} \
+            --source {input.source:q} --source-manifest {input.source_manifest:q} \
+            --template {input.template:q} --sample {params.sample:q} \
+            --genome {input.assembly:q} --proteins {input.protein_dataset:q} \
+            --rnaseq-source {params.rnaseq_source:q} \
+            --varus-genus '{params.varus_genus}' --varus-species '{params.varus_species}' \
+            --rnaseq-r1 {params.rnaseq_r1:q} --rnaseq-r2 {params.rnaseq_r2:q} \
+            --busco-downloads {input.busco_database:q} --lineage {params.lineage:q} \
+            --threads {threads} --mem-mb {resources.mem_mb} \
+            --container-cache {params.container_cache:q} --output-dir {params.outdir:q} \
+            > {log.out:q} 2> {log.err:q}
         """
 
 rule copy_isoforms:
     input:
-        cds = "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq",
-        aa = "results/braker3/{selected_assembly}/{assembly_name}/braker.aa"
+        cds = "results/braker4/{selected_assembly}/{assembly_name}/braker.codingseq",
+        aa = "results/braker4/{selected_assembly}/{assembly_name}/braker.aa"
     output:
         cds = "results/isoforms/{selected_assembly}/{assembly_name}_cds.fa",
         aa = "results/isoforms/{selected_assembly}/{assembly_name}_aa.fa"
@@ -137,7 +186,7 @@ rule copy_isoforms:
 
 rule extract_transcript:
     input:
-        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
+        gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3",
         assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked"
     output:
         "results/isoforms/{selected_assembly}/{assembly_name}_transcript.fa"
@@ -158,23 +207,21 @@ rule extract_transcript:
 
 rule extract_longest_cds:
     input:
-        "results/braker3/{selected_assembly}/{assembly_name}/braker.codingseq"
+        cds = "results/braker4/{selected_assembly}/{assembly_name}/braker.codingseq",
+        gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3",
+        script = os.path.join(workflow.basedir, "scripts/select_longest_cds.py")
     output:
         "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa"
     log:
         out = "logs/extract_longest_cds_{selected_assembly}_{assembly_name}.out",
         err = "logs/extract_longest_cds_{selected_assembly}_{assembly_name}.err"
     conda:
-        "../envs/cdskit.yml"
-    threads:
-        4
+        "../envs/pybase.yml"
     shell:
         """
-        (
-            seqkit seq --threads {threads} {input} \
-            | cdskit aggregate --expression "t.*" \
-            | seqkit seq --threads {threads} --out-file {output}
-        ) > {log.out} 2> {log.err}
+        python3 {input.script:q} \
+            --cds {input.cds:q} --gff3 {input.gff3:q} --output {output:q} \
+            > {log.out:q} 2> {log.err:q}
         """
 
 rule extract_longest_cds_aa:
@@ -222,7 +269,7 @@ rule extract_longest_cds_transcript:
 rule filter_longest_cds_gff3:
     input:
         fasta = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
-        gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3"
+        gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3"
     output:
         "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     log:
@@ -344,7 +391,7 @@ rule format_for_submission:
     input:
         assembly = "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         isoform_cds = "results/isoforms/{selected_assembly}/{assembly_name}_cds.fa",
-        isoform_gff3 = "results/braker3/{selected_assembly}/{assembly_name}/braker.gff3",
+        isoform_gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3",
         longest_cds = "results/longest_cds/{selected_assembly}/{assembly_name}_cds.fa",
         longest_gff3 = "results/longest_cds/{selected_assembly}/{assembly_name}.gff3"
     output:

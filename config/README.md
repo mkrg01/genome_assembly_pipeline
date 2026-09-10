@@ -9,7 +9,7 @@ This document explains:
 
 ## 1. Input Files (`raw_data/`)
 
-The full assembly workflow requires **PacBio HiFi reads**. The external-assembly annotation workflow (`workflow/Snakefile.annotation`) instead requires an assembly FASTA via `external_assembly`. **Paired-end RNA-seq reads** are required when running targets that include gene prediction (`gene_prediction_all`, `circos_plot_all`, or `all`).
+The full assembly workflow requires **PacBio HiFi reads**. The external-assembly annotation workflow (`workflow/Snakefile.annotation`) instead requires an assembly FASTA via `external_assembly`. Nuclear gene prediction uses **local paired-end RNA-seq reads** by default. With `braker4_rnaseq_source: "varus"`, BRAKER4 samples public SRA RNA-seq instead, so local reads are optional for nuclear annotation targets. Organelle RNA-editing curation still requires local paired-end RNA-seq, including in the full `all` target when organelle annotation is enabled.
 
 Place your raw sequencing files in the `raw_data` directory with the following naming conventions:
 
@@ -106,11 +106,31 @@ The workflow retains QC results for the pre-rename assembly stages. It also runs
 
 ### Gene Prediction
 
+BRAKER4 runs in ETP mode with the existing RepeatMasker soft-masked genome,
+RNA-seq evidence (fastp-filtered local libraries or automated VARUS sampling), and OrthoDB proteins. Its source release and
+annotation containers are pinned in the workflow; there is no backend selector.
+`busco_lineage_dataset` must name an **odb12** lineage for this BRAKER4 release.
+The downloaded BUSCO lineage is also reused by compleasm.
+
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `orthodb_version`       | Version of the OrthoDB database (used by Braker3). [ProtHint instructions](https://github.com/gatech-genemark/ProtHint#protein-database-preparation) | `"12"`                                     |
+| `braker4_rnaseq_source` | Nuclear annotation RNA-seq source: `local` (default) uses the local fastp-filtered pairs; `varus` searches and samples public SRA RNA-seq using the genus and species in `organism_name` (e.g. `Arabidopsis_thaliana`). VARUS requires network access on the compute node and suitable public reads. No automatic fallback between modes. | `"varus"` |
+| `orthodb_version`       | Version of the OrthoDB database (used by BRAKER4). [ProtHint instructions](https://github.com/gatech-genemark/ProtHint#protein-database-preparation) | `"12"`                                     |
 | `orthodb_lineage`       | OrthoDB lineage dataset to use. [Lineage list](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"Viridiplantae"`                          |
 | `orthodb_md5sum`        | MD5 checksum of the OrthoDB database. [Checksums](https://bioinf.uni-greifswald.de/bioinf/partitioned_odb12/) | `"34c1f027a1a7b10f225b69fbd5500587"`       |
+
+CPU and memory requirements are defined directly in `rule braker4` in
+[`workflow/rules/gene_prediction.smk`](../workflow/rules/gene_prediction.smk):
+`threads: 48` and `resources: mem_mb=120000`. Snakemake caps threads to the allocated
+cores, and the child workflow receives the parent job's resources. For concurrent
+assemblies, also pass a total `--resources mem_mb=...` budget to the parent workflow.
+
+Advanced annotation settings are recorded in [`workflow/config/braker4.ini`](../workflow/config/braker4.ini).
+The defaults retain AUGUSTUS optimization, exclude compleasm hints from training,
+retain compleasm rescue, disable duplicate BUSCO/OMArk runs inside BRAKER4,
+and preserve intermediate files for resume. The parent workflow still evaluates
+isoform and representative proteins with BUSCO, and representative proteins with OMArk.
+See [BRAKER4 execution and migration](../docs/braker4.md).
 
 ### Visualization
 

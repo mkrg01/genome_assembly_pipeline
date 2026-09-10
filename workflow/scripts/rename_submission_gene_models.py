@@ -1,5 +1,6 @@
 import argparse
 import gzip
+import re
 import sys
 from pathlib import Path
 
@@ -104,6 +105,7 @@ def build_transcript_id(old_gene_id: str, new_gene_id: str, transcript_id: str):
 def build_identifier_maps(gff3_path: Path, prefix: str):
     gene_map = {}
     transcript_map = {}
+    gene_transcripts = {}
     gene_counter = 0
 
     for line_number, _, fields in iter_gff_records(gff3_path):
@@ -146,14 +148,25 @@ def build_identifier_maps(gff3_path: Path, prefix: str):
                 f"seen before line {line_number} of {gff3_path}"
             )
 
-        transcript_map[transcript_id] = build_transcript_id(
-            gene_id, gene_map[gene_id], transcript_id
-        )
+        if transcript_id in transcript_map:
+            raise ValueError(f"Duplicate mRNA ID {transcript_id!r} in {gff3_path}")
+        transcript_map[transcript_id] = None
+        gene_transcripts.setdefault(gene_id, []).append(transcript_id)
 
     if not gene_map:
         raise ValueError(f"No gene features were found in {gff3_path}")
     if not transcript_map:
         raise ValueError(f"No mRNA features were found in {gff3_path}")
+
+    for gene_id, transcripts in gene_transcripts.items():
+        # Preserve standard BRAKER suffixes. If AGAT supplied independent IDs,
+        # number all isoforms of that gene together to avoid suffix collisions.
+        standard = all(re.fullmatch(re.escape(gene_id) + r"\.t[0-9]+", tx) for tx in transcripts)
+        for number, tx in enumerate(transcripts, 1):
+            transcript_map[tx] = (
+                build_transcript_id(gene_id, gene_map[gene_id], tx)
+                if standard else f"{gene_map[gene_id]}.t{number}"
+            )
 
     return gene_map, transcript_map
 

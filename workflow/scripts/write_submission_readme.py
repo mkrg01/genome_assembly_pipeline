@@ -42,8 +42,8 @@ The submission annotation files use gene and transcript IDs derived from the ass
 
 - Genus and species were inferred by replacing underscores with spaces.
 - The prefix `{prefix}` was built from the first three letters of the genus and the first two letters of the species.
-- Gene IDs were renamed from the BRAKER-style format `gN` to `{prefix}_000001`, `{prefix}_000002`, and so on.
-- Transcript IDs retained their isoform suffixes. For example, `g1.t3` became `{prefix}_000001.t3`.
+- Gene IDs were renamed from the BRAKER4 annotation IDs to `{prefix}_000001`, `{prefix}_000002`, and so on.
+- Standard BRAKER isoform suffixes were retained (for example, `g1.t3` became `{prefix}_000001.t3`). For genes with other transcript naming schemes, isoforms were numbered `.t1`, `.t2`, and so on in GFF3 order. The same mapping was applied to all sequence and annotation files.
 - In the GFF3 files, `ID` and `Parent` attributes were updated so that all parent-child relationships remained consistent after renaming.
 
 ## File Provenance

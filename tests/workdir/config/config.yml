@@ -23,6 +23,7 @@ dfam_version: "3.9"
 dfam_partitions: "0,5,6"
 dfam_lineage_name: "Viridiplantae"
 
+braker4_rnaseq_source: "local"
 orthodb_version: "12"
 orthodb_lineage: "Viridiplantae"
 orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587"

@@ -2,11 +2,13 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
-This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Paired-end RNA-seq reads are required for gene prediction. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Nuclear gene prediction uses local paired-end RNA-seq reads by default, or optionally BRAKER4's VARUS sampling from public SRA data. Organelle RNA-editing curation requires local RNA-seq reads. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
 
-If you already have an assembly FASTA from another workflow, use `workflow/Snakefile.annotation` to run the downstream annotation path only: RepeatModeler/RepeatMasker softmasking, BRAKER3 gene prediction, protein/transcript QC, formatting, and Circos/linear plots. In that mode, set `external_assembly` in `config/config.yml` and keep paired-end RNA-seq reads in `raw_data/`.
+If you already have an assembly FASTA from another workflow, use `workflow/Snakefile.annotation` to run the downstream annotation path only: RepeatModeler/RepeatMasker softmasking, BRAKER4 gene prediction, protein/transcript QC, formatting, and Circos/linear plots. In that mode, set `external_assembly` in `config/config.yml` and either keep paired-end RNA-seq reads in `raw_data/` or set `braker4_rnaseq_source: "varus"`. See [RNA-seq source selection](docs/braker4.md#rna-seq-source-selection) for the scientific-name and network requirements.
 
 See [this page](docs/output_directory_structure.md) for details on the expected outputs.
+
+Gene prediction uses [BRAKER4 v0.5.0-beta](https://github.com/Gaius-Augustus/BRAKER4/releases/tag/v0.5.0-beta) in ETP mode. The workflow downloads verified source code automatically, runs its Snakemake controller in a dedicated host Conda environment, and uses Apptainer for the annotation tools. Use both `--sdm conda apptainer`. See [BRAKER4 execution and migration](docs/braker4.md) for resource settings, resume behavior, and migration from existing results.
 
 ## Requirements
 

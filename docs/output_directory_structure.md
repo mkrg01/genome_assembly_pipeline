@@ -28,15 +28,22 @@ Several downstream steps use a single "final" assembly after contamination remov
 - With Hi-C reads, the downstream assembly is `results/yahs/assembly/{selected_assembly}/{organism_name}.fa`.
 - With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
-This affects the inputs for RepeatModeler, RepeatMasker, BRAKER3, release formatting, and Circos/linear plots.
+This affects the inputs for RepeatModeler, RepeatMasker, BRAKER4, release formatting, and Circos/linear plots.
 
-## `results/braker3/`
+## `results/braker4/`
 
-BRAKER3 working directories for the RepeatMasker soft-masked downstream assemblies.
+BRAKER4 working directories for the RepeatMasker soft-masked downstream assemblies.
 
-- `results/braker3/{selected_assembly}/{organism_name}/`
-  Main tracked outputs include `braker.gff3`, `braker.gtf`, `braker.codingseq`, `braker.aa`, and `augustus_config/`.
-  Additional BRAKER3-generated files may also appear in the same directory.
+- `results/braker4/{selected_assembly}/{organism_name}/`
+  Tracked outputs are the validated, decompressed `braker.gff3`, `braker.gtf`, `braker.codingseq`, `braker.aa`, and provenance record `run.json`.
+- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/`
+  Persistent child Snakemake working directory, including `samples.csv`, `config.ini`, `inputs.json`, `.snakemake/`, `augustus_config/`, logs, and benchmarks. Identical inputs and settings reuse this directory after a failure; changed inputs or annotation settings create another run ID.
+- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/results/`
+  Native BRAKER4 compressed gene models, UTR GTF, evidence support, software versions, compleasm assessments, and HTML report when generated. In VARUS mode, this also contains `varus_runlist.tsv` and `varus_stats.txt`. `run.json` identifies the successful run and RNA-seq source/query. The internal sample name includes the selected assembly label.
+- `results/braker4/{selected_assembly}/{organism_name}/work/{run_id}/output/{sample_name}/varus/`
+  Present in VARUS mode: sampled RNA-seq data, the sorted BAM and index, and sampling logs/statistics retained for restart and evidence inspection.
+
+The working directories are retained for restart and training inspection. See [BRAKER4 execution and migration](braker4.md) before deleting intermediates.
 
 ## `results/circos_plot/`
 
@@ -57,6 +64,10 @@ Files used to build the final Circos and linear plots from long contigs of the d
 
 Downloaded reference datasets, wrapper scripts, and helper files.
 
+- `braker4/v0.5.0-beta/`
+  SHA256-verified source archive, extracted `source/`, and source `manifest.json`.
+- `braker4/containers/`
+  Shared Apptainer image cache for the child annotation workflows.
 - `busco_downloads/`
   BUSCO lineage datasets used for genome and protein assessments.
 - `dfam/`
@@ -68,7 +79,7 @@ Downloaded reference datasets, wrapper scripts, and helper files.
 - `omamer/`
   The OMAmer database (`LUCA.h5`) used by OMArk.
 - `orthodb/`
-  OrthoDB protein dataset used by BRAKER3.
+  OrthoDB protein dataset used by BRAKER4.
 - `pmga/`
   Pinned PMGA Figshare archive, extracted PMGA bundle, and download manifest when PMGA is selected for mitochondrial annotation.
 - `pga_v2/`
@@ -199,7 +210,7 @@ Raw Hifiasm outputs, selected assemblies, organelle-screening results, and QC su
 
 ## `results/isoforms/`
 
-Sequence sets copied from BRAKER3 predictions, plus their summary metrics.
+Sequence sets copied from BRAKER4 predictions, plus their summary metrics.
 
 - `{selected_assembly}/`
   FASTA files for all predicted CDS, proteins, and transcripts.
@@ -219,6 +230,9 @@ Created only when Hi-C reads are configured.
 ## `results/longest_cds/`
 
 Representative gene models derived from the longest CDS per locus, plus their QC outputs.
+
+CDS records are grouped by their mRNA-to-gene `Parent` relationship in GFF3.
+Equal-length isoforms are resolved by their order in the CDS FASTA.
 
 - `{selected_assembly}/`
   FASTA files for representative CDS, proteins, and transcripts, plus the filtered representative GFF3 file.
@@ -329,7 +343,7 @@ Final formatted release files produced for assemblies listed in `selected_assemb
 The selected post-FCS/LongStitch/YaHS assembly is sorted by decreasing sequence length and renamed once for downstream analysis. Records are named `scaffold1`, `scaffold2`, and so on when any scaffolding mode was used, or `contig1`, `contig2`, and so on when the FCS-cleaned contig assembly is used without scaffolding.
 
 - `assembly/{selected_assembly}/`
-  Length-sorted, renamed FASTA used by RepeatModeler, RepeatMasker, BRAKER3, plotting, and nuclear release generation.
+  Length-sorted, renamed FASTA used by RepeatModeler, RepeatMasker, BRAKER4, plotting, and nuclear release generation.
 - `mapping/{selected_assembly}/`
   TSV mapping of original record IDs and headers to renamed sequence IDs, including sequence length, rank, and source assembly stage.
 - `read_mapping/{selected_assembly}/`
