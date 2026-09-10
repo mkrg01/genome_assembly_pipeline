@@ -3,6 +3,7 @@
 import argparse
 import sys
 import hashlib
+import re
 from pathlib import Path
 
 def parse_args():
@@ -13,11 +14,16 @@ def parse_args():
 
 def check_md5(file_path, md5_path):
     with open(md5_path) as f:
-        expected_md5, expected_name = f.readline().strip().split()
-        expected_md5 = expected_md5.lower()
+        fields = f.readline().strip().split(maxsplit=1)
+        if not fields or not re.fullmatch(r"[0-9a-fA-F]{32}", fields[0]):
+            raise ValueError(f"Invalid MD5 checksum in {md5_path}")
+        expected_md5 = fields[0].lower()
 
+    digest = hashlib.md5()
     with open(file_path, "rb") as f:
-        actual_md5 = hashlib.md5(f.read()).hexdigest().lower()
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    actual_md5 = digest.hexdigest()
 
     if actual_md5 != expected_md5:
         raise ValueError(f"MD5 mismatch!\nExpected: {expected_md5}\nActual: {actual_md5}")

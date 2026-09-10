@@ -100,9 +100,33 @@ The workflow retains QC results for the pre-rename assembly stages. It also runs
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `dfam_version`          | Version of the Dfam database for RepeatMasker. [Dfam releases](https://www.dfam.org) | `"3.9"`                                    |
-| `dfam_partitions`       | Dfam partitions. See [README.txt](https://www.dfam.org/releases/current/families/FamDB/README.txt). | `"0,5,6"` (Viridiplantae)                      |
+| `dfam_version`          | Supported Dfam release for the FamDB 3 consensus layout. | `"4.0"` |
 | `dfam_lineage_name`     | Name of the Dfam lineage to use.                             | `"Viridiplantae"`                          |
+
+Repeat analysis uses `dfam/tetools:2.00`: RepeatModeler 2.0.9, RepeatMasker 4.2.4,
+FamDB 3.0.0, and RMBlast 2.17.1. See the [TE Tools release](https://github.com/Dfam-consortium/TETools).
+Allocate at least four cores for actual masking: each RepeatMasker RMBlast batch
+uses four threads. The batch count is the allocated core count divided by four,
+rounded down, with a minimum of one batch.
+
+The workflow downloads the Dfam 4.0 root (`dfam40.0.h5.gz`) and all consensus
+components (`dfam40.curated.consensus.0.h5.gz`,
+`dfam40.uncurated.consensus.0.h5.gz`, and `dfam40.uncurated.consensus.1.h5.gz`).
+Expect approximately 4 GB of compressed downloads, plus space for the unpacked DB
+and exported FASTA. HMM components are unnecessary for this RMBlast workflow.
+See the [Dfam 4.0 FamDB README](https://www.dfam.org/releases/Dfam_4.0/families/FamDB/README.txt).
+
+`dfam_partitions` is no longer used; remove it from existing configuration files.
+The complete consensus components avoid omissions when exporting a lineage and
+its ancestors and descendants. The exported library includes both curated and
+uncurated families; `dfam_lineage_name` still selects the taxonomic scope. An
+export with no sequences fails before masking. Downloads are checked against the
+published MD5 checksums using bounded memory.
+
+Dfam files are stored under release-specific directories; Dfam 3.9 files are not
+reused. The new RepeatModeler database directory also requires rebuilding the
+indexes. Rerun the repeat-analysis targets after updating, then regenerate any
+downstream annotations that should use the updated masking.
 
 ### Gene Prediction
 

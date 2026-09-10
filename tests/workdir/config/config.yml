@@ -19,8 +19,7 @@ busco_lineage_dataset: "embryophyta_odb12"
 tidk_clade: "Caryophyllales"
 tidk_telomeric_repeat_unit: "AAACCCT"
 
-dfam_version: "3.9"
-dfam_partitions: "0,5,6"
+dfam_version: "4.0"
 dfam_lineage_name: "Viridiplantae"
 
 braker4_rnaseq_source: "local"

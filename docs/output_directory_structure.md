@@ -70,8 +70,8 @@ Downloaded reference datasets, wrapper scripts, and helper files.
   Shared Apptainer image cache for the child annotation workflows.
 - `busco_downloads/`
   BUSCO lineage datasets used for genome and protein assessments.
-- `dfam/`
-  Compressed Dfam partitions downloaded before they are unpacked into `results/repeatmasker/dfam/`.
+- `dfam/4.0/`
+  Compressed Dfam root and consensus components with their MD5 checksums, unpacked into `results/repeatmasker/dfam/4.0/famdb/`.
 - `fcs/`
   NCBI FCS wrapper scripts, Singularity images, the FCS-GX database (`gxdb/`), and the `.gxdb_checked/` validation directory.
 - `oatkdb/`
@@ -306,20 +306,24 @@ Assemblies after removing organelle contigs from the selected Hifiasm assemblies
 
 RepeatMasker inputs and outputs for the downstream assemblies.
 
-- `dfam/`
-  Unpacked Dfam FamDB partitions, `dfam_info.txt`, and the lineage-specific repeat FASTA exported from Dfam.
+- `dfam/4.0/famdb/`
+  Unpacked Dfam root and all curated/uncurated consensus components (four `.h5` files).
+- `dfam/4.0/`
+  `dfam_info.txt` and the lineage-specific repeat FASTA exported from Dfam.
 - `library/{selected_assembly}/`
   Merged repeat library combining RepeatModeler and Dfam sequences.
 - `{selected_assembly}/`
-  Main tracked outputs are the soft-masked FASTA (`*.fa.masked`) and the XML-style annotation table (`*.fa.out.xm`).
+  Main tracked outputs are the soft-masked FASTA (`*.fa.masked`) and the cross_match-format annotation table (`*.fa.out.xm`).
   Additional RepeatMasker-generated side files may also appear in this working directory.
 
 ## `results/repeatmodeler/`
 
 RepeatModeler database files and de novo repeat-family outputs for the downstream assemblies.
 
+- `database/{selected_assembly}/{assembly_name}/`
+  BuildDatabase indexes, tracked as a directory so both single-volume and split BLAST databases are supported.
 - `{selected_assembly}/`
-  BuildDatabase index files (`.nhr`, `.nin`, `.njs`, `.nnd`, `.nni`, `.nog`, `.nsq`, `.translation`) and RepeatModeler outputs such as `*-families.fa`, `*-families.stk`, and `*-rmod.log`.
+  RepeatModeler outputs such as `*-families.fa`, `*-families.stk`, and `*-rmod.log`.
   Additional RepeatModeler-generated working files such as `RM_*` directories may also appear here.
 
 ## `results/rnaseq_reads/`
