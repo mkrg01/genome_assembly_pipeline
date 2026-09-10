@@ -16,49 +16,28 @@ def run_concat_replace(fasta, prefix, out_fasta, stderr):
 
 def concatenate_organelle_genome(snakemake):
     oatk_organelle = snakemake.params.oatk_organelle
+    concatenated_fastas = []
     with open(snakemake.log.err, "w") as log_err:
-        if oatk_organelle in (
-            "mitochondrion",
-            "mitochondrion_and_chloroplast",
-            "mito",
-            "mito_and_pltd",
-        ):
+        if "mitochondrion" in oatk_organelle:
             run_concat_replace(
                 fasta=str(snakemake.input.mito_ctg_fasta),
                 prefix="mitochondrion",
                 out_fasta=str(snakemake.output.mito),
                 stderr=log_err,
             )
-        if oatk_organelle in (
-            "chloroplast",
-            "mitochondrion_and_chloroplast",
-            "pltd",
-            "mito_and_pltd",
-        ):
+            concatenated_fastas.append(snakemake.output.mito)
+        if "chloroplast" in oatk_organelle:
             run_concat_replace(
                 fasta=str(snakemake.input.pltd_ctg_fasta),
                 prefix="chloroplast",
                 out_fasta=str(snakemake.output.pltd),
                 stderr=log_err,
             )
+            concatenated_fastas.append(snakemake.output.pltd)
 
-        if oatk_organelle in ("mitochondrion", "mito"):
-            Path(snakemake.output.all_organelle).write_text(
-                Path(snakemake.output.mito).read_text()
-            )
-        elif oatk_organelle in ("chloroplast", "pltd"):
-            Path(snakemake.output.all_organelle).write_text(
-                Path(snakemake.output.pltd).read_text()
-            )
-        elif oatk_organelle in ("mitochondrion_and_chloroplast", "mito_and_pltd"):
-            with open(snakemake.output.all_organelle, "w") as fout:
-                fout.write(Path(snakemake.output.mito).read_text())
-                fout.write(Path(snakemake.output.pltd).read_text())
-        else:
-            raise ValueError(
-                f"Invalid value for 'oatk_organelle' in config.yml: {oatk_organelle}. "
-                "Must be one of 'mitochondrion', 'chloroplast', or "
-                "'mitochondrion_and_chloroplast'."
-            )
+        with open(snakemake.output.all_organelle, "w") as fout:
+            for fasta in concatenated_fastas:
+                fout.write(Path(fasta).read_text())
 
-concatenate_organelle_genome(snakemake)
+if __name__ == "__main__":
+    concatenate_organelle_genome(snakemake)

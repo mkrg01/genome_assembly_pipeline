@@ -17,7 +17,7 @@ The exact set of directories depends on the target you run and on the configurat
 - `results/release/{genome_version}/organelle/` depends on `oatk_organelle` and `organelle_annotation`; genome FASTA files are populated from Oatk outputs, and annotation files are populated only for organelles with configured annotation tools.
 - `results/ont_reads/` is created only when `ont_reads` is set.
 - `results/hic_reads/`, `results/yahs/`, and `results/juicebox/` are created only when both `hic_reads_r1` and `hic_reads_r2` are set.
-- Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`mitochondrion`, `chloroplast`, or `mitochondrion_and_chloroplast`). Raw Oatk files still use Oatk's native `mito` and `pltd` suffixes.
+- Organellar outputs in `results/oatk/` depend on `oatk_organelle` (`["mitochondrion"]`, `["chloroplast"]`, or `["mitochondrion", "chloroplast"]`). Raw Oatk files still use Oatk's native `mito` and `pltd` suffixes.
 - Track-specific subdirectories in `results/circos_plot/` depend on `circos_plot_tracks`.
 
 ## Downstream Assembly Used by Later Steps

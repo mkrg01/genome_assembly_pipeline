@@ -65,7 +65,7 @@ The sections below follow the order of `config/config.yml`.
 | Parameter | Description | Example |
 | --- | --- | --- |
 | `oatk_lineage`          | Lineage of the Oatk HMM profile database. [Lineage list](https://github.com/c-zhou/OatkDB/blob/main/v20230921/TAXID) | `"magnoliopsida"` |
-| `oatk_organelle`        | Organelle to assemble. `{"mitochondrion", "chloroplast", "mitochondrion_and_chloroplast"}`. Legacy aliases `mito`, `pltd`, and `mito_and_pltd` are still accepted. | `"mitochondrion_and_chloroplast"` |
+| `oatk_organelle`        | One or more organelles to assemble, specified as a YAML list: `["mitochondrion"]`, `["chloroplast"]`, or `["mitochondrion", "chloroplast"]`. Order does not matter; empty lists, duplicate organelles, strings, and aliases are rejected. Defaults to both organelles if omitted. | `["mitochondrion", "chloroplast"]` |
 | `oatk_minimum_kmer_coverage`| Minimum kmer coverage used for Oatk. Use `"auto"` to estimate the value as 7 times the nuclear HiFi read coverage inferred from total HiFi read bases and the first selected hifiasm assembly length, or set a positive integer to override. The resolved value and metadata are written under `results/oatk/auto/`. [Instructions](https://github.com/c-zhou/oatk)  | `"auto"` |
 
 ### Contamination Screening
