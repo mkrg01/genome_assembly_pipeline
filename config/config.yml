@@ -1,5 +1,5 @@
 # Runtime
-pipeline_version: "v0.10.0" # Container image tag used by the entrypoint Snakefiles.
+pipeline_version: "v0.10.1" # Container image tag used by the entrypoint Snakefiles.
 organism_name: "Dioncophyllum_thollonii" # Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces.
 genome_version: "v1.0" # Version label for this genome release. Used for release directories and output file names.
 external_assembly: null # Required only with workflow/Snakefile.annotation. Use a FASTA path string such as "raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna".
@@ -46,6 +46,7 @@ orthodb_md5sum: "34c1f027a1a7b10f225b69fbd5500587" # MD5 checksum of the OrthoDB
 
 # Visualization
 min_long_contig_length: 1_000_000 # Minimum contig length to be considered a "long contig" for visualization (e.g., Circos plots).
+self_dotplot_min_alignment_length: 10_000 # Minimum coordinate span on each sequence in self-dotplots. Whole-genome overview setting; lower to inspect shorter repeats.
 circos_plot_tracks: # {"gene", "LTR", "Copia", "Gypsy", "LINE", "SINE", "DNA_transposon", "satellite", "tidk"} - configurations for circos plots
   - {id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}
   - {id: "LTR", label: "LTR", color: "#E39C37", window_size: 500_000}

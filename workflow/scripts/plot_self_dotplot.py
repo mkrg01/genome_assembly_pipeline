@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import json
 import os
 from pathlib import Path
 
@@ -17,16 +18,14 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter
 
-from plot_style import BASE_FONT_SIZE, SMALL_FONT_SIZE, apply_matplotlib_style
+from plot_style import BASE_FONT_SIZE, apply_matplotlib_style
 
 apply_matplotlib_style()
 
 
 MIN_ALIGNMENT_LENGTH = 10_000
-MIN_IDENTITY = 90.0
-DIAGONAL_TOLERANCE_BP = 1_000
-ALIGNMENT_COLOR = "#111111"
-BOUNDARY_COLOR = "#A8A8A8"
+ALIGNMENT_COLOR = "#222222"
+BOUNDARY_COLOR = "#CBCBCB"
 BOUNDARY_LINESTYLE = "dotted"
 
 
@@ -91,24 +90,23 @@ def is_main_diagonal(qname, tname, qstart, qend, tstart, tend, strand):
     return (
         strand == "+"
         and qname == tname
-        and abs(qstart - tstart) <= DIAGONAL_TOLERANCE_BP
-        and abs(qend - tend) <= DIAGONAL_TOLERANCE_BP
+        and qstart == tstart
+        and qend == tend
     )
 
 
-def parse_paf(paf_path, offsets):
-    forward_segments = []
-    reverse_segments = []
-    diagonal_segments = []
+def parse_paf(paf_path, offsets, min_alignment_length=MIN_ALIGNMENT_LENGTH):
+    segments = []
     total_records = 0
-    kept_records = 0
+    counts = dict.fromkeys(("short_span", "self_diagonal"), 0)
 
-    with paf_path.open() as handle:
+    with open_text(paf_path) as handle:
         for line_number, line in enumerate(handle, start=1):
             line = line.rstrip("\n")
             if not line:
                 continue
-            fields = line.split("\t")
+            # Keep optional tags together: CIGAR strings can be very large.
+            fields = line.split("\t", 12)
             if len(fields) < 12:
                 raise ValueError(f"Invalid PAF record at {paf_path}:{line_number}")
 
@@ -120,22 +118,23 @@ def parse_paf(paf_path, offsets):
             tname = fields[5]
             tstart = int(fields[7])
             tend = int(fields[8])
-            matches = int(fields[9])
-            alignment_length = int(fields[10])
-
-            if alignment_length < MIN_ALIGNMENT_LENGTH:
-                continue
-            if alignment_length == 0:
-                continue
-            identity = matches / alignment_length * 100
-            if identity < MIN_IDENTITY:
-                continue
             if qname not in offsets or tname not in offsets:
                 raise ValueError(
                     f"PAF record references a sequence not found in the FASTA: "
                     f"{qname} vs {tname}"
                 )
-
+            if strand not in ("+", "-"):
+                raise ValueError(f"Invalid strand in {paf_path}:{line_number}: {strand}")
+            if not (0 <= qstart < qend <= int(fields[1]) and 0 <= tstart < tend <= int(fields[6])):
+                raise ValueError(f"Invalid coordinates in {paf_path}:{line_number}")
+            # Use coordinate spans only. Mapping-only PAF block lengths and
+            # matching-base counts are approximate and do not define identity.
+            if min(qend - qstart, tend - tstart) < min_alignment_length:
+                counts["short_span"] += 1
+                continue
+            if is_main_diagonal(qname, tname, qstart, qend, tstart, tend, strand):
+                counts["self_diagonal"] += 1
+                continue
             q_abs_start = offsets[qname] + qstart
             q_abs_end = offsets[qname] + qend
             t_abs_start = offsets[tname] + tstart
@@ -143,29 +142,20 @@ def parse_paf(paf_path, offsets):
 
             if strand == "+":
                 segment = [(t_abs_start, q_abs_start), (t_abs_end, q_abs_end)]
-            elif strand == "-":
+            else:
                 segment = [(t_abs_end, q_abs_start), (t_abs_start, q_abs_end)]
-            else:
-                raise ValueError(f"Invalid strand in {paf_path}:{line_number}: {strand}")
 
-            if is_main_diagonal(qname, tname, qstart, qend, tstart, tend, strand):
-                diagonal_segments.append(segment)
-            elif strand == "+":
-                forward_segments.append(segment)
-            else:
-                reverse_segments.append(segment)
-            kept_records += 1
+            segments.append(segment)
 
     return {
-        "forward": forward_segments,
-        "reverse": reverse_segments,
-        "diagonal": diagonal_segments,
+        "segments": segments,
         "total_records": total_records,
-        "kept_records": kept_records,
+        "kept_records": len(segments),
+        "filtered_records": counts,
     }
 
 
-def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle="solid"):
+def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle="solid", capstyle="butt"):
     if not segments:
         return
     collection = LineCollection(
@@ -173,8 +163,9 @@ def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle
         colors=color,
         linewidths=linewidth,
         linestyles=linestyle,
+        capstyle=capstyle,
         alpha=alpha,
-        rasterized=True,
+        rasterized=False,
         zorder=zorder,
     )
     ax.add_collection(collection)
@@ -194,11 +185,12 @@ def format_mb(value, _position):
 
 
 def figure_size(contig_count):
-    return min(20.0, max(8.0, 7.0 + contig_count * 0.12))
+    # Keep a fixed publication width so additional contigs do not shrink text.
+    return 180 / 25.4
 
 
 def contig_label_fontsize(contig_count):
-    return max(SMALL_FONT_SIZE, min(BASE_FONT_SIZE, 10.0 - contig_count * 0.1))
+    return max(7.0, min(BASE_FONT_SIZE, 10.0 - contig_count * 0.1))
 
 
 def add_contig_label_axes(ax, contig_rows):
@@ -269,6 +261,7 @@ def plot_dotplot(
     paf_segments,
     output_pdf,
     axis_label,
+    min_alignment_length=MIN_ALIGNMENT_LENGTH,
 ):
     size = figure_size(len(contig_rows))
     fig, ax = plt.subplots(figsize=(size, size))
@@ -276,15 +269,20 @@ def plot_dotplot(
     if total_length == 0:
         ax.text(0.5, 0.5, "No long contigs", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
-        fig.savefig(output_pdf, dpi=300, bbox_inches="tight")
+        fig.savefig(output_pdf, dpi=600)
         plt.close(fig)
         return
 
     boundary_segments = build_boundary_segments(contig_rows, total_length)
-    add_line_collection(ax, boundary_segments, BOUNDARY_COLOR, 0.35, 0.82, 1, BOUNDARY_LINESTYLE)
-    add_line_collection(ax, paf_segments["diagonal"], ALIGNMENT_COLOR, 0.50, 0.70, 2)
-    add_line_collection(ax, paf_segments["forward"], ALIGNMENT_COLOR, 0.45, 0.58, 3)
-    add_line_collection(ax, paf_segments["reverse"], ALIGNMENT_COLOR, 0.45, 0.58, 3)
+    add_line_collection(ax, boundary_segments, BOUNDARY_COLOR, 0.25, 0.65, 1, BOUNDARY_LINESTYLE)
+    # Mark identical coordinates as a guide, separate from homology matches.
+    ax.plot(
+        [0, total_length], [0, total_length], color=BOUNDARY_COLOR,
+        linestyle="solid", linewidth=0.5, zorder=1,
+    )
+    # Flat caps make a sublinewidth match look perpendicular to its true
+    # direction. Round caps represent unresolved matches as dots instead.
+    add_line_collection(ax, paf_segments["segments"], ALIGNMENT_COLOR, 0.4, 1.0, 3, capstyle="round")
 
     if paf_segments["kept_records"] == 0:
         ax.text(
@@ -300,25 +298,26 @@ def plot_dotplot(
     ax.set_xlim(0, total_length)
     ax.set_ylim(0, total_length)
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel(axis_label)
-    ax.set_ylabel(axis_label)
+    ax.set_xlabel(axis_label, fontsize=9)
+    ax.set_ylabel(axis_label, fontsize=9)
     ax.xaxis.set_major_formatter(FuncFormatter(format_mb))
     ax.yaxis.set_major_formatter(FuncFormatter(format_mb))
     add_contig_label_axes(ax, contig_rows)
-    ax.tick_params(length=3, width=0.8)
+    ax.tick_params(length=3, width=0.8, labelsize=7)
     for spine in ax.spines.values():
         spine.set_linewidth(0.8)
     fig.tight_layout()
-    fig.savefig(output_pdf, dpi=300, bbox_inches="tight")
+    fig.savefig(output_pdf, dpi=600)
     plt.close(fig)
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Plot a minimap2 PAF self-alignment dot plot.")
     parser.add_argument("--fasta", type=Path, required=True, help="Long-contig FASTA.")
     parser.add_argument("--paf", type=Path, required=True, help="Self-alignment PAF from minimap2.")
     parser.add_argument("--pdf", type=Path, required=True, help="Output PDF path.")
     parser.add_argument("--contigs", type=Path, required=True, help="Output contig coordinate TSV path.")
+    parser.add_argument("--summary", type=Path, help="Optional output JSON with filtering counts.")
     parser.add_argument("--organism-name", required=True, help="Organism name used for axis labels.")
     parser.add_argument(
         "--min-long-contig-length",
@@ -326,7 +325,14 @@ def parse_args():
         default=None,
         help="Minimum contig length included in the plotted FASTA.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--min-alignment-length", type=int, default=MIN_ALIGNMENT_LENGTH,
+        help=f"Minimum coordinate span on each sequence in bp (default: {MIN_ALIGNMENT_LENGTH}).",
+    )
+    args = parser.parse_args(argv)
+    if args.min_alignment_length < 1:
+        parser.error("--min-alignment-length must be a positive integer")
+    return args
 
 
 def main():
@@ -334,18 +340,30 @@ def main():
     contigs = parse_fasta_lengths(args.fasta)
     offsets, contig_rows, total_length = build_contig_offsets(contigs)
     write_contig_table(contig_rows, args.contigs)
-    paf_segments = parse_paf(args.paf, offsets)
+    paf_segments = parse_paf(args.paf, offsets, args.min_alignment_length)
     plot_dotplot(
         contig_rows,
         total_length,
         paf_segments,
         args.pdf,
         genome_axis_label(args.organism_name, args.min_long_contig_length),
+        min_alignment_length=args.min_alignment_length,
     )
+    summary = {
+        "total_records": paf_segments["total_records"],
+        "plotted_records": paf_segments["kept_records"],
+        "filtered_records": paf_segments["filtered_records"],
+        "min_alignment_length": args.min_alignment_length,
+        "contigs": len(contigs),
+        "total_length": total_length,
+    }
+    if args.summary:
+        args.summary.write_text(json.dumps(summary, indent=2) + "\n")
     print(
         f"Plotted {paf_segments['kept_records']} of {paf_segments['total_records']} "
-        f"PAF records with length >= {MIN_ALIGNMENT_LENGTH} bp and identity >= {MIN_IDENTITY:.1f}%."
+        f"PAF records with spans >= {args.min_alignment_length} bp on each sequence."
     )
+    print(json.dumps(summary, sort_keys=True))
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.0"` |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.1"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
@@ -141,12 +141,25 @@ When migrating from BRAKER3, archive previous QC and release files if needed; do
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `min_long_contig_length` | Minimum contig length to be considered a "long contig" for downstream visualization such as Circos plots and self-alignment dot plots. | `1_000_000` |
+| `min_long_contig_length` | Minimum contig length (bp) included in Circos plots and self-dotplots. | `1_000_000` |
+| `self_dotplot_min_alignment_length` | Minimum match span on each sequence (bp) shown in self-dotplots. Default: 10 kb. | `10_000` |
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
-Self-alignment dot plots include long contigs selected by `min_long_contig_length`, show that contig-length cutoff in the axis labels, and draw minimap2 PAF alignments with length >= 10 kb and identity >= 90%.
+Self-dotplots show matching regions within and between contigs, ordered by contig length. Dark gray lines show matches; their slope indicates orientation when resolved at the plotted scale. Dotted lines mark contig boundaries; the light gray solid diagonal marks identical coordinates. All plotted contigs are labelled, even when names overlap.
+
+Mapping uses minimap2 `-DP -k19 -w19 -m200` ([official recipe](https://github.com/lh3/minimap2/blob/v2.30/cookbook.md#hom-map)). Matches are filtered by their span on each sequence, without an identity filter. Lower `self_dotplot_min_alignment_length` to show shorter matches.
+
+To redraw with a 25 kb cutoff, using an existing FASTA and PAF (replace the example output path):
+
+```bash
+snakemake -s workflow/Snakefile --cores 8 \
+  --allowed-rules plot_self_dotplot \
+  --forcerun plot_self_dotplot \
+  --config self_dotplot_min_alignment_length=25000 \
+  -- results/Plumbago_auriculata_v1/dotplot/primary/Plumbago_auriculata_self_dotplot.pdf
+```
 
 Linear plot count labels show each track's input window size. Coverage tracks use the largest window in the input, and telomeric-repeat tracks use the TIDK interval; terminal windows may be shorter.
 
