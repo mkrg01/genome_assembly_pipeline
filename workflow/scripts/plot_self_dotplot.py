@@ -23,7 +23,7 @@ from plot_style import BASE_FONT_SIZE, apply_matplotlib_style
 apply_matplotlib_style()
 
 
-MIN_ALIGNMENT_LENGTH = 10_000
+MIN_ALIGNMENT_LENGTH = 100_000
 ALIGNMENT_COLOR = "#222222"
 BOUNDARY_COLOR = "#CBCBCB"
 BOUNDARY_LINESTYLE = "dotted"

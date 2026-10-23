@@ -42,7 +42,7 @@ class SelfDotplotTests(unittest.TestCase):
         ]))
 
     def parse(self):
-        return self.plot.parse_paf(self.paf, self.offsets)
+        return self.plot.parse_paf(self.paf, self.offsets, min_alignment_length=10_000)
 
     def render(self, segments, name):
         from matplotlib.figure import Figure
@@ -189,7 +189,10 @@ class SelfDotplotTests(unittest.TestCase):
         compressed = self.root / "self.paf.gz"
         with gzip.open(compressed, "wt") as handle:
             handle.write(self.paf.read_text())
-        self.assertEqual(self.plot.parse_paf(compressed, self.offsets), self.parse())
+        self.assertEqual(
+            self.plot.parse_paf(compressed, self.offsets, min_alignment_length=10_000),
+            self.parse(),
+        )
 
     def test_invalid_paf_records_are_rejected(self):
         unknown = self.record(qname="absent")
@@ -202,7 +205,10 @@ class SelfDotplotTests(unittest.TestCase):
     def test_cli_writes_monochrome_pdf_and_span_summary_for_untagged_paf(self):
         fasta = self.root / "assembly.fa"
         fasta.write_text(">ctg1\n" + "A" * 200_000 + "\n>ctg2\n" + "C" * 200_000 + "\n")
-        self.paf.write_text(self.record(matches=0) + "\n")
+        self.paf.write_text("\n".join([
+            self.record(length=99_999, matches=0),
+            self.record(length=100_000, matches=0),
+        ]) + "\n")
         pdf, contigs, summary = (self.root / name for name in ("out.pdf", "out.tsv", "out.json"))
         result = subprocess.run([
             sys.executable, str(SCRIPTS_DIR / "plot_self_dotplot.py"),
@@ -214,7 +220,9 @@ class SelfDotplotTests(unittest.TestCase):
         self.assertIn("ctg2\t200000\t200000\t400000", contigs.read_text())
         data = json.loads(summary.read_text())
         self.assertEqual(data["plotted_records"], 1)
-        self.assertEqual(data["min_alignment_length"], 10_000)
+        self.assertEqual(data["min_alignment_length"], 100_000)
+        self.assertEqual(data["total_records"], 2)
+        self.assertEqual(data["filtered_records"]["short_span"], 1)
         self.assertEqual(set(data["filtered_records"]), {"short_span", "self_diagonal"})
 
     def test_invalid_span_arguments_fail_before_plotting(self):

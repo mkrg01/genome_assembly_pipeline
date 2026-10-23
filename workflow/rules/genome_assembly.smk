@@ -1489,7 +1489,7 @@ rule plot_self_dotplot:
         "../envs/pybase.yml"
     params:
         min_long_contig_length = config["min_long_contig_length"],
-        min_alignment_length = config.get("self_dotplot_min_alignment_length", 10_000)
+        min_alignment_length = config.get("self_dotplot_min_alignment_length", 100_000)
     shell:
         """
         (
