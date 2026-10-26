@@ -236,6 +236,80 @@ class SelfDotplotTests(unittest.TestCase):
                     self.plot.parse_args([*args, "--min-alignment-length", value])
                 self.assertEqual(caught.exception.code, 2)
 
+    def test_ordered_label_packing_moves_only_collisions_and_respects_edges(self):
+        pack = self.plot.pack_label_positions
+        self.assertEqual(pack([2, 8, 14], 4, 0, 20), [2, 8, 14])
+        self.assertEqual(pack([10, 11, 12], 4, 0, 20), [7, 11, 15])
+        self.assertEqual(pack([19, 19.5, 20], 4, 0, 20), [12, 16, 20])
+        with self.assertRaises(ValueError):
+            pack([1, 2, 3], 4, 0, 7)
+
+    def test_crowded_labels_keep_names_midpoints_and_clear_leaders(self):
+        from matplotlib.path import Path as MplPath
+
+        for count in (15, 25, 53):
+            with self.subTest(count=count):
+                lengths = [100_000_000] * (count // 2) + [1_000_000] * (count - count // 2)
+                names = [f"ptg{index:06d}l" for index in range(count)]
+                self.offsets, self.rows, self.total = self.plot.build_contig_offsets(list(zip(names, lengths)))
+                figure = self.render({"segments": [], "kept_records": 0}, f"labels_{count}")
+                axis = figure.axes[0]
+                texts = [text for text in axis.texts if (text.get_gid() or "").startswith("contig-label-")]
+                self.assertEqual(sorted(text.get_text() for text in texts), sorted(names * 2))
+                self.assertEqual({text.get_fontsize() for text in texts}, {7})
+                first_top = next(text for text in texts if text.get_gid() == "contig-label-top-0")
+                self.assertAlmostEqual(first_top.get_position()[0], lengths[0] / (2 * self.total))
+                boxes = [text.get_window_extent(figure.canvas.get_renderer()) for text in texts]
+                for index, box in enumerate(boxes):
+                    self.assertGreaterEqual(box.x0, 0)
+                    self.assertGreaterEqual(box.y0, 0)
+                    self.assertLessEqual(box.x1, figure.bbox.width)
+                    self.assertLessEqual(box.y1, figure.bbox.height)
+                    self.assertFalse(any(box.overlaps(other) for other in boxes[index + 1:]))
+                ticks = next(c for c in axis.collections if c.get_gid() == "contig-label-ticks")
+                for row, top, right in zip(self.rows, ticks.get_segments()[::2], ticks.get_segments()[1::2]):
+                    midpoint = (row[2] + row[3]) / (2 * self.total)
+                    self.assertEqual(top[0].tolist(), [midpoint, 1])
+                    self.assertEqual(right[0].tolist(), [1, midpoint])
+                leaders = next(c for c in axis.collections if c.get_gid() == "contig-label-leaders")
+                self.assertGreater(len(leaders.get_segments()), 0)
+                for line in leaders.get_segments():
+                    path = MplPath(axis.transAxes.transform(line))
+                    self.assertFalse(any(path.intersects_bbox(box, filled=False) for box in boxes))
+
+    def test_unreadable_label_density_fails_without_writing_a_pdf(self):
+        self.offsets, self.rows, self.total = self.plot.build_contig_offsets(
+            [(f"ptg{index:06d}l", 1_000_000) for index in range(200)]
+        )
+        output = self.root / "too_many_labels.pdf"
+        with self.assertRaisesRegex(ValueError, "cannot fit"):
+            self.plot.plot_dotplot(self.rows, self.total, {"segments": [], "kept_records": 0}, output, "Genome (Mb)")
+        self.assertFalse(output.exists())
+
+    def test_pdf_font_line_height_is_reserved_between_crowded_labels(self):
+        from matplotlib.transforms import Bbox
+
+        self.offsets, self.rows, self.total = self.plot.build_contig_offsets(
+            [(f"ptg{index:06d}l", length) for index, length in enumerate([100_000_000] * 26 + [1_000_000] * 27)]
+        )
+        with self.plot.plt.rc_context({"font.family": "DejaVu Sans"}):
+            figure = self.render({"segments": [], "kept_records": 0}, "pdf_line_height")
+        # Poppler reports a 7 pt DejaVu Sans line box of approximately 8.16 pt,
+        # larger than Agg's glyph bounds. Check the saved layout at that size.
+        boxes = []
+        for text in figure.axes[0].texts:
+            gid = text.get_gid() or ""
+            if not gid.startswith("contig-label-"):
+                continue
+            box = text.get_window_extent(figure.canvas.get_renderer())
+            line_height = 8.16 * figure.dpi / 72
+            if "-top-" in gid:
+                box = Bbox.from_bounds((box.x0 + box.x1 - line_height) / 2, box.y0, line_height, box.height)
+            else:
+                box = Bbox.from_bounds(box.x0, (box.y0 + box.y1 - line_height) / 2, box.width, line_height)
+            self.assertFalse(any(box.overlaps(other) for other in boxes))
+            boxes.append(box)
+
 
 if __name__ == "__main__":
     unittest.main()

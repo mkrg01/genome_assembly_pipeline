@@ -15,10 +15,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter
 
-from plot_style import BASE_FONT_SIZE, apply_matplotlib_style
+from plot_style import apply_matplotlib_style
 
 apply_matplotlib_style()
 
@@ -27,6 +28,10 @@ MIN_ALIGNMENT_LENGTH = 100_000
 ALIGNMENT_COLOR = "#222222"
 BOUNDARY_COLOR = "#CBCBCB"
 BOUNDARY_LINESTYLE = "dotted"
+CONTIG_LABEL_SIZE = 7.0
+LABEL_GAP_PT = 0.75
+LABEL_LEADER_PT = 12.0
+LABEL_COLUMN_GAP_PT = 4.0
 
 
 def open_text(path):
@@ -190,35 +195,139 @@ def figure_size(contig_count):
 
 
 def contig_label_fontsize(contig_count):
-    return max(7.0, min(BASE_FONT_SIZE, 10.0 - contig_count * 0.1))
+    return CONTIG_LABEL_SIZE
+
+
+def pack_label_positions(desired, spacing, lower, upper):
+    """Least-squares ordered placement with prescribed gaps and bounded centers."""
+    if not desired:
+        return []
+    gaps = [spacing] * (len(desired) - 1) if isinstance(spacing, (int, float)) else list(spacing)
+    if len(gaps) != len(desired) - 1 or any(gap <= 0 for gap in gaps) or any(a > b for a, b in zip(desired, desired[1:])):
+        raise ValueError("Label positions must be ordered and spacing must be positive")
+    offsets = [0]
+    for gap in gaps:
+        offsets.append(offsets[-1] + gap)
+    ceiling = upper - offsets[-1]
+    if ceiling < lower - 1e-9:
+        raise ValueError("Insufficient space for contig labels")
+    ceiling = max(lower, ceiling)
+    # Subtract the required gaps, then use pooled adjacent violators to find
+    # the closest nondecreasing sequence. No random repulsion or name thinning.
+    blocks = []
+    for index, position in enumerate(desired):
+        blocks.append((position - offsets[index], 1))
+        while len(blocks) > 1:
+            left, right = blocks[-2:]
+            if left[0] / left[1] <= right[0] / right[1]:
+                break
+            blocks[-2:] = [(left[0] + right[0], left[1] + right[1])]
+    fitted = []
+    for total, count in blocks:
+        fitted.extend([min(ceiling, max(lower, total / count))] * count)
+    return [position + offset for position, offset in zip(fitted, offsets)]
 
 
 def add_contig_label_axes(ax, contig_rows):
+    """Place literal names outside the plot, with ordered leaders when needed."""
     if not contig_rows:
         return
-
-    midpoints = [(start + end) / 2 for name, length, start, end in contig_rows]
+    fig = ax.figure
     labels = [name for name, length, start, end in contig_rows]
     fontsize = contig_label_fontsize(len(contig_rows))
+    fig.tight_layout(pad=0.8)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    points_per_pixel = 72 / fig.dpi
+    probes = [fig.text(0, 0, name, fontsize=fontsize, parse_math=False) for name in labels]
+    boxes = [text.get_window_extent(renderer) for text in probes]
+    text_width = max(box.width for box in boxes) * points_per_pixel
+    text_height = max(box.height for box in boxes) * points_per_pixel
+    # PDF text can occupy the full font ascent/descent beyond Agg's glyph box.
+    font = font_manager.get_font(font_manager.findfont(probes[0].get_fontproperties()))
+    text_height = max(text_height, fontsize * (font.ascender - font.descender) / font.units_per_EM + 0.1)
+    for text in probes:
+        text.remove()
 
-    top_axis = ax.secondary_xaxis("top")
-    top_axis.set_xticks(midpoints)
-    top_axis.set_xticklabels(
-        labels,
-        rotation=90,
-        fontsize=fontsize,
-        ha="left",
-        va="center",
-        rotation_mode="anchor",
-    )
-    top_axis.tick_params(length=2, pad=3)
-    top_axis.set_xlabel("")
+    width, height = fig.get_size_inches() * 72
+    left, bottom = ax.bbox.x0 * points_per_pixel, ax.bbox.y0 * points_per_pixel
+    total_length = contig_rows[-1][3]
+    midpoints = [(start + end) / (2 * total_length) for _, _, start, end in contig_rows]
+    candidates = []
+    for lanes in (1, 2):
+        margin = LABEL_LEADER_PT + 3 + lanes * text_width + (lanes - 1) * LABEL_COLUMN_GAP_PT + 4
+        side = min(width - left - margin, height - bottom - margin)
+        if side < 100 / 25.4 * 72:
+            continue
+        desired = [midpoint * side for midpoint in midpoints]
+        pitch = text_height + LABEL_GAP_PT
+        lane_indices = [0] * len(labels)
+        if lanes == 2:
+            crowded = [False] * len(labels)
+            for index in range(1, len(labels)):
+                if desired[index] - desired[index - 1] < pitch:
+                    crowded[index - 1] = crowded[index] = True
+            run = 0
+            for index, collision in enumerate(crowded):
+                lane_indices[index] = run % 2 if collision else 0
+                run = run + 1 if collision else 0
+        gaps = [pitch if a == b else pitch / 2 for a, b in zip(lane_indices, lane_indices[1:])]
+        try:
+            positions = pack_label_positions(
+                desired, gaps,
+                text_height / 2,
+                side - text_height / 2,
+            )
+        except ValueError:
+            continue
+        shift = max(abs(position - target) for position, target in zip(positions, desired))
+        candidates.append((shift, side, positions, lane_indices))
+        if shift <= 30:
+            break
+    if not candidates:
+        raise ValueError(
+            "All contig labels cannot fit at 7 pt in the fixed-width figure. "
+            "Increase the figure dimensions; no names have been omitted."
+        )
+    _, side, positions, lane_indices = min(candidates, key=lambda candidate: candidate[0])
+    ax.set_position([left / width, bottom / height, side / width, side / height])
 
-    right_axis = ax.secondary_yaxis("right")
-    right_axis.set_yticks(midpoints)
-    right_axis.set_yticklabels(labels, fontsize=fontsize)
-    right_axis.tick_params(length=2, pad=3)
-    right_axis.set_ylabel("")
+    ticks, leaders = [], []
+    for index, (name, midpoint, position) in enumerate(zip(labels, midpoints, positions)):
+        # Interleaved ports keep outer leaders in the gaps between inner labels.
+        lane = lane_indices[index]
+        center = position / side
+        offset = LABEL_LEADER_PT + 3 + lane * (text_width + LABEL_COLUMN_GAP_PT)
+        for edge in ("top", "right"):
+            if edge == "top":
+                xy = (center, 1 + offset / side)
+                tick = [(midpoint, 1), (midpoint, 1 + 2 / side)]
+                leader = [tick[-1], (center, 1 + (LABEL_LEADER_PT - 2) / side),
+                          (center, 1 + (offset - 1.5) / side)]
+            else:
+                xy = (1 + offset / side, center)
+                tick = [(1, midpoint), (1 + 2 / side, midpoint)]
+                leader = [tick[-1], (1 + (LABEL_LEADER_PT - 2) / side, center),
+                          (1 + (offset - 1.5) / side, center)]
+            text = ax.text(
+                *xy, name, transform=ax.transAxes, fontsize=fontsize,
+                ha="left", va="center", rotation=90 if edge == "top" else 0,
+                rotation_mode="anchor", clip_on=False, parse_math=False,
+            )
+            text.set_gid(f"contig-label-{edge}-{index}")
+            ticks.append(tick)
+            if lane or abs(position - midpoint * side) > 0.25:
+                leaders.append(leader)
+    for segments, color, linewidth, gid in (
+        (ticks, "black", 0.6, "contig-label-ticks"),
+        (leaders, "#777777", 0.35, "contig-label-leaders"),
+    ):
+        collection = LineCollection(
+            segments, colors=color, linewidths=linewidth, transform=ax.transAxes,
+            clip_on=False, zorder=4,
+        )
+        collection.set_gid(gid)
+        ax.add_collection(collection)
 
 
 def escape_mathtext(text):
@@ -264,7 +373,7 @@ def plot_dotplot(
     min_alignment_length=MIN_ALIGNMENT_LENGTH,
 ):
     size = figure_size(len(contig_rows))
-    fig, ax = plt.subplots(figsize=(size, size))
+    fig, ax = plt.subplots(figsize=(size, size), dpi=144)
 
     if total_length == 0:
         ax.text(0.5, 0.5, "No long contigs", ha="center", va="center", transform=ax.transAxes)
@@ -302,13 +411,14 @@ def plot_dotplot(
     ax.set_ylabel(axis_label, fontsize=9)
     ax.xaxis.set_major_formatter(FuncFormatter(format_mb))
     ax.yaxis.set_major_formatter(FuncFormatter(format_mb))
-    add_contig_label_axes(ax, contig_rows)
     ax.tick_params(length=3, width=0.8, labelsize=7)
     for spine in ax.spines.values():
         spine.set_linewidth(0.8)
-    fig.tight_layout()
-    fig.savefig(output_pdf, dpi=600)
-    plt.close(fig)
+    try:
+        add_contig_label_axes(ax, contig_rows)
+        fig.savefig(output_pdf, dpi=600)
+    finally:
+        plt.close(fig)
 
 
 def parse_args(argv=None):

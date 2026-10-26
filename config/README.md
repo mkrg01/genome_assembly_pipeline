@@ -45,7 +45,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.2"` |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.3"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
@@ -147,7 +147,7 @@ When migrating from BRAKER3, archive previous QC and release files if needed; do
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
-Self-dotplots show matching regions within and between contigs, ordered by contig length. Dark gray lines show matches; their slope indicates orientation when resolved at the plotted scale. Dotted lines mark contig boundaries; the light gray solid diagonal marks identical coordinates. All plotted contigs are labelled, even when names overlap.
+Self-dotplots show matching regions within and between contigs, ordered by contig length. Dark gray lines show matches; their slope indicates orientation when resolved at the plotted scale. Dotted lines mark contig boundaries; the light gray solid diagonal marks identical coordinates. All contig names appear on both axes at 7 pt. Crowded labels move in order and use gray leader lines to their contig midpoints; a second row/column is added when needed. Genomic coordinates are unchanged. If names cannot fit within the 180 mm figure while keeping a readable plot, rendering stops rather than omitting labels.
 
 Mapping uses minimap2 `-DP -k19 -w19 -m200` ([official recipe](https://github.com/lh3/minimap2/blob/v2.30/cookbook.md#hom-map)). Matches are filtered by their span on each sequence, without an identity filter. Lower `self_dotplot_min_alignment_length` to show shorter matches.
 
