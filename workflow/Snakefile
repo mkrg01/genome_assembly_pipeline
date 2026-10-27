@@ -8,9 +8,11 @@ include: "rules/organelle_annotation.smk"
 include: "rules/softmask.smk"
 include: "rules/gene_prediction.smk"
 include: "rules/circos_plot.smk"
+include: "rules/gene_synteny.smk"
 
 rule all:
     input:
+        *gene_synteny_all_inputs(assembly_name),
         *circos_plot_all_inputs(assembly_name, genome_version),
         *organelle_annotation_all_inputs(assembly_name, genome_version)
 
@@ -57,3 +59,8 @@ rule circos_plot_all:
 rule organelle_annotation_all:
     input:
         *organelle_annotation_all_inputs(assembly_name, genome_version)
+
+
+rule gene_synteny_all:
+    input:
+        *gene_synteny_all_inputs(assembly_name)

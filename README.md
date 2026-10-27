@@ -59,8 +59,9 @@ The output will be generated in the [`results` directory](docs/output_directory_
 > 7. `renamed_all`: Runs rules up to assembly renaming by decreasing sequence length and its associated metrics.
 > 8. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
 > 9. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
-> 10. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
-> 11. `organelle_annotation_all`: Runs rules up to organelle annotation, circular maps, and organelle release files.
+> 10. `gene_synteny_all`: Builds annotation-based self-synteny blocks and gene-order/Mb plots for each selected assembly.
+> 11. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
+> 12. `organelle_annotation_all`: Runs rules up to organelle annotation, circular maps, and organelle release files.
 > 
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 

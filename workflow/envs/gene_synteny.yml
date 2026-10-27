@@ -1,0 +1,9 @@
+name: gene_synteny
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - diamond=2.2.6
+  - mcscanx=1.0.0
+  - matplotlib-base=3.10

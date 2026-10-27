@@ -1332,3 +1332,17 @@ def circos_plot_input_path(wildcards):
             f"results/circos_plot/tidk_repeat/{selected_assembly}/{assembly_name}_windows_tidk.tsv"
         )
     return input_dict
+
+
+def gene_synteny_all_inputs(assembly_name):
+    return expand_selected_assembly_paths(
+        'results/gene_synteny/{selected_assembly}/{assembly_name}/plots/{mode}.pdf',
+        assembly_name, mode=['gene_order', 'mb'],
+    ) + expand_selected_assembly_paths(
+        'results/gene_synteny/{selected_assembly}/{assembly_name}/{asset}',
+        assembly_name,
+        asset=['prepared/genes.tsv', 'prepared/inputs.json', 'diamond/hits.tsv',
+               'diamond/search.json', 'blocks/data.collinearity', 'blocks/summary.json',
+               'blocks/anchors.tsv', 'blocks/blocks.tsv', 'blocks/anchors.bedpe',
+               'plots/contigs.tsv', 'plots/plot.json'],
+    )

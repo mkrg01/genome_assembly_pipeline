@@ -45,7 +45,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.10.3"` |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.11.0"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
@@ -141,7 +141,7 @@ When migrating from BRAKER3, archive previous QC and release files if needed; do
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `min_long_contig_length` | Minimum contig length (bp) included in Circos plots and self-dotplots. | `1_000_000` |
+| `min_long_contig_length` | Minimum contig length (bp) included in Circos, DNA self-dotplots, and gene-synteny plots (display only). | `1_000_000` |
 | `self_dotplot_min_alignment_length` | Minimum match span on each sequence (bp) shown in self-dotplots. Default: 100 kb for the whole-genome overview. | `100_000` |
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
@@ -162,6 +162,25 @@ snakemake -s workflow/Snakefile --cores 8 \
 ```
 
 Linear plot count labels show each track's input window size. Coverage tracks use the largest window in the input, and telomeric-repeat tracks use the TIDK interval; terminal windows may be shorter.
+
+### Annotation-based Self-synteny
+
+`gene_synteny_all` uses the longest-CDS representative proteins and GFF3 immediately after gene prediction. It does not wait for BUSCO, OMArk, or release formatting. Both entrypoints include it in `all`; `circos_plot_all` remains independent. Each selected assembly is compared only with itself.
+
+```bash
+snakemake --sdm conda apptainer --cores 16 gene_synteny_all
+# For an external assembly, also add: -s workflow/Snakefile.annotation
+```
+
+DIAMOND 2.2.6 (`--ultra-sensitive`, all targets, one HSP per pair) searches all representative proteins. Exact self-gene hits are removed before keeping the best nonself hits per query; the reciprocal union is passed to MCScanX 1.0.0. Identical proteins from different genes are retained. Neither reciprocal-best-hit filtering nor an assumed copy number is imposed. These rules use a pinned host Conda environment, including when the rest of the workflow runs in Apptainer; no separate BLAST+ or JCVI installation is used.
+
+The stage uses internal settings: DIAMOND E-value <= 1e-10, minimum HSP coordinate span / protein length of 30% on both proteins, and the best 20 nonself targets per query before reciprocal union. These settings are not exposed in config; their values are recorded in `diamond/search.json` and `blocks/summary.json`.
+
+MCScanX uses its native defaults: minimum anchor setting 5, maximum gaps 25, block E-value 1e-5, and overlap window 5. These are not exposed in config. The nonself top-N filter limits large gene-family hit sets before block detection; MCScanX documentation recommends restricting homology candidates. The pipeline retains 20 per query to keep a broader set of possible duplicated counterparts, but this is not a ploidy setting.
+
+The two PDFs show the same unique anchor pairs twice, mirrored across the diagonal. Black/blue points denote forward/reverse MCScanX blocks; purple denotes a pair assigned to both directions. Gene-order axes give all representative genes equal spacing; Mb axes use gene midpoints and actual contig lengths. Both order contigs by decreasing DNA length and preserve their names with the existing label layout. A contig with no representative genes occupies one empty slot in gene-order coordinates. `min_long_contig_length` filters only the displayed contigs; `self_dotplot_min_alignment_length` does not apply. No detected blocks is a valid result with an explanatory plot. Block coverage is not nucleotide alignment coverage or an automatic ploidy estimate.
+
+Outputs are under `results/gene_synteny/<selected_assembly>/<assembly_name>/`: original DIAMOND hits, MCScanX input and `.collinearity`, normalized `genes.tsv`, `anchors.tsv`, `blocks.tsv`, standard 10-column `anchors.bedpe`, summary/provenance JSON, and `plots/gene_order.pdf` plus `plots/mb.pdf`. Normalized coordinates are zero-based, half-open; original MCScanX coordinates are one-based, inclusive. BEDPE strand columns describe individual gene strands; block orientation is in the normalized TSV. The summary counts blocks, unique anchor pairs, and genes participating in blocks. Safe internal tool IDs map back to original gene/protein/contig IDs in `prepared/genes.tsv`.
 
 ### Organelle Annotation
 

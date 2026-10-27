@@ -238,6 +238,17 @@ Equal-length isoforms are resolved by their order in the CDS FASTA.
 - `seqkit/{selected_assembly}/`
   SeqKit statistics for the representative protein set.
 
+## `results/gene_synteny/`
+
+Annotation-based self-synteny, separately for each `{selected_assembly}/{assembly_name}/`.
+
+- `prepared/`: representative `proteins.fa`, normalized `genes.tsv` with original IDs and zero-based half-open gene coordinates, MCScanX `data.gff`, and input/contig metadata.
+- `diamond/`: raw 14-column `hits.tsv` (BLAST m8 fields plus query/subject lengths) and search command/version metadata.
+- `blocks/`: filtered `data.blast`, original `data.gff`/`data.collinearity`, normalized `anchors.tsv`/`blocks.tsv`, 10-column `anchors.bedpe` (gene strands), and `summary.json` with parameters and analysis counts.
+- `plots/`: `gene_order.pdf` and `mb.pdf` show the same anchors in gene-rank and physical coordinates; `contigs.tsv` and `plot.json` record display filtering and plotted counts.
+
+No-block results retain headers and explanatory PDFs. Contig-length filtering affects only plots; analysis uses all representative genes.
+
 ## `results/oatk/`
 
 Organelle assembly outputs generated from HiFi reads.
