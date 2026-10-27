@@ -29,10 +29,7 @@ def draw(genes, anchors, contigs, mode, organism_name, min_length, output):
     fig, ax = plt.subplots(figsize=(180 / 25.4, 180 / 25.4), dpi=144)
     selected = [r for r in anchors if r['gene_a'] in points and r['gene_b'] in points]
     # Count an unordered gene pair once, even if it belongs to overlapping blocks.
-    plotted = {}
-    for row in selected:
-        key = tuple(sorted((row['gene_a'], row['gene_b'])))
-        plotted.setdefault(key, set()).add(row['orientation'])
+    plotted = sorted({tuple(sorted((row['gene_a'], row['gene_b']))) for row in selected})
     try:
         if not rows:
             ax.text(0.5, 0.5, 'No contigs passed the length filter', ha='center', va='center', transform=ax.transAxes)
@@ -40,17 +37,12 @@ def draw(genes, anchors, contigs, mode, organism_name, min_length, output):
         else:
             add_line_collection(ax, build_boundary_segments(rows, total), '#CBCBCB', 0.25, 0.65, 1, 'dotted')
             ax.plot([0, total], [0, total], color='#CBCBCB', linewidth=0.5, zorder=1)
-            # Orientation is the MCScanX block direction, not the strand of an individual gene.
-            for orientation, color, label in [('+', '#222222', 'Forward block'), ('-', '#2674AD', 'Reverse block'), ('mixed', '#9769A8', 'Both block directions')]:
-                pairs = [p for p, directions in plotted.items() if (orientation == 'mixed' and len(directions) > 1) or directions == {orientation}]
-                if pairs:
-                    x = [points[a] for a, b in pairs] + [points[b] for a, b in pairs]
-                    y = [points[b] for a, b in pairs] + [points[a] for a, b in pairs]
-                    ax.scatter(x, y, s=1.5, c=color, linewidths=0, label=label, zorder=3)
-            if not plotted:
-                ax.text(0.5, 0.5, 'No collinear anchors on the displayed contigs', ha='center', va='center', transform=ax.transAxes, color='#555555')
+            if plotted:
+                x = [points[a] for a, b in plotted] + [points[b] for a, b in plotted]
+                y = [points[b] for a, b in plotted] + [points[a] for a, b in plotted]
+                ax.scatter(x, y, s=1.5, c='#000000', linewidths=0, zorder=3)
             else:
-                ax.legend(loc='upper left', markerscale=3, fontsize=7)
+                ax.text(0.5, 0.5, 'No collinear anchors on the displayed contigs', ha='center', va='center', transform=ax.transAxes, color='#555555')
             unit = 'Mb' if mode == 'mb' else 'gene order'
             label = genome_axis_label(organism_name, min_length).replace('genome (Mb', f'genome ({unit}')
             ax.set(xlim=(0, total), ylim=(0, total), xlabel=label, ylabel=label)
