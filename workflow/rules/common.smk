@@ -844,6 +844,16 @@ def organelle_reference_cds_qc_reference_dir_arg(organelle):
     return f"--reference-dir {shlex.quote(reference_dir)}"
 
 
+def organelle_feature_inventory_reference_inputs(organelle):
+    reference_dir = organelle_reference_cds_qc_reference_dir(organelle)
+    if reference_dir is None:
+        return []
+    return sorted(
+        path for path in glob.glob(os.path.join(reference_dir, "*"))
+        if os.path.isfile(path) and os.path.splitext(path)[1].lower() in {".gb", ".gbk", ".gbff"}
+    )
+
+
 def configured_organelle_annotation_tool(organelle):
     organelle = normalize_organelle_name("organelle_annotation", organelle)
     return organelle_annotation_tools.get(organelle)
@@ -890,6 +900,11 @@ def organelle_annotation_output_paths(assembly_name, organelle):
     paths = {
         "annotation": f"{prefix}/{assembly_name}.{organelle}.gbk",
         "manifest": f"{prefix}/{assembly_name}.{organelle}.manifest.json",
+        "feature_inventory": f"{prefix}/{assembly_name}.{organelle}.feature_inventory.tsv",
+        "duplicate_features": f"{prefix}/{assembly_name}.{organelle}.duplicate_features.tsv",
+        "feature_inventory_summary": f"{prefix}/{assembly_name}.{organelle}.feature_inventory.json",
+        "validation": f"{prefix}/{assembly_name}.{organelle}.validation.json",
+        "validation_issues": f"{prefix}/{assembly_name}.{organelle}.validation.tsv",
     }
     if (organelle == "chloroplast" and tool == "pga_v2") or (
         organelle == "mitochondrion" and tool == "pmga"
@@ -1031,6 +1046,16 @@ def organelle_annotation_genome_input_for_downstream(assembly_name, organelle):
         "genome",
         organelle_prefixed_genome_path(assembly_name, organelle),
     )
+
+
+def organelle_annotation_validation_decisions(assembly_name, organelle):
+    paths = organelle_annotation_output_paths(assembly_name, organelle)
+    return [paths["rna_editing_decisions"]] if "rna_editing_decisions" in paths else []
+
+
+def organelle_annotation_validation_decisions_arg(assembly_name, organelle):
+    paths = organelle_annotation_validation_decisions(assembly_name, organelle)
+    return f"--decisions {shlex.quote(paths[0])}" if paths else ""
 
 
 def organelle_visualization_output_paths(assembly_name, organelle):

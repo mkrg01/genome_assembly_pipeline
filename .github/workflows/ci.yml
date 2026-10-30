@@ -21,7 +21,7 @@ jobs:
       - name: Install Snakemake
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "snakemake>=9,<10"
+          python -m pip install "snakemake>=9,<10" biopython
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -p "test_*.py" -v

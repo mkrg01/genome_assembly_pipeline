@@ -22,6 +22,37 @@ def load_common_rules(**overrides):
 
 
 class OatkOrganelleConfigTest(unittest.TestCase):
+    def test_validation_targets_track_rna_editing_decisions(self):
+        for organelle, tool in (("mitochondrion", "pmga"), ("chloroplast", "pga_v2")):
+            rules = load_common_rules(organelle_annotation={organelle: tool})
+            paths = rules["organelle_annotation_output_paths"]("Testus_example", organelle)
+            self.assertIn(paths["validation"], rules["organelle_annotation_all_inputs"]("Testus_example", "v1"))
+            dependencies = rules["organelle_annotation_validation_decisions"]("Testus_example", organelle)
+            self.assertEqual(dependencies, [paths["rna_editing_decisions"]])
+            argument = rules["organelle_annotation_validation_decisions_arg"]("Testus_example", organelle)
+            self.assertTrue(argument.startswith("--decisions "))
+
+    def test_inventory_reports_are_targets_even_without_reference_cds_qc(self):
+        rules = load_common_rules(organelle_annotation={"mitochondrion": "pmga"})
+        paths = rules["organelle_annotation_output_paths"]("Testus_example", "mitochondrion")
+        self.assertTrue(paths["feature_inventory"].endswith(".feature_inventory.tsv"))
+        self.assertTrue(paths["duplicate_features"].endswith(".duplicate_features.tsv"))
+        self.assertTrue(paths["feature_inventory_summary"].endswith(".feature_inventory.json"))
+        targets = rules["organelle_annotation_all_inputs"]("Testus_example", "v1")
+        self.assertIn(paths["feature_inventory"], targets)
+        self.assertEqual(rules["organelle_feature_inventory_reference_inputs"]("mitochondrion"), [])
+
+    def test_inventory_tracks_all_configured_genbank_reference_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            directory = Path(tmpdir)
+            for name in ("a.gbk", "b.GBFF", "c.gb", "ignore.txt"):
+                (directory/name).write_text("")
+            rules = load_common_rules(organelle_reference_cds_qc={
+                "mitochondrion": {"reference_dir": str(directory)}
+            })
+            self.assertEqual(rules["organelle_feature_inventory_reference_inputs"]("mitochondrion"),
+                             [str(directory/name) for name in ("a.gbk", "b.GBFF", "c.gb")])
+
     def test_selection_controls_all_organelle_paths(self):
         for selection in (
             ["mitochondrion"],

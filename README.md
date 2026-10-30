@@ -77,6 +77,18 @@ snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 org
 After manual GenBank curation, the dry-run should schedule only downstream steps such as organelle map drawing and release staging.
 If GenBank-producing rules are listed, check the upstream file timestamps before running the command without `-n`.
 
+`organelle_annotation_all` also writes `*.feature_inventory.tsv`, `*.duplicate_features.tsv`,
+and `*.feature_inventory.json` from the final GenBank. These read-only reports flag missing
+genes, copy-number differences against the configured reference GenBank files, and exact
+duplicate annotations. Review candidates are not automatic corrections or proof of gene loss;
+record curation decisions in the existing `post_curation.md`.
+
+`*.validation.json` and `*.validation.tsv` check FASTA/GenBank sequence identity,
+feature locations, and CDS translations after applying recorded RNA edits, genetic codes,
+partial ends, and `transl_except`. Errors block release staging while retaining the reports;
+missing translations or exceptions that cannot be reconstructed are review warnings.
+Validation never edits GenBank and does not certify annotation completeness.
+
 ## Annotating an External Assembly
 
 To annotate an existing genome assembly, set `external_assembly` in `config/config.yml` and run:

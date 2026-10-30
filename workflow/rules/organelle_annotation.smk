@@ -592,6 +592,99 @@ if configured_oatk_organelles_with_rna_editing_post_curation():
 
 
 if configured_oatk_organelles_with_annotation():
+    rule validate_organelle_annotation:
+        input:
+            annotation = lambda wildcards: organelle_annotation_input_for_downstream(
+                wildcards.assembly_name, wildcards.organelle
+            ),
+            fasta = lambda wildcards: organelle_annotation_genome_input_for_downstream(
+                wildcards.assembly_name, wildcards.organelle
+            ),
+            decisions = lambda wildcards: organelle_annotation_validation_decisions(
+                wildcards.assembly_name, wildcards.organelle
+            )
+        output:
+            report_json = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.validation.json"
+            ),
+            report_tsv = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.validation.tsv"
+            )
+        log:
+            out = "logs/validate_organelle_annotation_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/validate_organelle_annotation_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "|".join(configured_oatk_organelles_with_annotation()),
+            tool = "pmga|pga_v2"
+        params:
+            decisions_arg = lambda wildcards: organelle_annotation_validation_decisions_arg(
+                wildcards.assembly_name, wildcards.organelle
+            ),
+            transl_table = lambda wildcards: "11" if wildcards.organelle == "chloroplast" else "1"
+        shell:
+            """
+            python3 workflow/scripts/validate_organelle_annotation.py \\
+                --annotation {input.annotation:q} \\
+                --fasta {input.fasta:q} \\
+                {params.decisions_arg} \\
+                --default-transl-table {params.transl_table:q} \\
+                --report-json {output.report_json:q} \\
+                --report-tsv {output.report_tsv:q} > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_annotation():
+    rule qc_organelle_feature_inventory:
+        input:
+            annotation = lambda wildcards: organelle_annotation_input_for_downstream(
+                wildcards.assembly_name, wildcards.organelle
+            ),
+            references = lambda wildcards: organelle_feature_inventory_reference_inputs(
+                wildcards.organelle
+            )
+        output:
+            inventory = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.feature_inventory.tsv"
+            ),
+            duplicates = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.duplicate_features.tsv"
+            ),
+            summary = (
+                "results/organelle_annotation/{organelle}/{tool}/{assembly_name}/"
+                "{assembly_name}.{organelle}.feature_inventory.json"
+            )
+        log:
+            out = "logs/qc_organelle_feature_inventory_{organelle}_{tool}_{assembly_name}.out",
+            err = "logs/qc_organelle_feature_inventory_{organelle}_{tool}_{assembly_name}.err"
+        conda:
+            "../envs/pybase.yml"
+        wildcard_constraints:
+            organelle = "|".join(configured_oatk_organelles_with_annotation()),
+            tool = "pmga|pga_v2"
+        params:
+            reference_dir_arg = lambda wildcards: organelle_reference_cds_qc_reference_dir_arg(
+                wildcards.organelle
+            )
+        shell:
+            """
+            (
+                python3 workflow/scripts/organelle_feature_inventory.py \\
+                    --annotation {input.annotation:q} \\
+                    {params.reference_dir_arg} \\
+                    --inventory-tsv {output.inventory:q} \\
+                    --duplicates-tsv {output.duplicates:q} \\
+                    --summary-json {output.summary:q}
+            ) > {log.out:q} 2> {log.err:q}
+            """
+
+
+if configured_oatk_organelles_with_annotation():
     rule plot_organelle_with_pycirclize:
         input:
             annotation = (

@@ -452,7 +452,10 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
             annotation = lambda wildcards: organelle_submission_input_paths_with_annotation(
                 wildcards.assembly_name,
                 wildcards.organelle,
-            )["annotation"]
+            )["annotation"],
+            validation = lambda wildcards: organelle_annotation_output_paths(
+                wildcards.assembly_name, wildcards.organelle
+            )["validation"]
         output:
             genome = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.fa.gz",
             annotation = f"results/release/{genome_version}/organelle/{{organelle}}/{{assembly_name}}_{genome_version}_{{organelle}}.gbk.gz",
@@ -472,6 +475,8 @@ if globals().get("enable_organelle_submission", True) and configured_oatk_organe
         shell:
             """
             (
+                python3 workflow/scripts/validate_organelle_annotation.py \
+                    --check-report {input.validation:q}
                 python3 workflow/scripts/copy_submission_file_to_gzip.py \
                     --input {input.genome:q} \
                     --output {output.genome:q}

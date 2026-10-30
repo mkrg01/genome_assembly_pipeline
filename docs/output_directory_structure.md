@@ -268,6 +268,29 @@ Organelle assembly outputs generated from HiFi reads.
 
 Annotations and visualizations generated for Oatk-assembled organelle genomes. These directories are created only for organelles with a non-null tool in `organelle_annotation`. `organelle_annotation_all` produces the GenBank, manifest, supported-tool `post_curation.md`, pyCirclize PDF, gbdraw PDF, and release-staged organelle files. After manually curating the GenBank files, rerun `organelle_annotation_all` with `--rerun-triggers mtime` to refresh downstream maps and release files from the edited annotations.
 
+Each annotated organelle also has `*.feature_inventory.tsv`, `*.duplicate_features.tsv`,
+and `*.feature_inventory.json`, recalculated from the final GenBank after manual edits.
+The inventory counts CDS/tRNA/rRNA loci, including annotated pseudogenes, without counting
+parent genes or exon rows again. Exact duplicate features are reported separately and do not
+inflate copy counts; copies at different locations or on different contigs remain distinct.
+Shared exons of trans-spliced genes are not duplicates. Reference files come from
+`organelle_reference_cds_qc.<organelle>.reference_dir`; each file represents one genome,
+combining its contigs. Missing candidates include genes present in any reference, with the
+number of supporting references recorded. Copy differences are flagged outside the observed
+reference count range. Target-only genes are informational. Without references, presence/copy
+comparisons are marked unevaluated and duplicate checks still run. Reports never edit GenBank
+or turn biological review candidates into workflow failures.
+
+`*.validation.json` summarizes FASTA/GenBank sequence and record-ID consistency, feature
+location bounds, and reconstructed CDS translations; `*.validation.tsv` lists issues.
+Translation checks use `codon_start`, `transl_table`, partial ends, `transl_except`, and
+matching accepted RNA-editing decisions (record/gene/location, independent of feature index).
+Pseudogene CDS translations are skipped. Exceptions without reconstructable evidence are
+marked for review rather than passed. Reports are read-only and refresh after GenBank edits.
+Release staging rejects validation errors or reports whose inputs have changed; review
+warnings remain visible without blocking curation. These checks do not assess gene completeness
+or flag contigs based on annotation counts.
+
 - `mitochondrion/pmga/{organism_name}/`
   PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, the FASTA actually used for final annotation (`*.mitochondrion.ctg.annotation.fasta`), a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), a JSON manifest (`*.mitochondrion.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/taxon/LOCUS metadata post-curation and provides space for user-written manual curation notes after the workflow run. Circular records are preliminarily annotated once to choose a non-origin internal feature-free gap and are rotated before final annotation when a suitable gap is found. When the mitochondrial input FASTA contains multiple records, PMGA is run separately for each record to avoid PMGA's built-in contig concatenation behavior; the curated record-level GenBank outputs are then concatenated into the canonical multi-record `*.mitochondrion.gbk`. The manifest records the per-record PMGA output directories. The canonical GenBank file is trimmed to `LOCUS`, `FEATURES`, and `ORIGIN` sections. GenBank `LOCUS` topology is corrected from the input FASTA `circular=true/false` flag after PMGA finishes. PMGA-derived `/exception="trans-splicing"` CDS qualifiers are normalized to DDBJ-style `/trans_splicing` qualifiers and recorded in `post_curation.md`.
 
