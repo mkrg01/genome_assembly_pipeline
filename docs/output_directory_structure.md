@@ -285,6 +285,9 @@ or turn biological review candidates into workflow failures.
 location bounds, and reconstructed CDS translations; `*.validation.tsv` lists issues.
 Translation checks use `codon_start`, `transl_table`, partial ends, `transl_except`, and
 matching accepted RNA-editing decisions (record/gene/location, independent of feature index).
+RNA-editing summaries distinguish `accepted_sites` from `applied_sites`; `unapplied_sites`
+and per-site `applied` flags retain accepted candidates whose CDS translation was not
+updated. These candidates generate review warnings and no new editing-site features.
 Pseudogene CDS translations are skipped. Exceptions without reconstructable evidence are
 marked for review rather than passed. Reports are read-only and refresh after GenBank edits.
 Release staging rejects validation errors or reports whose inputs have changed; review
@@ -295,6 +298,9 @@ or flag contigs based on annotation counts.
   PMGA annotation outputs for mitochondrial genomes, including the raw PMGA output directory, the FASTA actually used for final annotation (`*.mitochondrion.ctg.annotation.fasta`), a canonical GenBank file (`*.mitochondrion.gbk`), pyCirclize and gbdraw circular maps (`*.mitochondrion.pycirclize.pdf`, `*.mitochondrion.gbdraw.pdf`), a JSON manifest (`*.mitochondrion.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/taxon/LOCUS metadata post-curation and provides space for user-written manual curation notes after the workflow run. Circular records are preliminarily annotated once to choose a non-origin internal feature-free gap and are rotated before final annotation when a suitable gap is found. When the mitochondrial input FASTA contains multiple records, PMGA is run separately for each record to avoid PMGA's built-in contig concatenation behavior; the curated record-level GenBank outputs are then concatenated into the canonical multi-record `*.mitochondrion.gbk`. The manifest records the per-record PMGA output directories. The canonical GenBank file is trimmed to `LOCUS`, `FEATURES`, and `ORIGIN` sections. GenBank `LOCUS` topology is corrected from the input FASTA `circular=true/false` flag after PMGA finishes. PMGA-derived `/exception="trans-splicing"` CDS qualifiers are normalized to DDBJ-style `/trans_splicing` qualifiers and recorded in `post_curation.md`.
 
   For multi-record GenBank inputs, gbdraw writes the first record to the canonical `*.gbdraw.pdf` and additional records to sibling files named like `*.gbdraw.record02_<record>.pdf`.
+  Each PMGA invocation retains `pmga.execution.log` in its raw output directory.
+  Internal Python exceptions, invalid GenBank record structure, or ID/sequence
+  mismatches stop annotation before the selected output is copied for curation.
 - `chloroplast/pga_v2/{organism_name}/`
   PGA v2.0 annotation outputs for chloroplast genomes, including the raw PGA work directory, the FASTA actually used for final annotation (`*.chloroplast.ctg.annotation.fasta`), a canonical GenBank file (`*.chloroplast.gbk`), pyCirclize and gbdraw circular maps (`*.chloroplast.pycirclize.pdf`, `*.chloroplast.gbdraw.pdf`), a JSON manifest (`*.chloroplast.manifest.json`), and a regenerated `post_curation.md` template that records automatic source/taxon/LOCUS metadata post-curation and provides space for user-written manual curation notes after the workflow run. Circular single-record inputs are preliminarily annotated once to choose a non-origin internal feature-free gap and are rotated before final annotation when a suitable gap is found. The canonical GenBank file is trimmed to `LOCUS`, `FEATURES`, and `ORIGIN` sections. GenBank `LOCUS` topology is corrected from the input FASTA `circular=true/false` flag after PGA v2.0 finishes.
 

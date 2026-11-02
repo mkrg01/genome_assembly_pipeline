@@ -62,6 +62,21 @@ class OrganelleValidationTest(unittest.TestCase):
         self.assertEqual(report["CDS"][0]["translation_status"], "matched")
         script.check_report(self.root/"report.json")
 
+    def test_accepted_but_unapplied_edit_is_a_review_warning(self):
+        record = self.record("ATGCAGAAATAA", features=[self.cds(
+            SimpleLocation(0,12,strand=1), translation=["MQK"])])
+        report = self.validate([record], decisions={"feature_decisions": [{
+            "record": "contig", "gene": "geneX", "location": "1..12",
+            "translation_added": False,
+            "accepted_sites": [{"cds_pos": 4, "genomic_pos": 4,
+                                "genomic_base": "C", "edited_base": "T",
+                                "decision": "accept", "applied": False}],
+        }]})
+        self.assertEqual(report["status"], "review")
+        self.assertEqual(report["error_count"], 0)
+        self.assertIn("accepted_edits_not_applied", self.codes(report))
+        self.assertEqual(report["CDS"][0]["editing_sites_replayed"], 0)
+
     def test_sequence_record_and_duplicate_ids_are_checked(self):
         for fastas, expected in [([self.record("ATGCCCTAA")], "sequence_mismatch"),
                                   ([self.record(identifier="other")], "record_id_mismatch"),

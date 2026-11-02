@@ -74,6 +74,9 @@ def editing_index(path, records, emit):
 
 
 def replay_editing(sequence, positions, calls, records, emit):
+    if any(c.get("accepted_sites") and not c.get("translation_added") for c in calls):
+        emit("warning", "accepted_edits_not_applied",
+             "Accepted RNA-editing candidates remain unapplied; CDS translation was not updated")
     applied = [c.get("accepted_sites", []) for c in calls if c.get("translation_added")]
     if not applied:
         return sequence, 0, False

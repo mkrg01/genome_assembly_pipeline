@@ -3,10 +3,11 @@ import re
 import shutil
 import subprocess
 import textwrap
+import warnings
 from pathlib import Path
 
 from organelle_annotation_utils import (
-    copy_first_genbank,
+    GENBANK_SUFFIXES,
     curate_genbank_locus,
     curate_genbank_source_metadata,
     normalize_genbank_cds_qualifier_order,
@@ -28,6 +29,11 @@ from organelle_annotation_utils import (
 
 IMAGE_SUFFIXES = (".sif", ".simg")
 FASTA_LINE_WIDTH = 80
+PMGA_FATAL_LOG_PREFIXES = (
+    "Traceback (most recent call last):",
+    "FileNotFoundError:",
+    "ValueError: Did not recognise the LOCUS line layout:",
+)
 
 
 def make_fasta_record(header, sequence_lines):
@@ -180,8 +186,58 @@ def run_pmga(runtime, container, cwd, input_fasta, db, prefix, output_dir):
         "--outdir",
         str(output_dir),
     ]
-    subprocess.run(cmd, check=True)
+    log_path = output_dir / "pmga.execution.log"
+    print(f"PMGA execution log: {log_path}", flush=True)
+    with log_path.open("w") as log:
+        result = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise RuntimeError(
+            f"PMGA exited with code {result.returncode}; raw outputs and log "
+            f"are retained under {output_dir}. See {log_path}."
+        )
+    with log_path.open() as log:
+        for line in log:
+            if line.strip().startswith(PMGA_FATAL_LOG_PREFIXES):
+                raise RuntimeError(
+                    f"PMGA reported an internal exception despite exit code 0: "
+                    f"{line.strip()}. See {log_path}; raw outputs are retained."
+                )
     return cmd
+
+
+def copy_pmga_annotation(output_dir, annotation, record, prefix):
+    """Validate the selected raw output before metadata curation can mask errors."""
+    from Bio import BiopythonParserWarning
+    from Bio.GenBank.Scanner import GenBankScanner
+
+    candidates = sorted(
+        p for p in output_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in GENBANK_SUFFIXES
+    )
+    if not candidates:
+        raise RuntimeError(f"No GenBank output was found under {output_dir}.")
+    selected = candidates[0]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", BiopythonParserWarning)
+            # Feature locations are normalized by the existing post-curation.
+            with selected.open() as handle:
+                records = list(GenBankScanner().parse_records(handle, do_features=False))
+        if len(records) != 1:
+            raise ValueError(f"Expected one GenBank record, found {len(records)}")
+        parsed = records[0]
+        if parsed.id not in {record["id"], prefix}:
+            raise ValueError(f"Unexpected record ID {parsed.id!r}")
+        if str(parsed.seq).upper() != record["sequence"].upper():
+            raise ValueError("GenBank sequence differs from the input FASTA")
+    except (ValueError, TypeError, BiopythonParserWarning) as error:
+        raise RuntimeError(
+            f"Invalid PMGA GenBank output {selected}: {error}. "
+            "Raw outputs are retained; annotation was not copied."
+        ) from error
+    annotation.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(selected, annotation)
+    return selected
 
 
 def skipped_circular_origin_rotation(record, reason):
@@ -239,9 +295,11 @@ def prepare_record_for_annotation(
             record_prefix,
             preliminary_output,
         )
-        preliminary_selected = copy_first_genbank(
+        preliminary_selected = copy_pmga_annotation(
             preliminary_output,
             preliminary_annotation,
+            record,
+            record_prefix,
         )
         curate_preliminary_annotation(preliminary_annotation, record)
         rotation = select_circular_origin_rotation_from_genbank(preliminary_annotation)
@@ -328,7 +386,9 @@ def main():
             args.prefix,
             raw_output_dir,
         )
-        selected = copy_first_genbank(raw_output_dir, annotation)
+        selected = copy_pmga_annotation(
+            raw_output_dir, annotation, prepared_records[0], args.prefix
+        )
         core_sections = trim_genbank_to_core_sections(annotation)
         topology_curation = curate_genbank_locus(
             annotation,
@@ -422,7 +482,9 @@ def main():
                 record_prefix,
                 record_pmga_output,
             )
-            selected = copy_first_genbank(record_pmga_output, record_annotation)
+            selected = copy_pmga_annotation(
+                record_pmga_output, record_annotation, record, record_prefix
+            )
             core_sections = trim_genbank_to_core_sections(record_annotation)
             topology_curation = curate_genbank_locus(
                 record_annotation,

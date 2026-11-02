@@ -156,6 +156,7 @@ SUMMARY_FIELDS = [
     "candidate_c_sites",
     "accepted_sites",
     "applied_sites",
+    "unapplied_sites",
     "rescued_sites",
     "reference_inferred_sites",
     "reference_inferred_rescue_attempted",
@@ -1412,7 +1413,11 @@ def new_rna_editing_site_feature_blocks(
 ):
     existing_site_feature_lines = existing_site_feature_lines or {}
     blocks = []
+    if not feature_decision.get("translation_added", True):
+        return blocks
     for site in feature_decision["accepted_sites"]:
+        if not site.get("applied", True):
+            continue
         location = rna_editing_site_location(site)
         site_notes = rna_editing_site_notes(site)
         site_note = site_notes[0]
@@ -1604,6 +1609,31 @@ def candidate_positions_for_record(blocks, record_sequence):
     return positions
 
 
+def finalize_editing_application(lines, evidence_rows, summary, feature_decision):
+    """Commit applied-site flags only after the CDS translation was updated."""
+    updated = feature_decision["translation_added"]
+    accepted_decisions = {"accept", "essential_rescue", "reference_inferred"}
+    for row in evidence_rows:
+        row["applied"] = updated and row["decision"] in accepted_decisions
+    for site in feature_decision["accepted_sites"]:
+        site["applied"] = updated
+    summary["applied_sites"] = sum(row["applied"] for row in evidence_rows)
+    summary["unapplied_sites"] = sum(
+        not site["applied"] for site in feature_decision["accepted_sites"]
+    )
+    summary["rescued_sites"] = sum(
+        row["applied"] and row["decision"] == "essential_rescue"
+        for row in evidence_rows
+    )
+    summary["reference_inferred_sites"] = sum(
+        row["applied"] and row["decision"] == "reference_inferred"
+        for row in evidence_rows
+    )
+    feature_decision["applied_site_count"] = summary["applied_sites"]
+    feature_decision["unapplied_site_count"] = summary["unapplied_sites"]
+    return lines, evidence_rows, summary, feature_decision
+
+
 def evaluate_cds_feature(
     *,
     record_name,
@@ -1683,7 +1713,9 @@ def evaluate_cds_feature(
     if is_pseudo:
         summary["translation_status"] = "skipped_pseudo"
         feature_decision["translation_status"] = summary["translation_status"]
-        return block.lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            block.lines, evidence_rows, summary, feature_decision
+        )
 
     try:
         cds_sequence = extract_genbank_location_sequence(
@@ -1696,7 +1728,9 @@ def evaluate_cds_feature(
         summary["translation_errors"] = str(error)
         feature_decision["translation_status"] = summary["translation_status"]
         feature_decision["translation_errors"] = [str(error)]
-        return block.lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            block.lines, evidence_rows, summary, feature_decision
+        )
 
     if len(cds_sequence) != len(genomic_positions):
         error = (
@@ -1707,7 +1741,9 @@ def evaluate_cds_feature(
         summary["translation_errors"] = error
         feature_decision["translation_status"] = summary["translation_status"]
         feature_decision["translation_errors"] = [error]
-        return block.lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            block.lines, evidence_rows, summary, feature_decision
+        )
 
     codon_start_text = first_genbank_qualifier_value(block.lines, "codon_start", "1")
     try:
@@ -1948,7 +1984,9 @@ def evaluate_cds_feature(
         feature_decision["translation_added"] = True
         feature_decision["exception_added"] = summary["exception_added"]
         feature_decision["translation_status"] = summary["translation_status"]
-        return updated_lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            updated_lines, evidence_rows, summary, feature_decision
+        )
 
     ensure_dna_counts_for_sites(
         essential_rescue_dna_candidate_sites(
@@ -2026,7 +2064,9 @@ def evaluate_cds_feature(
             feature_decision["translation_added"] = True
             feature_decision["exception_added"] = summary["exception_added"]
             feature_decision["translation_status"] = summary["translation_status"]
-            return updated_lines, evidence_rows, summary, feature_decision
+            return finalize_editing_application(
+                updated_lines, evidence_rows, summary, feature_decision
+            )
 
     reference_rescue_sites = []
     if references_by_gene is not None:
@@ -2143,7 +2183,9 @@ def evaluate_cds_feature(
         feature_decision["translation_added"] = True
         feature_decision["exception_added"] = summary["exception_added"]
         feature_decision["translation_status"] = summary["translation_status"]
-        return updated_lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            updated_lines, evidence_rows, summary, feature_decision
+        )
 
     undetermined_terminal_validation = (
         validate_cds_translation_allowing_undetermined_terminal(
@@ -2195,13 +2237,17 @@ def evaluate_cds_feature(
         feature_decision["translation_added"] = True
         feature_decision["exception_added"] = summary["exception_added"]
         feature_decision["translation_status"] = summary["translation_status"]
-        return updated_lines, evidence_rows, summary, feature_decision
+        return finalize_editing_application(
+            updated_lines, evidence_rows, summary, feature_decision
+        )
 
     summary["translation_status"] = "validation_failed"
     summary["translation_errors"] = ";".join(validation["errors"])
     feature_decision["translation_status"] = summary["translation_status"]
     feature_decision["translation_errors"] = validation["errors"]
-    return block_lines, evidence_rows, summary, feature_decision
+    return finalize_editing_application(
+        block_lines, evidence_rows, summary, feature_decision
+    )
 
 
 def curate_records(args, rna_bams, dna_bams):
@@ -2350,6 +2396,7 @@ def format_rna_editing_post_curation_section(
     candidate_site_count = count_summary(summary_rows, "candidate_c_sites")
     accepted_site_count = count_summary(summary_rows, "accepted_sites")
     applied_site_count = count_summary(summary_rows, "applied_sites")
+    unapplied_site_count = count_summary(summary_rows, "unapplied_sites")
     rescued_site_count = count_summary(summary_rows, "rescued_sites")
     reference_inferred_site_count = count_summary(
         summary_rows,
@@ -2520,6 +2567,13 @@ def format_rna_editing_post_curation_section(
             "reference with identity/coverage >= "
             f"{REFERENCE_INFERRED_MIN_PROTEIN_IDENTITY:g}/"
             f"{REFERENCE_INFERRED_MIN_PROTEIN_COVERAGE:g}."
+        )
+    if unapplied_site_count:
+        lines.append(
+            f"- RNA editing review: {unapplied_site_count} accepted site(s) were "
+            "not applied because their CDS translation was not updated. "
+            "Their evidence and accepted decisions are retained; applied-site "
+            "counts and new GenBank editing-site features exclude these calls."
         )
     if validation_failed_count:
         lines.append(

@@ -995,5 +995,84 @@ class RnaEditingSiteFeatureTest(unittest.TestCase):
         )
 
 
+
+
+
+class EditingApplicationTest(unittest.TestCase):
+    class Counts:
+        def __init__(self, base, depth):
+            self.base, self.depth = base, depth
+
+        def preload(self, *_args, **_kwargs):
+            pass
+
+        def counts(self, *_args):
+            return {"depth": self.depth,
+                    "counts": {b: self.depth if b == self.base else 0 for b in 'ACGT'},
+                    "mean_baseq": 40, "mean_mapq": 60,
+                    "sample_counts": [{b: self.depth if b == self.base else 0 for b in 'ACGT'}]}
+
+    def evaluate(self, sequence, depth=40, references=None):
+        lines = [f"     CDS             1..{len(sequence)}\n",
+                 '                     /gene="abc"\n',
+                 '                     /product="example protein"\n',
+                 '                     /translation="MQK"\n']
+        block = GenBankFeatureBlock(key="CDS", start=0, end=len(lines), lines=lines,
+                                    feature_index=1, location=f"1..{len(sequence)}")
+        result = script.evaluate_cds_feature(
+            record_name="record1", record_sequence=sequence, block=block,
+            args=UndeterminedTerminalTranslationTest().args(),
+            rna_pileups=self.Counts('T', depth), dna_pileups=self.Counts('C', 40),
+            references_by_gene=references)
+        return lines, result
+
+    def test_stop_gain_retains_evidence_but_does_not_apply_or_add_site_features(self):
+        original, (lines, evidence, summary, decision) = self.evaluate('ATGCAGAAATAA')
+        self.assertEqual(lines, original)
+        self.assertEqual(summary['translation_status'], 'validation_failed')
+        self.assertEqual(summary['accepted_sites'], 1)
+        self.assertEqual(summary['applied_sites'], 0)
+        self.assertEqual(summary['unapplied_sites'], 1)
+        self.assertEqual(evidence[0]['decision'], 'accept')
+        self.assertFalse(evidence[0]['applied'])
+        self.assertEqual(decision['accepted_sites'][0]['genomic_pos'], 4)
+        self.assertFalse(decision['accepted_sites'][0]['applied'])
+        self.assertEqual(decision['unapplied_site_count'], 1)
+        self.assertEqual(script.new_rna_editing_site_feature_blocks(decision, set()), [])
+
+    def test_normal_and_partial_success_commit_all_application_flags(self):
+        for sequence, status in [('ATGAACTAA', 'updated'),
+                                 ('ATAAACTAA', 'updated_with_undetermined_start')]:
+            with self.subTest(status=status):
+                _, (_, evidence, summary, decision) = self.evaluate(sequence)
+                self.assertEqual(summary['translation_status'], status)
+                self.assertEqual(summary['applied_sites'], 1)
+                self.assertEqual(summary['unapplied_sites'], 0)
+                self.assertTrue(evidence[0]['applied'])
+                self.assertTrue(decision['accepted_sites'][0]['applied'])
+                self.assertEqual(len(script.new_rna_editing_site_feature_blocks(decision, set())), 1)
+
+    def test_essential_and_reference_rescue_remain_applied(self):
+        reference = {'abc': [{'record_id': 'REF', 'accession': 'REF000001.1',
+                              'gene': 'abc', 'product': 'example protein',
+                              'protein_id': 'YP_000001.1', 'length': 9, 'protein': 'MK'}]}
+        for depth, refs, expected in [(1, None, 'essential_rescue'),
+                                       (0, reference, 'reference_inferred')]:
+            with self.subTest(expected=expected):
+                _, (_, evidence, summary, decision) = self.evaluate('ATGAAACGA', depth, refs)
+                self.assertEqual(summary['applied_sites'], 1)
+                self.assertEqual(summary['unapplied_sites'], 0)
+                self.assertEqual(decision['accepted_sites'][0]['decision'], expected)
+                self.assertTrue(decision['accepted_sites'][0]['applied'])
+                self.assertTrue(next(r for r in evidence if r['decision'] == expected)['applied'])
+
+    def test_unapplied_calls_are_reported_in_post_curation(self):
+        _, (_, evidence, summary, _) = self.evaluate('ATGCAGAAATAA')
+        text = script.format_rna_editing_post_curation_section(
+            RnaEditingPostCurationSectionTest().section_args(), evidence, [summary])
+        self.assertIn('1 normal-threshold accepted site(s), 0 total applied site(s)', text)
+        self.assertIn('1 accepted site(s) were not applied', text)
+
+
 if __name__ == "__main__":
     unittest.main()

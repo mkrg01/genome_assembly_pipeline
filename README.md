@@ -89,6 +89,18 @@ partial ends, and `transl_except`. Errors block release staging while retaining 
 missing translations or exceptions that cannot be reconstructed are review warnings.
 Validation never edits GenBank and does not certify annotation completeness.
 
+RNA-editing reports distinguish accepted candidates from edits applied to an updated
+CDS translation. If translation validation fails, candidate evidence is retained,
+`applied_sites` is zero, and `unapplied_sites` records the candidates needing review.
+New editing-site annotations are emitted only for applied calls. The consistency
+validator flags accepted but unapplied candidates as review warnings.
+
+PMGA saves each invocation's output in `pmga.execution.log` under its raw output
+directory. Nonzero exits and explicit Python exception traces stop annotation even
+when the outer PMGA command returns zero. The selected raw GenBank must contain one
+record with the expected ID and input sequence before metadata curation; failures
+retain the raw files and log. Annotation counts are not used to decide success.
+
 ## Annotating an External Assembly
 
 To annotate an existing genome assembly, set `external_assembly` in `config/config.yml` and run:
