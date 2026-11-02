@@ -24,7 +24,7 @@ from plot_style import apply_matplotlib_style
 apply_matplotlib_style()
 
 
-MIN_ALIGNMENT_LENGTH = 100_000
+MIN_ALIGNMENT_LENGTH = 50_000
 ALIGNMENT_COLOR = "#222222"
 BOUNDARY_COLOR = "#CBCBCB"
 BOUNDARY_LINESTYLE = "dotted"
@@ -229,7 +229,7 @@ def pack_label_positions(desired, spacing, lower, upper):
 
 
 def add_contig_label_axes(ax, contig_rows):
-    """Place literal names outside the plot, with ordered leaders when needed."""
+    """Place literal names outside the plot, with leaders to every midpoint."""
     if not contig_rows:
         return
     fig = ax.figure
@@ -316,8 +316,7 @@ def add_contig_label_axes(ax, contig_rows):
             )
             text.set_gid(f"contig-label-{edge}-{index}")
             ticks.append(tick)
-            if lane or abs(position - midpoint * side) > 0.25:
-                leaders.append(leader)
+            leaders.append(leader)
     for segments, color, linewidth, gid in (
         (ticks, "black", 0.6, "contig-label-ticks"),
         (leaders, "#777777", 0.35, "contig-label-leaders"),

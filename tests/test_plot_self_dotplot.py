@@ -206,8 +206,8 @@ class SelfDotplotTests(unittest.TestCase):
         fasta = self.root / "assembly.fa"
         fasta.write_text(">ctg1\n" + "A" * 200_000 + "\n>ctg2\n" + "C" * 200_000 + "\n")
         self.paf.write_text("\n".join([
-            self.record(length=99_999, matches=0),
-            self.record(length=100_000, matches=0),
+            self.record(length=49_999, matches=0),
+            self.record(length=50_000, matches=0),
         ]) + "\n")
         pdf, contigs, summary = (self.root / name for name in ("out.pdf", "out.tsv", "out.json"))
         result = subprocess.run([
@@ -220,7 +220,7 @@ class SelfDotplotTests(unittest.TestCase):
         self.assertIn("ctg2\t200000\t200000\t400000", contigs.read_text())
         data = json.loads(summary.read_text())
         self.assertEqual(data["plotted_records"], 1)
-        self.assertEqual(data["min_alignment_length"], 100_000)
+        self.assertEqual(data["min_alignment_length"], 50_000)
         self.assertEqual(data["total_records"], 2)
         self.assertEqual(data["filtered_records"]["short_span"], 1)
         self.assertEqual(set(data["filtered_records"]), {"short_span", "self_diagonal"})
@@ -272,7 +272,12 @@ class SelfDotplotTests(unittest.TestCase):
                     self.assertEqual(top[0].tolist(), [midpoint, 1])
                     self.assertEqual(right[0].tolist(), [1, midpoint])
                 leaders = next(c for c in axis.collections if c.get_gid() == "contig-label-leaders")
-                self.assertGreater(len(leaders.get_segments()), 0)
+                self.assertEqual(len(leaders.get_segments()), 2 * count)
+                straight_top = leaders.get_segments()[0]
+                self.assertTrue(all(
+                    abs(point[0] - first_top.get_position()[0]) < 1e-12
+                    for point in straight_top
+                ))
                 for line in leaders.get_segments():
                     path = MplPath(axis.transAxes.transform(line))
                     self.assertFalse(any(path.intersects_bbox(box, filled=False) for box in boxes))
