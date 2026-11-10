@@ -2,53 +2,80 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
-An integrated pipeline for eukaryotic genome assembly and gene annotation. Assembly requires PacBio HiFi reads; ultra-long Oxford Nanopore (ONT) and paired-end Hi-C reads are optional. Gene prediction uses local paired-end RNA-seq or public SRA data.
+This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Gene prediction uses local paired-end RNA-seq reads by default, or optionally BRAKER4's VARUS sampling from public SRA data. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+
+See [this page](docs/output_directory_structure.md) for details on the expected outputs.
 
 ## Requirements
+
+Before running the workflow, make sure the following software is installed:
 
 - [Snakemake ≥ 9.0.0](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html)
 - [Apptainer (Singularity)](https://apptainer.org/docs/admin/main/installation.html)
 
 ## Getting Started
 
+Follow the steps below to set up and run the workflow:
+
 ### 1. Clone the Repository
 
-```bash
+Clone this repository to your local machine:
+
+```
 git clone https://github.com/mkrg01/genome_assembly_pipeline.git
 cd genome_assembly_pipeline
 ```
 
-### 2. Prepare Inputs and Configure Settings
+### 2. Prepare Input Files and Configure Settings
 
-Prepare input files and edit `config/config.yml` following the [configuration guide](config/README.md).
+See [`config/README.md`](config/README.md) for details on preparing input files and adjusting configuration parameters.
+The configuration guide follows the same section order as `config/config.yml`, from runtime settings through assembly, contamination screening, YaHS scaffolding, QC, visualization, and organelle annotation options.
 
-### 3. Run the Workflow
+### 3. Execute the Workflow
 
-Run from the repository root, adjusting `--cores` to your available resources:
+Run the workflow from the repository root directory. Replace `/path/to/repo` with the actual path to your local repository:
 
-```bash
+```
+cd /path/to/repo
 snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 all
 ```
 
-Outputs are written to `results/`. See the [output directory guide](docs/output_directory_structure.md) for details.
+The output will be generated in the [`results` directory](docs/output_directory_structure.md).
 
-## Stepwise Execution
+> [!NOTE]
+> Adjust the `--cores` value based on your available computational resources.
 
-Replace `all` with a target below. Required upstream steps run automatically.
+> [!TIP]
+> You can run the pipeline in a stepwise manner. Replace `all` with one of the commands below.
+>
+> 1. `assembly_all`: Runs rules up to the generation of the Hifiasm assembly and its associated metrics.
+> 2. `remove_organelle_all`: Runs rules up to the organelle removal step and its associated metrics.
+> 3. `remove_contamination_all`: Runs rules up to the contamination removal step by FCS and its associated metrics.
+> 4. `purge_dups_all`: Runs rules up to haplotig removal by purge_dups and its associated metrics when enabled.
+> 5. `longstitch_all`: Runs rules up to LongStitch correction/scaffolding.
+> 6. `scaffold_all`: Runs rules up to YaHS Hi-C scaffolding plus Juicebox-ready contact maps when Hi-C reads are configured.
+> 7. `renamed_all`: Runs rules up to assembly renaming by decreasing sequence length and its associated metrics.
+> 8. `softmask_all`: Runs rules up to softmasking by RepeatMasker.
+> 9. `gene_prediction_all`: Runs rules up to gene prediction and its associated metrics.
+> 10. `gene_synteny_all`: Builds annotation-based self-synteny blocks and gene-order/Mb plots for each selected assembly.
+> 11. `circos_plot_all`: Runs rules up to the Circos plot for the main genome analysis path.
+> 12. `organelle_annotation_all`: Runs rules up to organelle annotation, circular maps, and organelle release files.
+>
+> You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 
-| Target | Description |
-| --- | --- |
-| `assembly_all` | Hifiasm assembly and QC. |
-| `remove_organelle_all` | Organelle removal and QC. |
-| `remove_contamination_all` | FCS contamination removal and QC. |
-| `purge_dups_all` | Optional haplotig removal and QC. |
-| `longstitch_all` | LongStitch correction/scaffolding. |
-| `scaffold_all` | YaHS scaffolding and Juicebox contact maps when Hi-C reads are configured. |
-| `renamed_all` | Sequence renaming by decreasing length and QC. |
-| `softmask_all` | RepeatMasker softmasking. |
-| `gene_prediction_all` | Gene prediction, QC, and nuclear release files. |
-| `gene_synteny_all` | Gene-based self-synteny and plots. |
-| `circos_plot_all` | Gene prediction, QC, release files, and Circos/linear plots. |
-| `organelle_annotation_all` | Organelle annotation, circular maps, and release files. |
-| `annotation_all` | Nuclear annotation, QC, release files, synteny, and plots. |
-| `plots_all` | Circos/linear plots and their required inputs. |
+For organelle annotation curation, a typical sequence is:
+
+```bash
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 organelle_annotation_all
+# Manually curate results/organelle_annotation/.../*.gbk if necessary.
+snakemake -n --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_annotation_all --rerun-triggers mtime
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 4 organelle_annotation_all --rerun-triggers mtime
+```
+
+## Annotating an External Assembly
+
+To annotate an existing genome assembly, set `external_assembly` in `config/config.yml` and run:
+
+```
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores 64 -s workflow/Snakefile.annotation all
+```
