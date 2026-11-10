@@ -2,7 +2,7 @@
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥9.0.0-brightgreen.svg)](https://snakemake.github.io) [![Tests](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mkrg01/genome_assembly_pipeline/actions/workflows/ci.yml)
 
-This is an integrated pipeline for eukaryotic genome assembly and gene annotation. PacBio HiFi reads are required for the full workflow. Gene prediction uses local paired-end RNA-seq reads by default, or optionally BRAKER4's VARUS sampling from public SRA data. Ultra-long Oxford Nanopore (ONT) reads and paired-end Hi-C reads are optionally supported.
+An integrated pipeline for eukaryotic genome assembly and gene annotation. Assembly requires PacBio HiFi reads; ultra-long Oxford Nanopore (ONT) and paired-end Hi-C reads are optional. Gene prediction uses local paired-end RNA-seq or public SRA data.
 
 See [this page](docs/output_directory_structure.md) for details on the expected outputs.
 
@@ -28,8 +28,7 @@ cd genome_assembly_pipeline
 
 ### 2. Prepare Input Files and Configure Settings
 
-See [`config/README.md`](config/README.md) for details on preparing input files and adjusting configuration parameters.
-The configuration guide follows the same section order as `config/config.yml`, from runtime settings through assembly, contamination screening, YaHS scaffolding, QC, visualization, and organelle annotation options.
+Prepare input files and edit `config/config.yml` following the [configuration guide](config/README.md).
 
 ### 3. Execute the Workflow
 
