@@ -20,13 +20,15 @@ rule calculate_long_contig_lengths:
     shell:
         """
         (
-            seqkit fx2tab --name --length {input} > {output}
-        ) > {log.out} 2> {log.err}
+            seqkit fx2tab --name --length {input:q} > {output:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule make_gene_bed:
     input:
-        "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3"
+        lambda w: external_gff3 if external_gff3 is not None else (
+            f"results/braker4/{w.selected_assembly}/{w.assembly_name}/braker.gff3"
+        )
     output:
         "results/circos_plot/gene/{selected_assembly}/{assembly_name}_gene.bed"
     log:
@@ -37,10 +39,10 @@ rule make_gene_bed:
     shell:
         """
         (
-            grep -v '^#' {input} \
+            grep -v '^#' {input:q} \
             | awk '$3=="gene"{{print $1"\t"$4-1"\t"$5"\t"$9"\t.\t"$7}}' \
-            > {output}
-        ) > {log.out} 2> {log.err}
+            > {output:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule calculate_gene_coverage_per_window:
@@ -56,25 +58,27 @@ rule calculate_gene_coverage_per_window:
     conda:
         "../envs/bedtools.yml"
     params:
-        window_size = circos_id2tracks["gene"]["window_size"]
+        window_size = lambda w: circos_id2tracks["gene"]["window_size"]
     shell:
         """
         (
             bedtools makewindows \
-                -g {input.long_contigs} \
+                -g {input.long_contigs:q} \
                 -w {params.window_size} \
-                > {output.windows}
+                > {output.windows:q}
 
             bedtools coverage \
-                -a {output.windows} \
-                -b {input.gene_bed} \
-                > {output.windows_gene_coverage}
-        ) > {log.out} 2> {log.err}
+                -a {output.windows:q} \
+                -b {input.gene_bed:q} \
+                > {output.windows_gene_coverage:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule make_repeat_bed:
     input:
-        "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.out.xm"
+        lambda w: external_repeatmasker if external_repeatmasker is not None else (
+            f"results/repeatmasker/{w.selected_assembly}/{w.assembly_name}.fa.out.xm"
+        )
     output:
         "results/circos_plot/repeatmasker_repeat/{selected_assembly}/{assembly_name}_repeat_all.bed"
     log:
@@ -82,11 +86,13 @@ rule make_repeat_bed:
         err = "logs/make_repeat_bed_{selected_assembly}_{assembly_name}.err"
     conda:
         "../envs/bedtools.yml"
+    params:
+        script = os.path.join(workflow.basedir, "scripts/make_repeat_bed.awk")
     shell:
         """
         (
-            awk -f workflow/scripts/make_repeat_bed.awk {input} > {output}
-        ) > {log.out} 2> {log.err}
+            awk -f {params.script:q} {input:q} > {output:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule make_repeat_bed_per_class:
@@ -120,15 +126,15 @@ rule calculate_repeat_coverage_per_window:
         """
         (
             bedtools makewindows \
-                -g {input.long_contigs} \
+                -g {input.long_contigs:q} \
                 -w {params.window_size} \
-                > {output.windows}
+                > {output.windows:q}
 
             bedtools coverage \
-                -a {output.windows} \
-                -b {input.repeat_bed} \
-                > {output.windows_repeat_coverage}
-        ) > {log.out} 2> {log.err}
+                -a {output.windows:q} \
+                -b {input.repeat_bed:q} \
+                > {output.windows_repeat_coverage:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 
 rule tidk_search_for_circos_plot:
@@ -143,18 +149,18 @@ rule tidk_search_for_circos_plot:
         "../envs/tidk.yml"
     params:
         telomeric_repeat_unit = config["tidk_telomeric_repeat_unit"],
-        window_size = circos_id2tracks["tidk"]["window_size"]
+        window_size = lambda w: circos_id2tracks["tidk"]["window_size"]
     shell:
         """
         (
             tidk search \
                 --string {params.telomeric_repeat_unit} \
                 --window {params.window_size} \
-                --dir $(dirname {output}) \
+                --dir $(dirname {output:q}) \
                 --output {wildcards.assembly_name} \
-                {input}
-            mv $(dirname {output})/{wildcards.assembly_name}_telomeric_repeat_windows.tsv {output}
-        ) > {log.out} 2> {log.err}
+                {input:q}
+            mv $(dirname {output:q})/{wildcards.assembly_name}_telomeric_repeat_windows.tsv {output:q}
+        ) > {log.out:q} 2> {log.err:q}
         """
 rule circos_plot:
     input:

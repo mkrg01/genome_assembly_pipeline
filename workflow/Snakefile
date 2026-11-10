@@ -2,65 +2,98 @@ configfile: "config/config.yml"
 include: "rules/common.smk"
 containerized: pipeline_image_uri
 
-include: "rules/genome_assembly.smk"
-include: "rules/purge_dups.smk"
-include: "rules/organelle_annotation.smk"
+# External assemblies bypass read-based assembly/QC and organelle processing.
+# The legacy Circos entrypoint also leaves pre-staged inputs untouched.
+plots_only = globals().get("legacy_plots_only", False) or normalize_bool_config(
+    "plots_only", config.get("plots_only", False)
+)
+enable_organelle_submission = external_assembly is None and not plots_only
+
+include: "rules/downstream.smk"
+if external_assembly is not None:
+    include: "rules/external_assembly.smk"
+elif not plots_only:
+    include: "rules/genome_assembly.smk"
+    include: "rules/purge_dups.smk"
+    include: "rules/organelle_annotation.smk"
 include: "rules/softmask.smk"
-include: "rules/gene_prediction.smk"
+if not plots_only:
+    include: "rules/gene_prediction.smk"
 include: "rules/circos_plot.smk"
-include: "rules/gene_synteny.smk"
+if not plots_only:
+    include: "rules/gene_synteny.smk"
 
 rule all:
     input:
-        *gene_synteny_all_inputs(assembly_name),
-        *circos_plot_all_inputs(assembly_name, genome_version),
-        *organelle_annotation_all_inputs(assembly_name, genome_version)
+        (plots_all_inputs(assembly_name) if plots_only else
+         annotation_all_inputs(assembly_name, genome_version) +
+         (organelle_annotation_all_inputs(assembly_name, genome_version)
+          if enable_organelle_submission else []))
+    default_target: True
 
-rule assembly_all:
+
+rule plots_all:
     input:
-        *assembly_all_inputs(assembly_name)
+        *plots_all_inputs(assembly_name)
 
-rule remove_organelle_all:
-    input:
-        *remove_organelle_all_inputs(assembly_name)
+if external_assembly is None and not plots_only:
+    rule assembly_all:
+        input:
+            *assembly_all_inputs(assembly_name)
 
-rule remove_contamination_all:
-    input:
-        *remove_contamination_all_inputs(assembly_name)
+    rule remove_organelle_all:
+        input:
+            *remove_organelle_all_inputs(assembly_name)
 
-rule purge_dups_all:
-    input:
-        *purge_dups_all_inputs(assembly_name)
+    rule remove_contamination_all:
+        input:
+            *remove_contamination_all_inputs(assembly_name)
 
-rule longstitch_all:
-    input:
-        *longstitch_all_inputs(assembly_name)
+    rule purge_dups_all:
+        input:
+            *purge_dups_all_inputs(assembly_name)
 
-rule scaffold_all:
-    input:
-        *scaffold_all_inputs(assembly_name)
+    rule longstitch_all:
+        input:
+            *longstitch_all_inputs(assembly_name)
 
-rule renamed_all:
-    input:
-        *renamed_all_inputs(assembly_name)
+    rule scaffold_all:
+        input:
+            *scaffold_all_inputs(assembly_name)
 
-rule softmask_all:
-    input:
-        *softmask_all_inputs(assembly_name)
+    rule renamed_all:
+        input:
+            *renamed_all_inputs(assembly_name)
 
-rule gene_prediction_all:
-    input:
-        *gene_prediction_all_inputs(assembly_name, genome_version)
-
-rule circos_plot_all:
-    input:
-        *circos_plot_all_inputs(assembly_name, genome_version)
-
-rule organelle_annotation_all:
-    input:
-        *organelle_annotation_all_inputs(assembly_name, genome_version)
+if external_assembly is not None:
+    rule external_assembly_all:
+        input:
+            *external_assembly_all_inputs(assembly_name)
 
 
-rule gene_synteny_all:
-    input:
-        *gene_synteny_all_inputs(assembly_name)
+if not plots_only:
+    rule softmask_all:
+        input:
+            *softmask_all_inputs(assembly_name)
+
+    rule gene_prediction_all:
+        input:
+            *gene_prediction_all_inputs(assembly_name, genome_version)
+
+    rule circos_plot_all:
+        input:
+            *circos_plot_all_inputs(assembly_name, genome_version)
+
+    if enable_organelle_submission:
+        rule organelle_annotation_all:
+            input:
+                *organelle_annotation_all_inputs(assembly_name, genome_version)
+
+
+    rule gene_synteny_all:
+        input:
+            *gene_synteny_all_inputs(assembly_name)
+
+    rule annotation_all:
+        input:
+            *annotation_all_inputs(assembly_name, genome_version)

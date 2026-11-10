@@ -164,6 +164,17 @@ def normalize_optional_path_list(config_key, values):
     return normalized_values
 
 
+def normalize_external_path(config_key):
+    value = config.get(config_key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"'{config_key}' in config.yml must be a non-empty path string or null.")
+    if len(selected_assemblies) != 1:
+        raise ValueError(f"'{config_key}' requires exactly one label in 'selected_assemblies'.")
+    return value
+
+
 def normalize_bool_config(config_key, value, default=False):
     if value is None:
         return default
@@ -402,6 +413,11 @@ selected_assemblies = validate_choice_list(
 
 selected_assembly_pattern = "|".join(selected_assemblies)
 organelle_rna_editing_nuclear_assembly = selected_assemblies[0]
+external_assembly = normalize_external_path("external_assembly")
+external_gff3 = normalize_external_path("external_gff3")
+external_repeatmasker = normalize_external_path("external_repeatmasker")
+if globals().get("require_external_assembly", False) and external_assembly is None:
+    raise ValueError("'external_assembly' must be set when using workflow/Snakefile.annotation.")
 
 hic_reads_r1 = normalize_optional_path_list(
     "hic_reads_r1",
@@ -440,7 +456,7 @@ hifiasm_selected_assembly_gfa_paths = HIFIASM_SELECTED_ASSEMBLY_GFA_PATHS[
 pre_rename_assembly_name = (
     "yahs" if hic_reads_enabled else "longstitch" if longstitch_enabled else "fcs"
 )
-downstream_assembly_name = "renamed"
+downstream_assembly_name = "external" if external_assembly is not None else "renamed"
 renamed_sequence_prefix = (
     "scaffold"
     if hic_reads_enabled or longstitch_enabled or hifiasm_dual_scaf
@@ -704,9 +720,19 @@ def renamed_all_inputs(assembly_name):
 
 
 def softmask_all_inputs(assembly_name):
-    return renamed_all_inputs(assembly_name) + expand_selected_assembly_paths(
+    upstream = (
+        external_assembly_all_inputs(assembly_name)
+        if external_assembly is not None else renamed_all_inputs(assembly_name)
+    )
+    return upstream + expand_selected_assembly_paths(
         "results/repeatmasker/{selected_assembly}/{assembly_name}.fa.masked",
         assembly_name,
+    )
+
+
+def external_assembly_all_inputs(assembly_name):
+    return expand_selected_assembly_paths(
+        "results/external/assembly/{selected_assembly}/{assembly_name}.fa", assembly_name
     )
 
 
@@ -1184,11 +1210,19 @@ def organelle_submission_output_paths(assembly_name, genome_version):
 def circos_plot_all_inputs(assembly_name, genome_version):
     return gene_prediction_all_inputs(
         assembly_name, genome_version
-    ) + expand_selected_assembly_paths(
+    ) + plots_all_inputs(assembly_name)
+
+
+def plots_all_inputs(assembly_name):
+    return expand_selected_assembly_paths(
         "results/circos_plot/{selected_assembly}/{assembly_name}_{plot_kind}.pdf",
         assembly_name,
         plot_kind=["circos_plot", "linear_plot"],
     )
+
+
+def annotation_all_inputs(assembly_name, genome_version):
+    return gene_synteny_all_inputs(assembly_name) + circos_plot_all_inputs(assembly_name, genome_version)
 
 
 def hifi_fastplong_reads(_wildcards):

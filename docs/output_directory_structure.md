@@ -26,7 +26,7 @@ RepeatModeler, RepeatMasker, BRAKER4, release formatting, and Circos/linear plot
 
 - The full workflow stages the final assembly in `results/renamed/assembly/{selected_assembly}/{organism_name}.fa` after sorting and renaming sequences by length.
 - Its source is YaHS when Hi-C reads are configured, otherwise LongStitch when enabled, otherwise the purge_dups assembly when purging is enabled, otherwise FCS.
-- With `workflow/Snakefile.annotation`, the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
+- With `external_assembly` set in the main workflow (or the compatibility `workflow/Snakefile.annotation`), the downstream assembly is the staged external input at `results/external/assembly/{selected_assembly}/{organism_name}.fa`.
 
 ## `results/braker4/`
 
@@ -45,7 +45,7 @@ Rerun the workflow after a failure to reuse completed steps. Keep the working di
 
 ## `results/circos_plot/`
 
-Files used to build the final Circos and linear plots from long contigs of the downstream assembly.
+Files used to build the final Circos and linear plots from long contigs of the downstream assembly. The `plots_all` target requests only these plots and their track dependencies; external GFF3/RepeatMasker inputs can be supplied without copying them into `results/`.
 
 - `results/circos_plot/{selected_assembly}/`
   Final plot PDFs and the long-contig length table.
@@ -135,7 +135,7 @@ Created when `longstitch_enabled` is `true`, which is the default.
 
 ## `results/external/`
 
-Created only when running `workflow/Snakefile.annotation`.
+Created when `external_assembly` is set.
 
 - `assembly/{selected_assembly}/`
   External input assembly copied from `external_assembly` in `config/config.yml`.

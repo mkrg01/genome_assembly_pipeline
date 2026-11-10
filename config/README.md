@@ -9,7 +9,7 @@ This document explains:
 
 ## 1. Input Files (`raw_data/`)
 
-The full assembly workflow requires **PacBio HiFi reads**. The external-assembly annotation workflow (`workflow/Snakefile.annotation`) instead requires an assembly FASTA via `external_assembly`. Nuclear gene prediction uses **local paired-end RNA-seq reads** by default. With `braker4_rnaseq_source: "varus"`, BRAKER4 samples public SRA RNA-seq instead, so local reads are optional for nuclear annotation targets. Organelle RNA-editing curation still requires local paired-end RNA-seq, including in the full `all` target when organelle annotation is enabled.
+The full assembly workflow requires **PacBio HiFi reads**. With `external_assembly` set, the main workflow instead starts from that FASTA and skips read-based assembly/QC and organelle processing. Nuclear gene prediction uses **local paired-end RNA-seq reads** by default. With `braker4_rnaseq_source: "varus"`, BRAKER4 samples public SRA RNA-seq instead, so local reads are optional for nuclear annotation targets. Organelle RNA-editing curation still requires local paired-end RNA-seq, including in the full `all` target when organelle annotation is enabled.
 
 Place your raw sequencing files in the `raw_data` directory with the following naming conventions:
 
@@ -17,7 +17,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 | -------------------------- | ---------------------------- | ------------------------------------------ |
 | PacBio HiFi reads          | `*.hifi_reads.bam` | `SAMPLE1.hifi_reads.bam`                    |
 | Index for HiFi reads  | `*.hifi_reads.bam.pbi` | `SAMPLE1.hifi_reads.bam.pbi`                    |
-| External assembly FASTA (annotation workflow only) | Any path set in `external_assembly` | `raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna` |
+| External assembly FASTA (optional starting point) | Any path set in `external_assembly` | `raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna` |
 | Ultra-long ONT reads (optional) | Any FASTQ path in config (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/ont_reads.fastq.gz`              |
 | Hi-C reads R1 (optional) | One or more FASTQ paths in `hic_reads_r1` (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/hic_R1.fastq.gz` |
 | Hi-C reads R2 (optional) | One or more FASTQ paths in `hic_reads_r2` (`.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`) | `raw_data/hic_R2.fastq.gz` |
@@ -27,7 +27,7 @@ Place your raw sequencing files in the `raw_data` directory with the following n
 **Notes:**
 
 - The pipeline will automatically detect and process multiple PacBio HiFi and RNA-seq samples, if present.
-- PacBio HiFi reads are not required when running the external-assembly annotation workflow with `workflow/Snakefile.annotation`.
+- PacBio HiFi reads are not required when `external_assembly` is set. For plotting from existing annotations, set `external_gff3` and `external_repeatmasker`, then run `plots_all`; RNA-seq is unnecessary when gene prediction is not requested.
 - RNA-seq raw FASTQ inputs can be gzipped or plain text. The pipeline normalizes them during preprocessing, so downstream rules keep using the same internal filenames.
 - Keep only one raw RNA-seq file per sample and read pair. For example, do not place both `SAMPLE_1.fastq.gz` and `SAMPLE_1.fq` in `raw_data/`.
 - Ultra-long ONT reads are optional and can improve assembly quality when integrated with HiFi reads. See the [hifiasm documentation](https://github.com/chhylp123/hifiasm?tab=readme-ov-file#ultra-long-ont-integration) for details.
@@ -48,7 +48,12 @@ The sections below follow the order of `config/config.yml`.
 | `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.11.4"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
-| `external_assembly` | Required only with `workflow/Snakefile.annotation`. Set this to a single FASTA path string. Gzipped FASTA inputs are decompressed when staged into `results/external/assembly/`. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
+| `plots_only` | Limit `all` to Circos/linear plots and required repeat analysis; disable read-based assembly and gene prediction. Use for replotting staged inputs without the original sequencing reads. | `false` |
+| `external_assembly` | Optional starting FASTA for the main workflow. When set and `plots_only` is false, `all` runs nuclear annotation, QC, release, synteny, and plots without HiFi assembly/QC or organelle processing. Requires exactly one `selected_assemblies` label. Plain/gzipped FASTA is staged into `results/external/assembly/` with IDs preserved. | `"raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna"` |
+| `external_gff3` | Optional plain GFF3 for the gene plot track. Defaults to the pipeline BRAKER4 GFF3. Affects plotting only; requires exactly one selected assembly. | `"raw_data/genes.gff3"` |
+| `external_repeatmasker` | Optional plain cross_match-format `.out.xm` for repeat plot tracks. Defaults to pipeline repeat analysis, which runs if needed. Affects plotting only; requires exactly one selected assembly. | `"raw_data/genome.fa.out.xm"` |
+
+Use `plots_all` to request just Circos/linear plots and the dependencies of enabled tracks. External annotation coordinates and sequence IDs must match the downstream FASTA. The older `circos_plot_all` target still includes cumulative annotation, QC, and release dependencies.
 
 ### Hifiasm Genome Assembly
 
@@ -165,11 +170,11 @@ Linear plot count labels show each track's input window size. Coverage tracks us
 
 ### Annotation-based Self-synteny
 
-`gene_synteny_all` uses the longest-CDS representative proteins and GFF3 immediately after gene prediction. It does not wait for BUSCO, OMArk, or release formatting. Both entrypoints include it in `all`; `circos_plot_all` remains independent. Each selected assembly is compared only with itself.
+`gene_synteny_all` uses the longest-CDS representative proteins and GFF3 immediately after gene prediction. It does not wait for BUSCO, OMArk, or release formatting. The main workflow includes it in `all` and `annotation_all`; `circos_plot_all` remains independent. Each selected assembly is compared only with itself.
 
 ```bash
 snakemake --sdm conda apptainer --cores 16 gene_synteny_all
-# For an external assembly, also add: -s workflow/Snakefile.annotation
+# For an external assembly, set external_assembly in config/config.yml.
 ```
 
 DIAMOND 2.2.6 (`--ultra-sensitive`, all targets, one HSP per pair) searches all representative proteins. Exact self-gene hits are removed before keeping the best nonself hits per query; the reciprocal union is passed to MCScanX 1.0.0. Identical proteins from different genes are retained. Neither reciprocal-best-hit filtering nor an assumed copy number is imposed. These rules use a pinned host Conda environment, including when the rest of the workflow runs in Apptainer; no separate BLAST+ or JCVI installation is used.

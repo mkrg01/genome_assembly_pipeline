@@ -23,6 +23,6 @@ conda activate snakemake
 echo "Snakemake version: `snakemake --version`"
 
 # Dry run Snakemake workflow
-snakemake -n --sdm apptainer --singularity-args "--bind $(pwd)" --cores 1 -s workflow/Snakefile.circos all
+snakemake -n --sdm apptainer --singularity-args "--bind $(pwd)" --cores 1 --config plots_only=True -- plots_all
 
 echo "`date`: Ending"

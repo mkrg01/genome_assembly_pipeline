@@ -1192,26 +1192,6 @@ rule show_gc_content_per_contig:
         ) > {log.out} 2> {log.err}
         """
 
-rule download_busco_database:
-    output:
-        directory("results/downloads/busco_downloads")
-    log:
-        out = "logs/download_busco_database.out",
-        err = "logs/download_busco_database.err"
-    conda:
-        "../envs/busco.yml"
-    params:
-        lineage_dataset = config["busco_lineage_dataset"]
-    shell:
-        """
-        (
-            busco --download {params.lineage_dataset}
-            mkdir -p {output}
-            mv busco_downloads/* {output}
-            rm -rf busco_downloads
-        ) > {log.out} 2> {log.err}
-        """
-
 rule busco_genome_mode:
     input:
         genome = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa",
@@ -1428,28 +1408,6 @@ rule show_hifi_read_depth_for_organelle_contigs:
                 --contig_names {input.contig_names} \
                 --outdir $(dirname {output.depth_plot}) \
                 --prefix {wildcards.assembly_name}
-        ) > {log.out} 2> {log.err}
-        """
-
-rule extract_long_contigs:
-    input:
-        assembly = "results/{assembly}/assembly/{selected_assembly}/{assembly_name}.fa",
-        config_stamp = "config/config.yml"
-    output:
-        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
-    log:
-        out = "logs/extract_long_contigs_{assembly}_{selected_assembly}_{assembly_name}.out",
-        err = "logs/extract_long_contigs_{assembly}_{selected_assembly}_{assembly_name}.err"
-    conda:
-        "../envs/seqkit.yml"
-    params:
-        min_long_contig_length = config["min_long_contig_length"]
-    shell:
-        """
-        (
-            seqkit seq --min-len {params.min_long_contig_length} {input.assembly} \
-            | seqkit sort --by-length --reverse \
-            > {output}
         ) > {log.out} 2> {log.err}
         """
 

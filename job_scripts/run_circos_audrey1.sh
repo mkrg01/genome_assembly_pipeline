@@ -23,6 +23,6 @@ conda activate snakemake
 echo "Snakemake version: `snakemake --version`"
 
 # Run Snakemake workflow
-snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores "$SLURM_CPUS_PER_TASK" -s workflow/Snakefile.circos all
+snakemake --sdm conda apptainer --singularity-args "--bind $(pwd)" --cores "$SLURM_CPUS_PER_TASK" --config plots_only=True -- plots_all
 
 echo "`date`: Ending"

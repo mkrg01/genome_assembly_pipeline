@@ -2,7 +2,10 @@
 pipeline_version: "v0.11.4" # Container image tag used by the entrypoint Snakefiles.
 organism_name: "Dioncophyllum_thollonii" # Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces.
 genome_version: "v1.0" # Version label for this genome release. Used for release directories and output file names.
-external_assembly: null # Required only with workflow/Snakefile.annotation. Use a FASTA path string such as "raw_data/GCA_054852875.1_ASM5485287v1_genomic.fna".
+plots_only: false # Run only Circos/linear plots and repeat analysis if needed; never assemble reads or predict genes.
+external_assembly: null # Set a FASTA path to skip assembly and annotate/plot an existing genome with the main Snakefile. Requires one selected_assemblies label.
+external_gff3: null # Optional plain GFF3 for the gene plot track; annotation/release still use BRAKER4.
+external_repeatmasker: null # Optional plain cross_match-format .out.xm for repeat plot tracks; null uses/generates pipeline repeat analysis.
 
 # Hifiasm genome assembly
 selected_assemblies: ["primary"] # One or more assemblies to process after hifiasm. Allowed values: {"primary", "hap1", "hap2"}.
