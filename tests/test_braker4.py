@@ -39,6 +39,10 @@ GTF = """chr1\tBRAKER4\tCDS\t1\t6\t.\t+\t0\tgene_id "geneA"; transcript_id "tran
 chr1\tBRAKER4\tCDS\t1\t9\t.\t+\t0\tgene_id "geneA"; transcript_id "transcriptB";
 chr1\tBRAKER4\tCDS\t200\t208\t.\t+\t0\tgene_id "geneB"; transcript_id "independent";
 """
+NATIVE_GFF3 = GFF3.replace("\tmRNA\t", "\ttranscript\t") + (
+    "chr1\tAGAT\tmRNA\t1\t100\t.\t+\t.\tID=agat-mrna-1;Parent=geneA;transcript_id=transcriptB;\n"
+    "chr1\tStringTie\tthree_prime_UTR\t10\t12\t.\t+\t.\tParent=transcriptB;\n"
+)
 
 
 class Braker4Test(unittest.TestCase):
@@ -193,10 +197,15 @@ class Braker4Test(unittest.TestCase):
 
     def test_exports_compressed_results_through_submission_processing(self):
         run, identity, cmd, _ = run_braker4.prepare_run(self.args)
-        self.outputs(run)
+        results = self.outputs(run)
+        with gzip.open(results / "braker.gff3.gz", "wt") as handle:
+            handle.write(NATIVE_GFF3)
         run_braker4.export_results(run, self.args.output_dir, self.args.sample, identity, cmd)
         exported = self.args.output_dir
         self.assertEqual({"genes": 2, "transcripts": 3}, json.loads((exported / "run.json").read_text())["counts"])
+        gff3 = (exported / "braker.gff3").read_text()
+        self.assertNotIn("agat-mrna-1", gff3)
+        self.assertIn("\tthree_prime_UTR\t10\t12\t.\t+\t.\tParent=transcriptB;", gff3)
         representative = exported / "representative.fa"
         select_longest_cds.select_longest(exported / "braker.codingseq", exported / "braker.gff3", representative)
         self.assertEqual({"transcriptB", "independent"}, run_braker4.fasta_ids(representative))
@@ -209,6 +218,40 @@ class Braker4Test(unittest.TestCase):
         rename_submission_gene_models.rewrite_fasta(representative, exported / "submission.fa", transcripts)
         self.assertEqual({"Tesex_000001.t2", "Tesex_000002.t1"}, run_braker4.fasta_ids(exported / "submission.fa"))
         self.assertIn("Parent=Tesex_000001.t2", (exported / "submission.gff3").read_text())
+
+    def test_referenced_or_inconsistent_agat_aliases_are_rejected(self):
+        run, identity, cmd, _ = run_braker4.prepare_run(self.args)
+        results = self.outputs(run)
+        for gff3 in (
+            NATIVE_GFF3.replace("Parent=transcriptB;\n", "Parent=agat-mrna-1;\n"),
+            NATIVE_GFF3.replace("Parent=geneA;transcript_id=transcriptB", "Parent=geneB;transcript_id=transcriptB"),
+        ):
+            with self.subTest(gff3=gff3.splitlines()[-2:]):
+                with gzip.open(results / "braker.gff3.gz", "wt") as handle:
+                    handle.write(gff3)
+                with self.assertRaisesRegex(ValueError, "AGAT mRNA alias"):
+                    run_braker4.export_results(run, self.args.output_dir, self.args.sample, identity, cmd)
+                self.assertFalse((self.args.output_dir / "run.json").exists())
+
+    def test_reexports_completed_run_with_same_inputs_from_an_older_runner(self):
+        run, identity, _, _ = run_braker4.prepare_run(self.args)
+        previous = {**identity, "runner_sha256": "a" * 64}
+        older_run = run.with_name(run_braker4.run_name(previous))
+        older_run.mkdir()
+        (older_run / "inputs.json").write_text(json.dumps(previous))
+        self.outputs(older_run)
+        self.args.export_completed_run = older_run
+
+        run_braker4.export_completed_run(self.args)
+        manifest = json.loads((self.args.output_dir / "run.json").read_text())
+        self.assertEqual(previous["runner_sha256"], manifest["runner_sha256"])
+        self.assertEqual(identity["runner_sha256"], manifest["exporter_sha256"])
+        self.assertEqual(str(older_run), manifest["workdir"])
+
+        self.args.genome.write_text(">chr1\nATGAAATAG\n")
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            run_braker4.export_completed_run(self.args)
+        self.assertEqual(manifest, json.loads((self.args.output_dir / "run.json").read_text()))
 
     def test_bad_results_do_not_replace_previous_exports(self):
         run, identity, cmd, _ = run_braker4.prepare_run(self.args)
