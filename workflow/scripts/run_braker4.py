@@ -53,7 +53,7 @@ def file_identity(path):
     return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
-def prepare_run(args):
+def identify_run(args):
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", args.sample):
         raise ValueError("BRAKER4 sample name must start with a letter and contain letters, digits or underscores")
     if not re.fullmatch(r"[A-Za-z0-9_]+_odb12", args.lineage):
@@ -91,10 +91,18 @@ def prepare_run(args):
         "template_sha256": hashlib.sha256(Path(args.template).read_bytes()).hexdigest(),
         "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
+    return identity, source, busco
+
+
+def run_name(identity):
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
+
+
+def prepare_run(args):
+    identity, source, busco = identify_run(args)
     # A changed input set or model configuration gets a fresh run, while retries
     # with the same inputs reuse all child metadata. Resource changes can resume.
-    run_id = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
-    run_dir = checked_path(args.output_dir) / "work" / run_id
+    run_dir = checked_path(args.output_dir) / "work" / run_name(identity)
     run_dir.mkdir(parents=True, exist_ok=True)
     inputs_dir = run_dir / "inputs"
     inputs_dir.mkdir(exist_ok=True)
@@ -227,6 +235,56 @@ def validate_outputs(directory):
     return {"genes": len(genes), "transcripts": len(transcripts)}
 
 
+def normalize_gff3(path, cds_ids):
+    """Normalize coding feature types and reconcile redundant AGAT aliases."""
+    canonical = {}
+    aliases = {}
+    references = set()
+    for _, _, fields in iter_gff_records(path):
+        if fields is None:
+            continue
+        attrs = parse_attributes(fields[8])
+        for attribute in ("Parent", "Derives_from"):
+            references.update(split_parents(attrs.get(attribute, "")))
+        feature_id = attrs.get("ID", "")
+        if fields[2] in ("transcript", "mRNA") and feature_id in cds_ids:
+            if feature_id in canonical:
+                raise ValueError(f"Duplicate coding transcript ID in BRAKER4 GFF3: {feature_id}")
+            canonical[feature_id] = fields, attrs.get("Parent")
+        elif fields[2] == "mRNA" and re.fullmatch(r"agat-mrna-\d+", feature_id):
+            if feature_id in aliases:
+                raise ValueError(f"Duplicate AGAT mRNA ID in BRAKER4 GFF3: {feature_id}")
+            aliases[feature_id] = fields, attrs
+
+    for alias_id, (fields, attrs) in aliases.items():
+        target = canonical.get(attrs.get("transcript_id"))
+        if target is None or alias_id in references:
+            raise ValueError(f"Cannot reconcile AGAT mRNA alias in BRAKER4 GFF3: {alias_id}")
+        coding, parent = target
+        if (
+            not parent or attrs.get("Parent") != parent
+            or fields[0] != coding[0] or fields[6] != coding[6]
+            or not int(coding[3]) <= int(fields[3]) <= int(fields[4]) <= int(coding[4])
+        ):
+            raise ValueError(f"AGAT mRNA alias disagrees with its coding transcript: {alias_id}")
+
+    converted = {tx for tx, (fields, _) in canonical.items() if fields[2] == "transcript"}
+    if not converted and not aliases:
+        return
+    normalized = path.with_suffix(".normalized.gff3")
+    with normalized.open("w") as out:
+        for _, original, fields in iter_gff_records(path):
+            if fields is not None and fields[2] in ("mRNA", "transcript"):
+                feature_id = parse_attributes(fields[8]).get("ID")
+                if fields[2] == "mRNA" and feature_id in aliases:
+                    continue
+                if fields[2] == "transcript" and feature_id in converted:
+                    fields[2] = "mRNA"
+                    original = "\t".join(fields) + "\n"
+            out.write(original)
+    normalized.replace(path)
+
+
 def export_results(run_dir, output_dir, sample, identity, command):
     results = run_dir / "output" / sample / "results"
     if not (results / ".done").is_file():
@@ -237,12 +295,34 @@ def export_results(run_dir, output_dir, sample, identity, command):
         for name in CORE_FILES:
             with gzip.open(results / (name + ".gz"), "rb") as source, (staged / name).open("wb") as out:
                 shutil.copyfileobj(source, out)
+        normalize_gff3(staged / "braker.gff3", fasta_ids(staged / "braker.codingseq"))
         counts = validate_outputs(staged)
         manifest = {**identity, "workdir": str(run_dir), "results": str(results),
                     "command": command, "counts": counts}
         (staged / "run.json").write_text(json.dumps(manifest, indent=2) + "\n")
         for name in (*CORE_FILES, "run.json"):
             (staged / name).replace(output_dir / name)
+
+
+def export_completed_run(args):
+    """Re-export a completed child run whose recorded inputs still match."""
+    identity, _, _ = identify_run(args)
+    run_dir = checked_path(args.export_completed_run)
+    output_dir = checked_path(args.output_dir)
+    if run_dir.parent != output_dir / "work":
+        raise ValueError("Completed BRAKER4 run must be in the output directory's work folder")
+    previous = json.loads((run_dir / "inputs.json").read_text())
+    runner_sha256 = previous.get("runner_sha256", "")
+    if (
+        not re.fullmatch(r"[a-f0-9]{64}", runner_sha256)
+        or run_dir.name != run_name(previous)
+        or previous != {**identity, "runner_sha256": runner_sha256}
+    ):
+        raise ValueError("Completed BRAKER4 run does not match the current inputs and configuration")
+    export_results(
+        run_dir, output_dir, args.sample,
+        {**previous, "exporter_sha256": identity["runner_sha256"]}, [],
+    )
 
 
 def main():
@@ -259,8 +339,16 @@ def main():
     parser.add_argument("--rnaseq-r2", nargs="*", type=Path, default=[])
     parser.add_argument("--threads", type=int, required=True)
     parser.add_argument("--mem-mb", type=int, required=True)
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument(
+        "--export-completed-run", type=Path,
+        help="Validate and export a matching finished BRAKER4 work directory without rerunning prediction.",
+    )
     args = parser.parse_args()
+    if args.export_completed_run is not None:
+        export_completed_run(args)
+        return
     run_dir, identity, command, env = prepare_run(args)
     print(f"BRAKER4 work directory: {run_dir}", flush=True)
     print(shlex.join(command), flush=True)
