@@ -225,6 +225,40 @@ class SelfDotplotTests(unittest.TestCase):
         self.assertEqual(data["filtered_records"]["short_span"], 1)
         self.assertEqual(set(data["filtered_records"]), {"short_span", "self_diagonal"})
 
+    def test_cli_writes_all_cutoffs_with_independent_filter_counts(self):
+        fasta = self.root / "assembly.fa"
+        fasta.write_text(">ctg1\n" + "A" * 200_000 + "\n>ctg2\n" + "C" * 200_000 + "\n")
+        self.paf.write_text("\n".join([
+            *(self.record(length=length) for length in (9_999, 10_000, 25_000, 50_000)),
+            self.record(length=20_000, qname="ctg1", qstart=10_000),
+        ]) + "\n")
+        cmd = [
+            sys.executable, str(SCRIPTS_DIR / "plot_self_dotplot.py"),
+            "--fasta", str(fasta), "--paf", str(self.paf), "--contigs", str(self.root / "contigs.tsv"),
+            "--organism-name", "Testus_example",
+            "--pdf", str(self.root / "50000.pdf"), "--summary", str(self.root / "50000.json"),
+            "--comparison-pdf", str(self.root / "comparison.pdf"),
+        ]
+        for length in (10_000, 25_000):
+            cmd.extend((
+                "--additional-plot", str(length), str(self.root / f"{length}.pdf"),
+                str(self.root / f"{length}.json"),
+            ))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        comparison_pdf = (self.root / "comparison.pdf").read_bytes()
+        self.assertTrue(comparison_pdf.startswith(b"%PDF"))
+        self.assertRegex(comparison_pdf, rb"/MediaBox\s*\[\s*0\s+0\s+518\.4\s+")
+        for length, kept, diagonal in ((10_000, 3, 1), (25_000, 2, 0), (50_000, 1, 0)):
+            self.assertTrue((self.root / f"{length}.pdf").read_bytes().startswith(b"%PDF"))
+            summary = json.loads((self.root / f"{length}.json").read_text())
+            self.assertEqual(summary["total_records"], 5)
+            self.assertEqual(summary["min_alignment_length"], length)
+            self.assertEqual(summary["plotted_records"], kept)
+            self.assertEqual(summary["filtered_records"], {
+                "short_span": 5 - kept - diagonal, "self_diagonal": diagonal,
+            })
+
     def test_invalid_span_arguments_fail_before_plotting(self):
         args = [
             "--fasta", "in.fa", "--paf", "in.paf", "--pdf", "out.pdf",
@@ -282,14 +316,20 @@ class SelfDotplotTests(unittest.TestCase):
                     path = MplPath(axis.transAxes.transform(line))
                     self.assertFalse(any(path.intersects_bbox(box, filled=False) for box in boxes))
 
-    def test_unreadable_label_density_fails_without_writing_a_pdf(self):
-        self.offsets, self.rows, self.total = self.plot.build_contig_offsets(
-            [(f"ptg{index:06d}l", 1_000_000) for index in range(200)]
-        )
-        output = self.root / "too_many_labels.pdf"
-        with self.assertRaisesRegex(ValueError, "cannot fit"):
-            self.plot.plot_dotplot(self.rows, self.total, {"segments": [], "kept_records": 0}, output, "Genome (Mb)")
-        self.assertFalse(output.exists())
+    def test_crowded_scaffold_labels_expand_canvas_and_keep_all_names(self):
+        names = [f"ptg{index:06d}l" for index in range(200)]
+        for case, lengths in (
+            ("uniform", [1_000_000] * 200),
+            ("mixed", [100_000_000] * 100 + [1_000_000] * 100),
+        ):
+            with self.subTest(case=case), self.plot.plt.rc_context({"font.family": "DejaVu Sans"}):
+                self.offsets, self.rows, self.total = self.plot.build_contig_offsets(list(zip(names, lengths)))
+                figure = self.render({"segments": [], "kept_records": 0}, f"many_labels_{case}")
+                labels = [text for text in figure.axes[0].texts
+                          if (text.get_gid() or "").startswith("contig-label-")]
+                self.assertGreater(figure.get_figwidth(), self.plot.figure_size(len(names)))
+                self.assertEqual(sorted(text.get_text() for text in labels), sorted(names * 2))
+                self.assertEqual({text.get_fontsize() for text in labels}, {7})
 
     def test_pdf_font_line_height_is_reserved_between_crowded_labels(self):
         from matplotlib.transforms import Bbox

@@ -18,6 +18,7 @@ elif not plots_only:
     include: "rules/organelle_annotation.smk"
 include: "rules/softmask.smk"
 if not plots_only:
+    include: "rules/self_dotplot.smk"
     include: "rules/gene_prediction.smk"
 include: "rules/circos_plot.smk"
 if not plots_only:
@@ -35,6 +36,12 @@ rule all:
 rule plots_all:
     input:
         *plots_all_inputs(assembly_name)
+
+
+if not plots_only:
+    rule self_dotplot_all:
+        input:
+            *self_dotplot_all_inputs(assembly_name)
 
 if external_assembly is None and not plots_only:
     rule assembly_all:

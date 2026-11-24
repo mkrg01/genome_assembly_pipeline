@@ -62,6 +62,8 @@ The output will be generated in the [`results` directory](docs/output_directory_
 >
 > You do not need to start from step 1 — for example, if you run `remove_contamination_all` first, the rules related to `assembly_all` and `remove_organelle_all` will be executed automatically.
 
+Run `self_dotplot_all` to draw the 10, 25, and 50 kb DNA self-dotplots individually and side by side in a 7.2-inch-wide PDF.
+
 For organelle annotation curation, a typical sequence is:
 
 ```bash

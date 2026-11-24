@@ -576,10 +576,48 @@ def seqkit_stats_organelle_real_path(assembly_name):
     ]
 
 
+SELF_DOTPLOT_STEM = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot"
+self_dotplot_min_alignment_length = config.get("self_dotplot_min_alignment_length", 50_000)
+try:
+    self_dotplot_min_alignment_length = int(str(self_dotplot_min_alignment_length))
+except ValueError:
+    raise ValueError("'self_dotplot_min_alignment_length' must be a positive integer.") from None
+if self_dotplot_min_alignment_length <= 0:
+    raise ValueError("'self_dotplot_min_alignment_length' must be a positive integer.")
+
+self_dotplot_additional_lengths = config.get("self_dotplot_additional_alignment_lengths", [10_000, 25_000])
+if not isinstance(self_dotplot_additional_lengths, list) or any(
+    type(length) is not int or length <= 0 for length in self_dotplot_additional_lengths
+):
+    raise ValueError("'self_dotplot_additional_alignment_lengths' must be a list of positive integers.")
+self_dotplot_additional_lengths = sorted(set(self_dotplot_additional_lengths) - {self_dotplot_min_alignment_length})
+
+
+def self_dotplot_additional_paths(stem, extension):
+    return [f"{stem}_{length}bp{extension}" for length in self_dotplot_additional_lengths]
+
+
+def self_dotplot_comparison_paths(stem):
+    return [f"{stem}_comparison.pdf"] if self_dotplot_additional_lengths else []
+
+
+def self_dotplot_pdf_inputs(stage, assembly_name, assemblies):
+    paths = []
+    for selected in assemblies:
+        stem = SELF_DOTPLOT_STEM.format(assembly=stage, selected_assembly=selected, assembly_name=assembly_name)
+        paths.extend((
+            f"{stem}.pdf",
+            *self_dotplot_additional_paths(stem, ".pdf"),
+            *self_dotplot_comparison_paths(stem),
+        ))
+    return paths
+
+
 def assembly_all_inputs(assembly_name):
     inputs = [
         f"results/hifi_reads/smudgeplot/{assembly_name}_masked_errors_smu.txt",
         f"results/hifi_reads/genomescope2/{assembly_name}_summary.txt",
+        *self_dotplot_pdf_inputs("hifiasm", assembly_name, selected_assemblies),
         *seqkit_stats_organelle_real_path(assembly_name),
     ]
     for pattern in (
@@ -589,7 +627,6 @@ def assembly_all_inputs(assembly_name):
         "results/hifiasm/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/hifiasm/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/hifiasm/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
-        "results/hifiasm/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
         "results/hifiasm/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
@@ -600,6 +637,7 @@ def assembly_all_inputs(assembly_name):
 
 def remove_organelle_all_inputs(assembly_name):
     inputs = assembly_all_inputs(assembly_name)
+    inputs.extend(self_dotplot_pdf_inputs("organelle_removal", assembly_name, selected_assemblies))
     for pattern in (
         "results/organelle_removal/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
         "results/organelle_removal/length/{selected_assembly}/{assembly_name}_length.pdf",
@@ -607,7 +645,6 @@ def remove_organelle_all_inputs(assembly_name):
         "results/organelle_removal/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/organelle_removal/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/organelle_removal/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
-        "results/organelle_removal/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
         "results/organelle_removal/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
@@ -619,6 +656,7 @@ def remove_organelle_all_inputs(assembly_name):
 
 def remove_contamination_all_inputs(assembly_name):
     inputs = remove_organelle_all_inputs(assembly_name)
+    inputs.extend(self_dotplot_pdf_inputs("fcs", assembly_name, selected_assemblies))
     for pattern in (
         "results/fcs/seqkit/{selected_assembly}/{assembly_name}_seqkit_stats.tsv",
         "results/fcs/length/{selected_assembly}/{assembly_name}_length.pdf",
@@ -626,7 +664,6 @@ def remove_contamination_all_inputs(assembly_name):
         "results/fcs/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/fcs/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/fcs/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
-        "results/fcs/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
     ):
         inputs.extend(expand_selected_assembly_paths(pattern, assembly_name))
     inputs.append(
@@ -647,7 +684,7 @@ def purge_dups_all_inputs(assembly_name):
             f"results/purge_dups/busco_genome/{selected}/BUSCO_{assembly_name}.fa",
             f"results/purge_dups/merqury/{selected}/{assembly_name}.merqury.qv",
             f"results/purge_dups/merqury/{selected}/{assembly_name}.merqury.completeness.stats",
-            f"results/purge_dups/dotplot/{selected}/{assembly_name}_self_dotplot.pdf",
+            *self_dotplot_pdf_inputs("purge_dups", assembly_name, [selected]),
         ])
     return inputs
 
@@ -664,10 +701,7 @@ def longstitch_all_inputs(assembly_name):
         )
     )
     inputs.extend(
-        expand_selected_assembly_paths(
-            "results/longstitch/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
-            assembly_name,
-        )
+        self_dotplot_pdf_inputs("longstitch", assembly_name, selected_assemblies)
     )
     return inputs
 
@@ -681,13 +715,13 @@ def scaffold_all_inputs(assembly_name):
         [
             merged_hic_reads_path(assembly_name, 1),
             merged_hic_reads_path(assembly_name, 2),
+            *self_dotplot_pdf_inputs("yahs", assembly_name, selected_assemblies),
         ]
     )
     for pattern in (
         "results/yahs/assembly/{selected_assembly}/{assembly_name}.fa",
         "results/yahs/agp/{selected_assembly}/{assembly_name}.agp",
         "results/yahs/alignment/{selected_assembly}/{assembly_name}_hic_to_assembly.bam",
-        "results/yahs/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/juicebox/{selected_assembly}/{assembly_name}.hic",
         "results/juicebox/{selected_assembly}/{assembly_name}.assembly",
         "results/juicebox/{selected_assembly}/{assembly_name}.liftover.agp",
@@ -707,7 +741,6 @@ def renamed_all_inputs(assembly_name):
         "results/renamed/busco_genome/{selected_assembly}/BUSCO_{assembly_name}.fa",
         "results/renamed/merqury/{selected_assembly}/{assembly_name}.merqury.qv",
         "results/renamed/depth/{selected_assembly}/{assembly_name}_contig_depth.pdf",
-        "results/renamed/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
         "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_find.svg",
         "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_explore.tsv",
         "results/renamed/tidk/{selected_assembly}/{assembly_name}_tidk_search.svg",
@@ -716,7 +749,11 @@ def renamed_all_inputs(assembly_name):
     inputs.append(
         f"results/downloads/tidk/.{assembly_name}_.renamed_local_share_tidk_successfully_removed_or_restored.txt"
     )
-    return inputs
+    return inputs + self_dotplot_all_inputs(assembly_name)
+
+
+def self_dotplot_all_inputs(assembly_name):
+    return self_dotplot_pdf_inputs(downstream_assembly_name, assembly_name, selected_assemblies)
 
 
 def softmask_all_inputs(assembly_name):

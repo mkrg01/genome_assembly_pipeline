@@ -45,7 +45,7 @@ The sections below follow the order of `config/config.yml`.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.11.6"` |
+| `pipeline_version` | Container image tag used by the entrypoint Snakefiles. The workflow builds the full image URI as `docker://aurelia01/genome_assembly_pipeline:<pipeline_version>`. | `"v0.11.7"` |
 | `organism_name` | Filesystem-safe organism label used for output file prefixes and GenBank source/metadata. Use underscores instead of spaces; legacy `assembly_name` is still accepted as a fallback. | `"Dioncophyllum_thollonii"` |
 | `genome_version` | Filesystem-safe version label for this genome release. Used for release directories and output file names; legacy `assembly_version` is still accepted as a fallback. | `"v1.0"` |
 | `plots_only` | Limit `all` to Circos/linear plots and required repeat analysis; disable read-based assembly and gene prediction. Use for replotting staged inputs without the original sequencing reads. | `false` |
@@ -147,23 +147,25 @@ When migrating from BRAKER3, archive previous QC and release files if needed; do
 | Parameter | Description | Example |
 | --- | --- | --- |
 | `min_long_contig_length` | Minimum contig length (bp) included in Circos, DNA self-dotplots, and gene-synteny plots (display only). | `1_000_000` |
-| `self_dotplot_min_alignment_length` | Minimum match span on each sequence (bp) shown in self-dotplots. Default: 50 kb for the whole-genome overview. | `50_000` |
+| `self_dotplot_min_alignment_length` | Minimum span on each sequence (bp) for the main DNA self-dotplot. | `50_000` |
+| `self_dotplot_additional_alignment_lengths` | Minimum spans on each sequence (bp) for additional DNA-only PDFs. Set to `[]` to generate only the main cutoff. | `[10_000, 25_000]` |
 | `circos_plot_tracks`        | Track configuration for the Circos plot | `{id: "gene", label: "Gene model", color: "#4C72B0", window_size: 500_000}`       |
 | `circos_plot_x_major_tick_interval` | Major tick interval (in bp) for the x-axis in Circos plots. Major ticks are labeled. | `10_000_000` |
 | `circos_plot_x_minor_tick_interval` | Minor tick interval (in bp) for the x-axis in Circos plots. Minor ticks are unlabeled. | `5_000_000` |
 
-Self-dotplots show matching regions within and between contigs, ordered by contig length. Dark gray lines show matches; their slope indicates orientation when resolved at the plotted scale. Dotted lines mark contig boundaries; the light gray solid diagonal marks identical coordinates. All contig names appear on both axes at 7 pt, with gray leader lines to their contig midpoints, including straight lines for labels that stay centered. Crowded labels move in order; a second row/column is added when needed. Genomic coordinates are unchanged. If names cannot fit within the 180 mm figure while keeping a readable plot, rendering stops rather than omitting labels.
+Self-dotplots show matching regions within and between contigs, ordered by contig length. Dark gray lines show matches and their slope indicates orientation when resolved at the plotted scale. Dotted lines mark contig boundaries. The light gray solid diagonal marks identical coordinates. The individual PDFs show all contig names on both axes at 7 pt with leaders to their midpoints. Crowded labels move in order and can use two rows or columns. The canvas starts at 180 mm and expands if the labels need more space.
 
-Mapping uses minimap2 `-DP -k19 -w19 -m200` ([official recipe](https://github.com/lh3/minimap2/blob/v2.30/cookbook.md#hom-map)). Matches are filtered by their span on each sequence, without an identity filter. Lower `self_dotplot_min_alignment_length` to show shorter matches.
+Self-alignments use minimap2 `-DP -k19 -w19 -m200`. Matches are filtered by their span on each sequence. [minimap2 self-homology recipe](https://github.com/lh3/minimap2/blob/v2.30/cookbook.md#hom-map)
 
-To redraw with a 25 kb cutoff, using an existing FASTA and PAF (replace the example output path):
+By default, `self_dotplot_all` puts the 10, 25, and 50 kb DNA-only plots in one row in a 7.2-inch-wide `_self_dotplot_comparison.pdf` for each selected assembly. Multiple cutoffs use the same axes and run from shortest to longest. Individual PDFs are also available. The 10 and 25 kb plots end in `_self_dotplot_10000bp.pdf` and `_self_dotplot_25000bp.pdf`. The 50 kb plot uses `_self_dotplot.pdf`. Each individual PDF has a matching summary JSON. All PDFs use one minimap2 alignment and one contig-coordinate table.
+
+To redraw the configured DNA plots using an existing FASTA and PAF (replace the example output path):
 
 ```bash
 snakemake -s workflow/Snakefile --cores 8 \
   --allowed-rules plot_self_dotplot \
   --forcerun plot_self_dotplot \
-  --config self_dotplot_min_alignment_length=25000 \
-  -- results/Plumbago_auriculata_v1/dotplot/primary/Plumbago_auriculata_self_dotplot.pdf
+  -- results/renamed/dotplot/primary/ASSEMBLY_self_dotplot_comparison.pdf
 ```
 
 Linear plot count labels show each track's input window size. Coverage tracks use the largest window in the input, and telomeric-repeat tracks use the TIDK interval; terminal windows may be shorter.
