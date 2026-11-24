@@ -17,14 +17,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.collections import LineCollection
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 
-from plot_style import apply_matplotlib_style
+from plot_style import apply_matplotlib_style, display_organism_name
 
 apply_matplotlib_style()
 
 
 MIN_ALIGNMENT_LENGTH = 50_000
+COMPARISON_WIDTH_INCHES = 7.2
 ALIGNMENT_COLOR = "#222222"
 BOUNDARY_COLOR = "#CBCBCB"
 BOUNDARY_LINESTYLE = "dotted"
@@ -101,9 +102,16 @@ def is_main_diagonal(qname, tname, qstart, qend, tstart, tend, strand):
 
 
 def parse_paf(paf_path, offsets, min_alignment_length=MIN_ALIGNMENT_LENGTH):
-    segments = []
+    return parse_paf_by_length(
+        paf_path, offsets, (min_alignment_length,),
+    )[min_alignment_length]
+
+
+def parse_paf_by_length(paf_path, offsets, min_alignment_lengths):
+    lengths = sorted(set(min_alignment_lengths))
+    segments_by_length = {length: [] for length in lengths}
     total_records = 0
-    counts = dict.fromkeys(("short_span", "self_diagonal"), 0)
+    diagonal_spans = []
 
     with open_text(paf_path) as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -134,11 +142,11 @@ def parse_paf(paf_path, offsets, min_alignment_length=MIN_ALIGNMENT_LENGTH):
                 raise ValueError(f"Invalid coordinates in {paf_path}:{line_number}")
             # Use coordinate spans only. Mapping-only PAF block lengths and
             # matching-base counts are approximate and do not define identity.
-            if min(qend - qstart, tend - tstart) < min_alignment_length:
-                counts["short_span"] += 1
+            span = min(qend - qstart, tend - tstart)
+            if span < lengths[0]:
                 continue
             if is_main_diagonal(qname, tname, qstart, qend, tstart, tend, strand):
-                counts["self_diagonal"] += 1
+                diagonal_spans.append(span)
                 continue
             q_abs_start = offsets[qname] + qstart
             q_abs_end = offsets[qname] + qend
@@ -150,17 +158,29 @@ def parse_paf(paf_path, offsets, min_alignment_length=MIN_ALIGNMENT_LENGTH):
             else:
                 segment = [(t_abs_end, q_abs_start), (t_abs_start, q_abs_end)]
 
-            segments.append(segment)
+            for length in lengths:
+                if length > span:
+                    break
+                segments_by_length[length].append(segment)
 
-    return {
-        "segments": segments,
-        "total_records": total_records,
-        "kept_records": len(segments),
-        "filtered_records": counts,
-    }
+    results = {}
+    for length, segments in segments_by_length.items():
+        diagonals = sum(span >= length for span in diagonal_spans)
+        results[length] = {
+            "segments": segments,
+            "total_records": total_records,
+            "kept_records": len(segments),
+            "filtered_records": {
+                "short_span": total_records - len(segments) - diagonals,
+                "self_diagonal": diagonals,
+            },
+        }
+    return results
 
 
-def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle="solid", capstyle="butt"):
+def add_line_collection(
+    ax, segments, color, linewidth, alpha, zorder, linestyle="solid", capstyle="butt", *, rasterized=False,
+):
     if not segments:
         return
     collection = LineCollection(
@@ -170,7 +190,7 @@ def add_line_collection(ax, segments, color, linewidth, alpha, zorder, linestyle
         linestyles=linestyle,
         capstyle=capstyle,
         alpha=alpha,
-        rasterized=False,
+        rasterized=rasterized,
         zorder=zorder,
     )
     ax.add_collection(collection)
@@ -190,7 +210,7 @@ def format_mb(value, _position):
 
 
 def figure_size(contig_count):
-    # Keep a fixed publication width so additional contigs do not shrink text.
+    # Start at publication width. Expand the canvas if the labels need more room.
     return 180 / 25.4
 
 
@@ -226,6 +246,10 @@ def pack_label_positions(desired, spacing, lower, upper):
     for total, count in blocks:
         fitted.extend([min(ceiling, max(lower, total / count))] * count)
     return [position + offset for position, offset in zip(fitted, offsets)]
+
+
+class ContigLabelLayoutError(ValueError):
+    pass
 
 
 def add_contig_label_axes(ax, contig_rows):
@@ -285,7 +309,7 @@ def add_contig_label_axes(ax, contig_rows):
         if shift <= 30:
             break
     if not candidates:
-        raise ValueError(
+        raise ContigLabelLayoutError(
             "All contig labels cannot fit at 7 pt in the fixed-width figure. "
             "Increase the figure dimensions; no names have been omitted."
         )
@@ -363,25 +387,23 @@ def genome_axis_label(organism_name, min_long_contig_length=None):
     return rf"$\it{{{italic_name}}}$ genome ({unit_label})"
 
 
-def plot_dotplot(
-    contig_rows,
-    total_length,
-    paf_segments,
-    output_pdf,
-    axis_label,
-    min_alignment_length=MIN_ALIGNMENT_LENGTH,
-):
-    size = figure_size(len(contig_rows))
-    fig, ax = plt.subplots(figsize=(size, size), dpi=144)
+def fit_contig_label_axes(ax, contig_rows):
+    try:
+        add_contig_label_axes(ax, contig_rows)
+    except ContigLabelLayoutError:
+        # Expand both axes to keep every scaffold name at 7 pt.
+        size = max(ax.figure.get_figheight() * 2,
+                   len(contig_rows) * (CONTIG_LABEL_SIZE + LABEL_GAP_PT + 3) / 144 + 2)
+        ax.figure.set_size_inches(size, size)
+        add_contig_label_axes(ax, contig_rows)
 
+
+def draw_dotplot(ax, boundary_segments, total_length, paf_segments, *, rasterized=False):
     if total_length == 0:
         ax.text(0.5, 0.5, "No long contigs", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
-        fig.savefig(output_pdf, dpi=600)
-        plt.close(fig)
         return
 
-    boundary_segments = build_boundary_segments(contig_rows, total_length)
     add_line_collection(ax, boundary_segments, BOUNDARY_COLOR, 0.25, 0.65, 1, BOUNDARY_LINESTYLE)
     # Mark identical coordinates as a guide, separate from homology matches.
     ax.plot(
@@ -390,7 +412,10 @@ def plot_dotplot(
     )
     # Flat caps make a sublinewidth match look perpendicular to its true
     # direction. Round caps represent unresolved matches as dots instead.
-    add_line_collection(ax, paf_segments["segments"], ALIGNMENT_COLOR, 0.4, 1.0, 3, capstyle="round")
+    add_line_collection(
+        ax, paf_segments["segments"], ALIGNMENT_COLOR, 0.4, 1.0, 3,
+        capstyle="round", rasterized=rasterized,
+    )
 
     if paf_segments["kept_records"] == 0:
         ax.text(
@@ -406,15 +431,73 @@ def plot_dotplot(
     ax.set_xlim(0, total_length)
     ax.set_ylim(0, total_length)
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel(axis_label, fontsize=9)
-    ax.set_ylabel(axis_label, fontsize=9)
     ax.xaxis.set_major_formatter(FuncFormatter(format_mb))
     ax.yaxis.set_major_formatter(FuncFormatter(format_mb))
     ax.tick_params(length=3, width=0.8, labelsize=7)
     for spine in ax.spines.values():
         spine.set_linewidth(0.8)
+
+
+def plot_dotplot(
+    contig_rows,
+    total_length,
+    paf_segments,
+    output_pdf,
+    axis_label,
+    min_alignment_length=MIN_ALIGNMENT_LENGTH,
+):
+    size = figure_size(len(contig_rows))
+    fig, ax = plt.subplots(figsize=(size, size), dpi=144)
+
     try:
-        add_contig_label_axes(ax, contig_rows)
+        draw_dotplot(ax, build_boundary_segments(contig_rows, total_length), total_length, paf_segments)
+        if total_length == 0:
+            fig.savefig(output_pdf, dpi=600)
+            return
+
+        ax.set_xlabel(axis_label, fontsize=9)
+        ax.set_ylabel(axis_label, fontsize=9)
+        fit_contig_label_axes(ax, contig_rows)
+        fig.savefig(output_pdf, dpi=600)
+    finally:
+        plt.close(fig)
+
+
+def plot_comparison(contig_rows, total_length, by_length, output_pdf, organism_name):
+    columns = min(3, len(by_length))
+    rows = (len(by_length) + columns - 1) // columns
+    height = 2.4 * rows + 0.7
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(COMPARISON_WIDTH_INCHES, height),
+        sharex=True, sharey=True, squeeze=False,
+    )
+    fig.subplots_adjust(
+        left=0.095, right=0.978, bottom=0.43 / height, top=1 - 0.64 / height,
+        wspace=0.19, hspace=0.34,
+    )
+    fig.suptitle(
+        display_organism_name(organism_name), x=0.095, y=1 - 0.07 / height,
+        ha="left", fontsize=12, fontweight="normal", fontstyle="italic",
+        fontfamily="DejaVu Sans", parse_math=False,
+    )
+    fig.text(
+        0.095, 1 - 0.29 / height,
+        f"{len(contig_rows):,} contigs · {total_length / 1_000_000:,.1f} Mb",
+        fontsize=7, va="top",
+    )
+    fig.supxlabel("Genome position (Mb)", y=0.07 / height, fontsize=8)
+    fig.supylabel("Genome position (Mb)", x=0.018, fontsize=8)
+    boundaries = build_boundary_segments(contig_rows, total_length)
+    try:
+        for ax, (length, result) in zip(axes.flat, sorted(by_length.items())):
+            count = result["kept_records"]
+            ax.set_title(f"≥{format_length_label(length)} · {count:,} hits")
+            draw_dotplot(ax, boundaries, total_length, result, rasterized=count > 100_000)
+            ax.tick_params(labelbottom=True, labelsize=6)
+        axes[0, 0].xaxis.set_major_locator(MaxNLocator(nbins=4))
+        axes[0, 0].yaxis.set_major_locator(MaxNLocator(nbins=4))
+        for ax in axes.flat[len(by_length):]:
+            ax.set_visible(False)
         fig.savefig(output_pdf, dpi=600)
     finally:
         plt.close(fig)
@@ -438,9 +521,28 @@ def parse_args(argv=None):
         "--min-alignment-length", type=int, default=MIN_ALIGNMENT_LENGTH,
         help=f"Minimum coordinate span on each sequence in bp (default: {MIN_ALIGNMENT_LENGTH}).",
     )
+    parser.add_argument(
+        "--additional-plot", action="append", nargs=3, default=[],
+        metavar=("MIN_SPAN", "PDF", "SUMMARY"),
+        help="Write another PDF and summary at this span cutoff. Can be repeated.",
+    )
+    parser.add_argument("--comparison-pdf", type=Path, help="Side-by-side PDF of the requested span cutoffs.")
     args = parser.parse_args(argv)
     if args.min_alignment_length < 1:
         parser.error("--min-alignment-length must be a positive integer")
+    args.plots = {args.min_alignment_length: (args.pdf, args.summary)}
+    for raw_length, pdf, summary in args.additional_plot:
+        try:
+            length = int(raw_length)
+        except ValueError:
+            parser.error("--additional-plot MIN_SPAN must be a positive integer")
+        if length < 1:
+            parser.error("--additional-plot MIN_SPAN must be a positive integer")
+        if length in args.plots:
+            parser.error(f"Duplicate span cutoff: {length}")
+        args.plots[length] = (Path(pdf), Path(summary))
+    if args.comparison_pdf and len(args.plots) < 2:
+        parser.error("--comparison-pdf requires at least two span cutoffs")
     return args
 
 
@@ -449,30 +551,31 @@ def main():
     contigs = parse_fasta_lengths(args.fasta)
     offsets, contig_rows, total_length = build_contig_offsets(contigs)
     write_contig_table(contig_rows, args.contigs)
-    paf_segments = parse_paf(args.paf, offsets, args.min_alignment_length)
-    plot_dotplot(
-        contig_rows,
-        total_length,
-        paf_segments,
-        args.pdf,
-        genome_axis_label(args.organism_name, args.min_long_contig_length),
-        min_alignment_length=args.min_alignment_length,
-    )
-    summary = {
-        "total_records": paf_segments["total_records"],
-        "plotted_records": paf_segments["kept_records"],
-        "filtered_records": paf_segments["filtered_records"],
-        "min_alignment_length": args.min_alignment_length,
-        "contigs": len(contigs),
-        "total_length": total_length,
-    }
-    if args.summary:
-        args.summary.write_text(json.dumps(summary, indent=2) + "\n")
-    print(
-        f"Plotted {paf_segments['kept_records']} of {paf_segments['total_records']} "
-        f"PAF records with spans >= {args.min_alignment_length} bp on each sequence."
-    )
-    print(json.dumps(summary, sort_keys=True))
+    by_length = parse_paf_by_length(args.paf, offsets, args.plots)
+    if args.comparison_pdf:
+        plot_comparison(contig_rows, total_length, by_length, args.comparison_pdf, args.organism_name)
+    axis_label = genome_axis_label(args.organism_name, args.min_long_contig_length)
+    for length, (pdf, summary_path) in args.plots.items():
+        paf_segments = by_length[length]
+        plot_dotplot(
+            contig_rows, total_length, paf_segments, pdf, axis_label,
+            min_alignment_length=length,
+        )
+        summary = {
+            "total_records": paf_segments["total_records"],
+            "plotted_records": paf_segments["kept_records"],
+            "filtered_records": paf_segments["filtered_records"],
+            "min_alignment_length": length,
+            "contigs": len(contigs),
+            "total_length": total_length,
+        }
+        if summary_path:
+            summary_path.write_text(json.dumps(summary, indent=2) + "\n")
+        print(
+            f"Plotted {paf_segments['kept_records']} of {paf_segments['total_records']} "
+            f"PAF records with spans >= {length} bp on each sequence."
+        )
+        print(json.dumps(summary, sort_keys=True))
 
 
 if __name__ == "__main__":

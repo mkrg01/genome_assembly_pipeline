@@ -249,6 +249,14 @@ Annotation-based self-synteny, separately for each `{selected_assembly}/{assembl
 
 No-block results retain headers and explanatory PDFs. Contig-length filtering affects only plots; analysis uses all representative genes.
 
+## DNA self-dotplots
+
+For the final native assembly or a staged external assembly, see `results/{renamed|external}/dotplot/{selected_assembly}/`.
+
+- `{assembly_name}_self_dotplot_comparison.pdf` shows the 10, 25, and 50 kb cutoffs side by side by default.
+- `{assembly_name}_self_dotplot_{10000bp|25000bp}.pdf` and `{assembly_name}_self_dotplot.pdf` show the individual cutoffs.
+- The PAF and contig-coordinate table are shared by the plots. Each individual PDF has a matching summary JSON.
+
 ## `results/oatk/`
 
 Organelle assembly outputs generated from HiFi reads.

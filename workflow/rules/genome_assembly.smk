@@ -1411,58 +1411,6 @@ rule show_hifi_read_depth_for_organelle_contigs:
         ) > {log.out} 2> {log.err}
         """
 
-rule minimap2_self_dotplot:
-    input:
-        "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa"
-    output:
-        "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}.self.paf"
-    log:
-        out = "logs/minimap2_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.out",
-        err = "logs/minimap2_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.err"
-    conda:
-        "../envs/minimap2.yml"
-    threads:
-        max(1, int(workflow.cores * 0.9))
-    shell:
-        """
-        (
-            minimap2 -t {threads} -DP -k19 -w19 -m200 \
-                {input:q} {input:q} > {output:q}
-        ) > {log.out} 2> {log.err}
-        """
-
-rule plot_self_dotplot:
-    input:
-        assembly = "results/{assembly}/assembly_long_contigs/{selected_assembly}/{assembly_name}.fa",
-        paf = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}.self.paf",
-        plot_script = os.path.join(workflow.basedir, "scripts", "plot_self_dotplot.py")
-    output:
-        pdf = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.pdf",
-        contigs = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.contigs.tsv",
-        summary = "results/{assembly}/dotplot/{selected_assembly}/{assembly_name}_self_dotplot.summary.json"
-    log:
-        out = "logs/plot_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.out",
-        err = "logs/plot_self_dotplot_{assembly}_{selected_assembly}_{assembly_name}.err"
-    conda:
-        "../envs/pybase.yml"
-    params:
-        min_long_contig_length = config["min_long_contig_length"],
-        min_alignment_length = config.get("self_dotplot_min_alignment_length", 50_000)
-    shell:
-        """
-        (
-            python3 {input.plot_script:q} \
-                --fasta {input.assembly:q} \
-                --paf {input.paf:q} \
-                --pdf {output.pdf:q} \
-                --contigs {output.contigs:q} \
-                --summary {output.summary:q} \
-                --organism-name {wildcards.assembly_name} \
-                --min-long-contig-length {params.min_long_contig_length} \
-                --min-alignment-length {params.min_alignment_length}
-        ) > {log.out} 2> {log.err}
-        """
-
 rule tidk_build:
     output:
         "results/downloads/tidk/tidk_database.csv"

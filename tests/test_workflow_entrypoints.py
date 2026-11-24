@@ -36,13 +36,15 @@ class WorkflowEntrypointsTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
 
-    def run_workflow(self, target=None, entrypoint="Snakefile", dry_run=True):
+    def run_workflow(self, target=None, entrypoint="Snakefile", dry_run=True, show_commands=False):
         (self.root / "config/config.yml").write_text(yaml.safe_dump(self.config))
         cmd = [sys.executable, "-m", "snakemake", "--snakefile",
                str(REPO / "workflow" / entrypoint), "--directory", str(self.root),
                "--cores", "2", "--nolock"]
         if dry_run:
             cmd.append("--dry-run")
+        if show_commands:
+            cmd.append("--printshellcmds")
         if target:
             cmd.append(target)
         return subprocess.run(cmd, text=True, stdout=subprocess.PIPE,
@@ -75,6 +77,33 @@ class WorkflowEntrypointsTest(unittest.TestCase):
         self.assertEqual(jobs, self.jobs("all", "Snakefile.annotation"))
         self.assertEqual(jobs, self.jobs(entrypoint="Snakefile.annotation"))
         self.assertEqual(jobs - {"all"}, self.jobs("annotation_all") - {"annotation_all"})
+
+    def test_self_dotplot_requests_three_cutoffs_with_one_alignment(self):
+        result = self.run_workflow("self_dotplot_all", show_commands=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout.count("rule minimap2_self_dotplot:"), 1, result.stdout)
+        self.assertEqual(result.stdout.count("rule plot_self_dotplot:"), 1, result.stdout)
+        self.assertNotIn("rule braker4:", result.stdout)
+        self.assertRegex(result.stdout, r"minimap2 -t \d+ -DP -k19 -w19 -m200 ")
+        self.assertIn("--min-alignment-length 50000", result.stdout)
+        self.assertRegex(result.stdout, r"--comparison-pdf \S+_self_dotplot_comparison\.pdf")
+        self.assertRegex(result.stdout, r"input: .*_self_dotplot_comparison\.pdf")
+        for length in (10_000, 25_000):
+            self.assertRegex(result.stdout, rf"--additional-plot {length} \S+_self_dotplot_{length}bp\.pdf ")
+            self.assertIn(f"_self_dotplot_{length}bp.summary.json", result.stdout)
+
+        self.config["self_dotplot_min_alignment_length"] = 25_000
+        result = self.run_workflow("self_dotplot_all", show_commands=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("--min-alignment-length 25000", result.stdout)
+        self.assertIn("--additional-plot 10000", result.stdout)
+        self.assertNotIn("_self_dotplot_25000bp.pdf", result.stdout)
+
+        self.config["self_dotplot_additional_alignment_lengths"] = []
+        result = self.run_workflow("self_dotplot_all", show_commands=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("--additional-plot", result.stdout)
+        self.assertNotIn("_self_dotplot_comparison.pdf", result.stdout)
 
     def test_plots_with_external_annotations_skip_prediction_and_masking(self):
         self.plot_inputs()
