@@ -388,14 +388,16 @@ def genome_axis_label(organism_name, min_long_contig_length=None):
 
 
 def fit_contig_label_axes(ax, contig_rows):
-    try:
-        add_contig_label_axes(ax, contig_rows)
-    except ContigLabelLayoutError:
-        # Expand both axes to keep every scaffold name at 7 pt.
-        size = max(ax.figure.get_figheight() * 2,
-                   len(contig_rows) * (CONTIG_LABEL_SIZE + LABEL_GAP_PT + 3) / 144 + 2)
-        ax.figure.set_size_inches(size, size)
-        add_contig_label_axes(ax, contig_rows)
+    fig = ax.figure
+    while True:
+        try:
+            add_contig_label_axes(ax, contig_rows)
+            return
+        except ContigLabelLayoutError:
+            # Mixed contig lengths can need more space than the first estimate.
+            size = max(fig.get_figheight() * 2,
+                       len(contig_rows) * (CONTIG_LABEL_SIZE + LABEL_GAP_PT + 3) / 144 + 2)
+            fig.set_size_inches(size, size)
 
 
 def draw_dotplot(ax, boundary_segments, total_length, paf_segments, *, rasterized=False):

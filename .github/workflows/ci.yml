@@ -18,10 +18,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Snakemake
+      - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "snakemake>=9,<10" biopython
+          python -m pip install "snakemake>=9,<10" biopython matplotlib==3.10.6
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -p "test_*.py" -v

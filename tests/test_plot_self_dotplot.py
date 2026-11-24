@@ -318,15 +318,18 @@ class SelfDotplotTests(unittest.TestCase):
 
     def test_crowded_scaffold_labels_expand_canvas_and_keep_all_names(self):
         names = [f"ptg{index:06d}l" for index in range(200)]
-        self.offsets, self.rows, self.total = self.plot.build_contig_offsets(
-            [(name, 1_000_000) for name in names]
-        )
-        figure = self.render({"segments": [], "kept_records": 0}, "many_labels")
-        labels = [text for text in figure.axes[0].texts
-                  if (text.get_gid() or "").startswith("contig-label-")]
-        self.assertGreater(figure.get_figwidth(), self.plot.figure_size(len(names)))
-        self.assertEqual(sorted(text.get_text() for text in labels), sorted(names * 2))
-        self.assertEqual({text.get_fontsize() for text in labels}, {7})
+        for case, lengths in (
+            ("uniform", [1_000_000] * 200),
+            ("mixed", [100_000_000] * 100 + [1_000_000] * 100),
+        ):
+            with self.subTest(case=case), self.plot.plt.rc_context({"font.family": "DejaVu Sans"}):
+                self.offsets, self.rows, self.total = self.plot.build_contig_offsets(list(zip(names, lengths)))
+                figure = self.render({"segments": [], "kept_records": 0}, f"many_labels_{case}")
+                labels = [text for text in figure.axes[0].texts
+                          if (text.get_gid() or "").startswith("contig-label-")]
+                self.assertGreater(figure.get_figwidth(), self.plot.figure_size(len(names)))
+                self.assertEqual(sorted(text.get_text() for text in labels), sorted(names * 2))
+                self.assertEqual({text.get_fontsize() for text in labels}, {7})
 
     def test_pdf_font_line_height_is_reserved_between_crowded_labels(self):
         from matplotlib.transforms import Bbox
