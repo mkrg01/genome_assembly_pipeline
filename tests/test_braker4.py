@@ -2,6 +2,7 @@ import argparse
 import configparser
 import csv
 import gzip
+import hashlib
 import io
 import json
 import os
@@ -16,6 +17,7 @@ from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "workflow/scripts"))
+import braker4_compleasm
 import download_braker4
 import filter_gff_by_fasta_ids
 import rename_submission_gene_models
@@ -83,6 +85,16 @@ class Braker4Test(unittest.TestCase):
             with gzip.open(results / (name + ".gz"), "wt") as handle:
                 handle.write(contents)
         (results / ".done").touch()
+        sample_dir = results.parent
+        (sample_dir / "best_by_compleasm.log").write_text("Completed all three comparisons.\n")
+        summary = "S:90.0%\nD:1.0%\nF:2.0%\nM:7.0%\n"
+        for name in ("genemark", "augustus", "braker"):
+            directory = sample_dir / "best_by_compleasm_tmp/single" / name
+            directory.mkdir(parents=True)
+            (directory / "summary.txt").write_text(summary)
+        directory = sample_dir / "compleasm_proteins"
+        directory.mkdir()
+        (directory / "summary.txt").write_text(summary)
         return results
 
     def test_etp_configuration_and_unique_library_aliases(self):
@@ -102,6 +114,7 @@ class Braker4Test(unittest.TestCase):
             self.assertEqual(Path(actual).resolve(), expected)
         ini = configparser.ConfigParser()
         ini.read(run / "config.ini")
+        self.assertEqual(str(run / "compleasm_downloads"), ini["paths"]["compleasm_download_path"])
         self.assertEqual(2, ini.getint("SLURM_ARGS", "cpus_per_task"))
         self.assertEqual(32000, ini.getint("SLURM_ARGS", "mem_of_node"))
         self.assertTrue(ini.getboolean("PARAMS", "skip_busco"))
@@ -272,6 +285,125 @@ class Braker4Test(unittest.TestCase):
         resumed, _, command, _ = run_braker4.prepare_run(self.args)
         self.assertEqual(run, resumed)
         self.assertEqual("collect_results", command[command.index("--forcerun") + 1])
+
+    def test_suppressed_rescue_error_and_missing_comparisons_are_rejected(self):
+        run, _, _, _ = run_braker4.prepare_run(self.args)
+        result = self.outputs(run)
+        braker4_compleasm.validate_rescue(run, self.args.sample)
+        log = result.parent / "best_by_compleasm.log"
+        log.write_text("Return code of subprocess was 1\noriginal was already best\n")
+        with self.assertRaisesRegex(ValueError, "best_by_compleasm failed"):
+            braker4_compleasm.validate_rescue(run, self.args.sample)
+        log.write_text("original was already best; no better.gtf\n")
+        braker4_compleasm.validate_rescue(run, self.args.sample)
+        missing = result.parent / "best_by_compleasm_tmp/single/augustus/summary.txt"
+        missing.unlink()
+        with self.assertRaisesRegex(ValueError, "Missing Compleasm rescue"):
+            braker4_compleasm.validate_rescue(run, self.args.sample)
+
+    def test_compleasm_checks_the_files_extracted_by_the_pinned_downloader(self):
+        source = self.root / "lineage"
+        candidate = self.root / "private"
+        for directory in (source, candidate):
+            (directory / "hmms").mkdir(parents=True)
+            for name in ("scores_cutoff", "refseq_db.faa.gz", "hmms/test.hmm"):
+                (directory / name).write_text(name)
+        (source / "dataset.cfg").write_text("name=fixture\n")
+        (source / "lengths_cutoff").write_text("test\t100\n")
+
+        braker4_compleasm.verify_lineage(source, candidate)
+        (candidate / "scores_cutoff").write_text("changed")
+        with self.assertRaisesRegex(ValueError, "scores_cutoff"):
+            braker4_compleasm.verify_lineage(source, candidate)
+
+    def test_compleasm_fixed_lineage_catalog_omits_new_placement_names(self):
+        md5 = "a" * 32
+        lineages = ["eukaryota_odb12", "embryophyta_odb12"]
+        rows = [f"{name}\t2026-05-22\t{md5}\tEukaryota\tlineages" for name in lineages]
+        placement = f"list_of_reference_markers.eukaryota_odb12.2.txt\t2026-05-22\t{md5}\tEukaryota\tplacement_files"
+        catalog = ("\n".join([*rows, placement]) + "\n").encode()
+        cache = self.root / "cache"
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            braker4_compleasm.write_fixed_lineage_catalog(cache, lineages[1], catalog, md5)
+        braker4_compleasm.write_fixed_lineage_catalog(cache, lineages[1], catalog, hashlib.md5(catalog).hexdigest())
+        self.assertEqual(rows, (cache / "file_versions.tsv").read_text().splitlines())
+        self.assertEqual(catalog, (cache / "file_versions.upstream.tsv").read_bytes())
+
+    def test_compleasm_publishes_and_reuses_odb12_cache_without_length_cutoffs(self):
+        source = self.args.busco_downloads / "lineages" / self.args.lineage
+        (source / "hmms").mkdir()
+        entries = ("scores_cutoff", "refseq_db.faa.gz", "hmms/test.hmm")
+        for name in entries:
+            (source / name).write_text(name)
+        catalog = "".join(
+            f"{name}\t2026-05-22\t{'a' * 32}\tEukaryota\tlineages\n"
+            for name in (self.args.lineage, "eukaryota_odb12")
+        ).encode()
+        checksum = hashlib.md5(catalog).hexdigest().encode()
+
+        def download(command, **kwargs):
+            lineage = Path(command[-1]) / self.args.lineage
+            (lineage / "hmms").mkdir(parents=True)
+            for name in entries:
+                (lineage / name).write_text(name)
+
+        with mock.patch.object(braker4_compleasm, "urlopen", side_effect=[io.BytesIO(checksum), io.BytesIO(catalog)]):
+            with mock.patch.object(braker4_compleasm.subprocess, "run", side_effect=download) as runner:
+                cache = braker4_compleasm.download_cache(self.args, self.root, ["apptainer"])
+                self.assertEqual(cache, braker4_compleasm.download_cache(self.args, self.root, ["apptainer"]))
+                self.assertEqual(1, runner.call_count)
+        self.assertFalse((cache / self.args.lineage / "lengths_cutoff").exists())
+
+    def test_container_pull_is_atomic_and_reuses_snakemake_image(self):
+        config = configparser.ConfigParser()
+        config.read(self.args.template)
+        uri = config["containers"]["braker3_image"]
+        path = self.args.container_cache / (hashlib.md5(uri.encode()).hexdigest() + ".simg")
+
+        def pull(command, **kwargs):
+            self.assertEqual(["apptainer", "pull"], command[:2])
+            self.assertEqual(uri, command[-1])
+            self.assertFalse(path.exists())
+            Path(command[2]).write_bytes(b"image")
+
+        with mock.patch.object(braker4_compleasm.subprocess, "run", side_effect=pull) as runner:
+            first = braker4_compleasm.container_command(self.args, self.root)
+            self.assertEqual(first, braker4_compleasm.container_command(self.args, self.root))
+            self.assertEqual(1, runner.call_count)
+        self.assertEqual(str(path), first[-2])
+        self.assertEqual(b"image", path.read_bytes())
+
+    def test_runner_validates_compleasm_before_export(self):
+        run, _, expected, _ = run_braker4.prepare_run(self.args)
+        collected = self.outputs(run)
+        argv = ["run_braker4"]
+        for name in ("source", "source_manifest", "template", "genome", "proteins",
+                     "busco_downloads", "container_cache", "output_dir",
+                     "sample", "lineage", "threads", "mem_mb"):
+            argv.extend(["--" + name.replace("_", "-"), str(getattr(self.args, name))])
+        argv.extend(["--rnaseq-r1", *map(str, self.args.rnaseq_r1),
+                     "--rnaseq-r2", *map(str, self.args.rnaseq_r2)])
+        with mock.patch.object(sys, "argv", argv):
+            with mock.patch.object(run_braker4, "prepare_cache") as prepared:
+                def execute(command, **kwargs):
+                    prepared.assert_called_once()
+                    self.assertEqual(expected, command)
+                with mock.patch.object(run_braker4.subprocess, "run", side_effect=execute) as child:
+                    run_braker4.main()
+                    child.assert_called_once()
+            manifest = self.args.output_dir / "run.json"
+            completed_manifest = manifest.read_bytes()
+            (collected.parent / "compleasm_proteins/summary.txt").write_text("Assessment failed\n")
+            with mock.patch.object(run_braker4, "prepare_cache"), mock.patch.object(run_braker4.subprocess, "run"):
+                with self.assertRaisesRegex(ValueError, "Incomplete Compleasm"):
+                    run_braker4.main()
+            self.assertEqual(completed_manifest, manifest.read_bytes())
+
+    def test_placeholder_compleasm_summary_is_not_accepted(self):
+        path = self.root / "summary.txt"
+        path.write_text("Compleasm assessment failed\n")
+        with self.assertRaisesRegex(ValueError, "Incomplete Compleasm"):
+            braker4_compleasm.complete_summary(path)
 
     def test_longest_cds_ties_use_input_order(self):
         cds, gff, output = (self.root / name for name in ("cds.fa", "gene.gff3", "longest.fa"))

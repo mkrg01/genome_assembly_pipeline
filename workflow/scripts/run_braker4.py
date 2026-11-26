@@ -7,6 +7,7 @@ Snakemake directory() output: parent-job retries must not delete its checkpoints
 import argparse
 import configparser
 import csv
+import fcntl
 import gzip
 import hashlib
 import io
@@ -20,6 +21,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from braker4_compleasm import prepare_cache, private_cache, validate_rescue
 from filter_gff_by_fasta_ids import iter_gff_records, parse_attributes, split_parents
 
 
@@ -133,7 +135,7 @@ def prepare_run(args):
         "samples_file": str(run_dir / "samples.csv"),
         "augustus_config_path": str(run_dir / "augustus_config"),
         "busco_download_path": str(busco),
-        "compleasm_download_path": str(busco / "lineages"),
+        "compleasm_download_path": str(private_cache(run_dir)),
     }
     ini["SLURM_ARGS"] = {
         "cpus_per_task": str(args.threads), "mem_of_node": str(args.mem_mb),
@@ -304,6 +306,13 @@ def export_results(run_dir, output_dir, sample, identity, command):
             (staged / name).replace(output_dir / name)
 
 
+def validate_compleasm(args, run_dir):
+    ini = configparser.ConfigParser()
+    ini.read(args.template)
+    if ini.getboolean("PARAMS", "run_best_by_compleasm", fallback=True):
+        validate_rescue(run_dir, args.sample)
+
+
 def export_completed_run(args):
     """Re-export a completed child run whose recorded inputs still match."""
     identity, _, _ = identify_run(args)
@@ -319,6 +328,7 @@ def export_completed_run(args):
         or previous != {**identity, "runner_sha256": runner_sha256}
     ):
         raise ValueError("Completed BRAKER4 run does not match the current inputs and configuration")
+    validate_compleasm(args, run_dir)
     export_results(
         run_dir, output_dir, args.sample,
         {**previous, "exporter_sha256": identity["runner_sha256"]}, [],
@@ -352,9 +362,14 @@ def main():
     run_dir, identity, command, env = prepare_run(args)
     print(f"BRAKER4 work directory: {run_dir}", flush=True)
     print(shlex.join(command), flush=True)
-    subprocess.run(command, env=env, check=True)
-    if not args.dry_run:
-        export_results(run_dir, args.output_dir, args.sample, identity, command)
+    with (run_dir / ".parent-run.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not args.dry_run:
+            prepare_cache(args, run_dir)
+        subprocess.run(command, env=env, check=True)
+        if not args.dry_run:
+            validate_compleasm(args, run_dir)
+            export_results(run_dir, args.output_dir, args.sample, identity, command)
 
 
 if __name__ == "__main__":
