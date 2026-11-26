@@ -26,6 +26,16 @@ from filter_gff_by_fasta_ids import iter_gff_records, parse_attributes, split_pa
 
 
 CORE_FILES = ("braker.gtf", "braker.gff3", "braker.codingseq", "braker.aa")
+# BRAKER4 supports mtime-only resume across these versions. Limit replay to the
+# unchanged ETP predictors and the native rules from rescue to result collection.
+RESUME_FROM_COMMIT = "c72618baa4631db4a4128391a40c8ba7392df17c"
+RESUME_TO_COMMIT = "c2b09ff1395b810b226f859495f0b1c5f3514793"
+POSTPROCESSING_RULES = (
+    "all", "best_by_compleasm", "both_agree_rescue", "filter_internal_stop_codons",
+    "get_anno_fasta", "normalize_cds", "fix_in_frame_stop_codons", "extract_final_sequences",
+    "gene_support_summary", "assess_completeness", "add_utr", "eval_test_set_accuracy",
+    "fix_gtf", "convert_gtf_to_gff3", "redundancy_removal", "generate_statistics", "collect_results",
+)
 SAMPLE_COLUMNS = (
     "sample_name", "genome", "genome_masked", "protein_fasta", "bam_files",
     "fastq_r1", "fastq_r2", "sra_ids", "varus_genus", "varus_species",
@@ -59,7 +69,7 @@ def identify_run(args):
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", args.sample):
         raise ValueError("BRAKER4 sample name must start with a letter and contain letters, digits or underscores")
     if not re.fullmatch(r"[A-Za-z0-9_]+_odb12", args.lineage):
-        raise ValueError("BRAKER4 v0.5.0-beta requires an odb12 BUSCO lineage, e.g. embryophyta_odb12")
+        raise ValueError("This workflow requires an odb12 BUSCO lineage, e.g. embryophyta_odb12")
     if args.rnaseq_source == "local":
         if not args.rnaseq_r1 or len(args.rnaseq_r1) != len(args.rnaseq_r2):
             raise ValueError("BRAKER4 local mode requires matching, non-empty R1 and R2 lists")
@@ -100,11 +110,47 @@ def run_name(identity):
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
 
 
+def resume_inputs(run_dir, identity, ini):
+    previous = json.loads((run_dir / "inputs.json").read_text())
+    saved_runtime = {key: previous.get(key) for key in ("source", "runner_sha256", "template_sha256")}
+    if (
+        run_dir.name != run_name(previous)
+        or (saved_runtime["source"] or {}).get("commit") != RESUME_FROM_COMMIT
+        or identity["source"].get("commit") != RESUME_TO_COMMIT
+        or identity["rnaseq_source"] != "local"
+        or previous != {**identity, **saved_runtime}
+    ):
+        raise ValueError("BRAKER4 resume requires the pinned release pair and matching input files")
+
+    old_ini = configparser.ConfigParser()
+    old_ini.read(run_dir / "config.ini")
+    params = dict(ini["PARAMS"])
+    fallback = params.pop("auto_mode_fallback", None)
+    if fallback != "0" or params != dict(old_ini["PARAMS"]):
+        raise ValueError("BRAKER4 resume requires matching prediction settings with mode fallback disabled")
+
+    sample = run_dir / "output" / identity["sample"]
+    if not (sample / "results/.done").is_file():
+        raise FileNotFoundError(f"BRAKER4 resume requires completed prediction results: {sample}")
+    for name in ("genome.fa", "augustus.hints.fixed.gtf", "GeneMark-ETP/genemark.gtf", "braker.tsebra.raw.gtf"):
+        file_identity(sample / name)
+    return previous["source"]
+
+
 def prepare_run(args):
     identity, source, busco = identify_run(args)
     # A changed input set or model configuration gets a fresh run, while retries
     # with the same inputs reuse all child metadata. Resource changes can resume.
-    run_dir = checked_path(args.output_dir) / "work" / run_name(identity)
+    resume = getattr(args, "resume_postprocessing_run", None)
+    work_dir = checked_path(args.output_dir) / "work"
+    run_dir = checked_path(resume) if resume else work_dir / run_name(identity)
+    ini = configparser.ConfigParser()
+    ini.read(args.template)
+    ini.set("PARAMS", "use_varus", "1" if args.rnaseq_source == "varus" else "0")
+    if resume:
+        if run_dir.parent != work_dir:
+            raise ValueError("BRAKER4 resume requires a completed run in the output work directory")
+        identity["predictions_source"] = resume_inputs(run_dir, identity, ini)
     run_dir.mkdir(parents=True, exist_ok=True)
     inputs_dir = run_dir / "inputs"
     inputs_dir.mkdir(exist_ok=True)
@@ -128,14 +174,11 @@ def prepare_run(args):
     writer.writerow(row)
     write_if_changed(run_dir / "samples.csv", csv_text.getvalue())
 
-    ini = configparser.ConfigParser()
-    ini.read(args.template)
-    ini.set("PARAMS", "use_varus", "1" if args.rnaseq_source == "varus" else "0")
     ini["paths"] = {
         "samples_file": str(run_dir / "samples.csv"),
         "augustus_config_path": str(run_dir / "augustus_config"),
         "busco_download_path": str(busco),
-        "compleasm_download_path": str(private_cache(run_dir)),
+        "compleasm_download_path": str(private_cache(run_dir, resume=bool(resume))),
     }
     ini["SLURM_ARGS"] = {
         "cpus_per_task": str(args.threads), "mem_of_node": str(args.mem_mb),
@@ -143,8 +186,10 @@ def prepare_run(args):
     }
     ini_text = io.StringIO()
     ini.write(ini_text)
-    write_if_changed(run_dir / "config.ini", ini_text.getvalue())
-    write_if_changed(run_dir / "inputs.json", json.dumps(identity, indent=2) + "\n")
+    config_file = run_dir / ("config-v0.8.1-resume.ini" if resume else "config.ini")
+    write_if_changed(config_file, ini_text.getvalue())
+    if not resume:
+        write_if_changed(run_dir / "inputs.json", json.dumps(identity, indent=2) + "\n")
 
     cache = checked_path(args.container_cache)
     cache.mkdir(parents=True, exist_ok=True)
@@ -166,13 +211,16 @@ def prepare_run(args):
     if args.dry_run:
         command.append("--dry-run")
     collected = run_dir / "output" / args.sample / "results"
-    if (collected / ".done").exists() and any(not (collected / (name + ".gz")).is_file() for name in CORE_FILES):
+    if resume:
+        command.extend(["--rerun-triggers", "mtime", "--forcerun", "best_by_compleasm",
+                        "--allowed-rules", *POSTPROCESSING_RULES])
+    elif (collected / ".done").exists() and any(not (collected / (name + ".gz")).is_file() for name in CORE_FILES):
         # Upstream declares only .done, not the compressed files it collects.
         command.extend(["--forcerun", "collect_results"])
     # The generated config is authoritative. Inherited BRAKER4_* variables and
     # cluster profiles must not change the model or submit nested scheduler jobs.
     env = {key: value for key, value in os.environ.items() if not key.startswith("BRAKER4_")}
-    env.update(BRAKER4_CONFIG=str(run_dir / "config.ini"), TMPDIR=str(tmpdir),
+    env.update(BRAKER4_CONFIG=str(config_file), TMPDIR=str(tmpdir),
                APPTAINERENV_TMPDIR=str(tmpdir), SINGULARITYENV_TMPDIR=str(tmpdir))
     return run_dir, identity, command, env
 
@@ -355,8 +403,12 @@ def main():
         "--export-completed-run", type=Path,
         help="Validate and export a matching finished BRAKER4 work directory without rerunning prediction.",
     )
+    parser.add_argument("--resume-postprocessing-run", type=Path,
+                        help="Reuse matching v0.5.0-beta ETP predictors and rerun v0.8.1-beta postprocessing.")
     args = parser.parse_args()
     if args.export_completed_run is not None:
+        if args.resume_postprocessing_run is not None:
+            parser.error("resume and export-only modes cannot be combined")
         export_completed_run(args)
         return
     run_dir, identity, command, env = prepare_run(args)
@@ -365,6 +417,14 @@ def main():
     with (run_dir / ".parent-run.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if not args.dry_run:
+            if args.resume_postprocessing_run:
+                saved = run_dir / "results_before_v0.8.1"
+                if not saved.exists():
+                    collected = run_dir / "output" / args.sample / "results"
+                    with tempfile.TemporaryDirectory(dir=run_dir) as tmp:
+                        staged = Path(tmp) / "results"
+                        shutil.copytree(collected, staged)
+                        staged.rename(saved)
             prepare_cache(args, run_dir)
         subprocess.run(command, env=env, check=True)
         if not args.dry_run:

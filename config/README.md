@@ -127,12 +127,16 @@ When updating an existing analysis, remove the unused `dfam_partitions` setting 
 
 ### Gene Prediction
 
-BRAKER4 v0.5.0-beta runs in ETP mode with the RepeatMasker soft-masked genome, RNA-seq evidence (fastp-filtered local libraries or VARUS sampling), and OrthoDB proteins. Set `busco_lineage_dataset` to an **odb12** lineage, which is also used by compleasm.
+BRAKER4 v0.8.1-beta runs in ETP mode with the RepeatMasker soft-masked genome, RNA-seq evidence (fastp-filtered local libraries or VARUS sampling), and OrthoDB proteins. Set `busco_lineage_dataset` to an **odb12** lineage, which is also used by compleasm.
 
 The runner prepares a private Compleasm cache for the selected fixed lineage
 and verifies it against the BUSCO dataset. When Compleasm candidate comparison
-is enabled, all three comparisons and the final protein assessment must finish
-before gene models are exported.
+is enabled, gene model export requires BRAKER4's successful rescue status, all
+three candidate comparisons and the final protein assessment.
+
+For a completed local RNA-seq ETP run from the previous pinned release, the
+runner's `--resume-postprocessing-run` option checks the original inputs and
+prediction settings, then reruns the downstream native rules with v0.8.1-beta.
 
 | Parameter | Description | Example |
 | --- | --- | --- |

@@ -56,7 +56,7 @@ class Braker4Test(unittest.TestCase):
         source.mkdir()
         (source / "Snakefile").write_text("rule all:\n    input: []\n")
         manifest = self.root / "source.json"
-        manifest.write_text(json.dumps({"version": "v0.5.0-beta", "sha256": "test"}))
+        manifest.write_text(json.dumps({"version": "v0.8.1-beta", "sha256": "test"}))
         for name in ("genome.fa", "proteins.fa"):
             (self.root / name).write_text(">chr1\nATGAAA\n")
         for lib in ("tissue.rep1", "tissue.rep2"):
@@ -86,7 +86,7 @@ class Braker4Test(unittest.TestCase):
                 handle.write(contents)
         (results / ".done").touch()
         sample_dir = results.parent
-        (sample_dir / "best_by_compleasm.log").write_text("Completed all three comparisons.\n")
+        (sample_dir / "best_by_compleasm.log").write_text("STATUS: OK: original gene set kept\n")
         summary = "S:90.0%\nD:1.0%\nF:2.0%\nM:7.0%\n"
         for name in ("genemark", "augustus", "braker"):
             directory = sample_dir / "best_by_compleasm_tmp/single" / name
@@ -286,15 +286,49 @@ class Braker4Test(unittest.TestCase):
         self.assertEqual(run, resumed)
         self.assertEqual("collect_results", command[command.index("--forcerun") + 1])
 
+    def test_resume_reuses_matching_pinned_predictors(self):
+        new_template = self.args.template
+        old = configparser.ConfigParser()
+        old.read(new_template)
+        old.remove_option("PARAMS", "auto_mode_fallback")
+        self.args.template = self.root / "old.ini"
+        with self.args.template.open("w") as handle:
+            old.write(handle)
+        self.args.source_manifest.write_text(json.dumps({"commit": run_braker4.RESUME_FROM_COMMIT}))
+        run, original, _, _ = run_braker4.prepare_run(self.args)
+        sample = self.outputs(run).parent
+        for name in ("genome.fa", "augustus.hints.fixed.gtf", "GeneMark-ETP/genemark.gtf", "braker.tsebra.raw.gtf"):
+            path = sample / name
+            path.parent.mkdir(exist_ok=True)
+            path.write_text("saved prediction input\n")
+        config_before = (run / "config.ini").read_bytes()
+        self.args.template = new_template
+        self.args.source_manifest.write_text(json.dumps({"commit": run_braker4.RESUME_TO_COMMIT}))
+        self.args.resume_postprocessing_run = run
+        actual, identity, command, env = run_braker4.prepare_run(self.args)
+        self.assertEqual(actual, run)
+        self.assertEqual(original["source"], identity["predictions_source"])
+        self.assertEqual(original, json.loads((run / "inputs.json").read_text()))
+        self.assertEqual(config_before, (run / "config.ini").read_bytes())
+        self.assertNotEqual(env["BRAKER4_CONFIG"], str(run / "config.ini"))
+        self.assertEqual("best_by_compleasm", command[command.index("--forcerun") + 1])
+        self.assertNotIn("run_genemark_etp", command)
+        self.args.genome.write_text(">changed\nACTG\n")
+        with self.assertRaisesRegex(ValueError, "matching input files"):
+            run_braker4.prepare_run(self.args)
+
     def test_suppressed_rescue_error_and_missing_comparisons_are_rejected(self):
         run, _, _, _ = run_braker4.prepare_run(self.args)
         result = self.outputs(run)
         braker4_compleasm.validate_rescue(run, self.args.sample)
         log = result.parent / "best_by_compleasm.log"
-        log.write_text("Return code of subprocess was 1\noriginal was already best\n")
-        with self.assertRaisesRegex(ValueError, "best_by_compleasm failed"):
+        log.write_text("STATUS: FAILED: parser exited with code 1\nCompleted all three comparisons.\n")
+        with self.assertRaisesRegex(ValueError, "best_by_compleasm did not complete successfully"):
             braker4_compleasm.validate_rescue(run, self.args.sample)
-        log.write_text("original was already best; no better.gtf\n")
+        log.write_text("Completed all three comparisons.\n")
+        with self.assertRaisesRegex(ValueError, "best_by_compleasm did not complete successfully"):
+            braker4_compleasm.validate_rescue(run, self.args.sample)
+        log.write_text("STATUS: OK: original gene set kept\n")
         braker4_compleasm.validate_rescue(run, self.args.sample)
         missing = result.parent / "best_by_compleasm_tmp/single/augustus/summary.txt"
         missing.unlink()

@@ -22,8 +22,8 @@ def complete_summary(path):
             raise ValueError(f"Incomplete Compleasm summary: {path}")
 
 
-def private_cache(run_dir):
-    return Path(run_dir) / "compleasm_downloads"
+def private_cache(run_dir, *, resume=False):
+    return Path(run_dir) / ("compleasm_downloads_v0.8.1" if resume else "compleasm_downloads")
 
 
 def container_command(args, run_dir):
@@ -96,7 +96,7 @@ def write_fixed_lineage_catalog(cache, lineage, catalog, checksum):
 
 
 def download_cache(args, run_dir, command):
-    cache = private_cache(run_dir)
+    cache = private_cache(run_dir, resume=bool(getattr(args, "resume_postprocessing_run", None)))
     source = Path(args.busco_downloads) / "lineages" / args.lineage
     if cache.exists():
         if list(cache.glob("*.tmp")):
@@ -154,11 +154,12 @@ def prepare_cache(args, run_dir):
 
 def validate_rescue(run_dir, sample):
     root = Path(run_dir) / "output" / sample
-    log = (root / "best_by_compleasm.log").read_text()
-    if re.search(r"Return code of subprocess was [1-9]|Traceback|script may have failed", log):
-        raise ValueError("BRAKER4 best_by_compleasm failed; exported predictions are not accepted")
-    # Upstream suppresses subprocess failures. A result for every compared set
-    # is required even when the original TSEBRA prediction remains the best.
+    with (root / "best_by_compleasm.log").open() as log:
+        status = log.readline().strip()
+    if not status.startswith("STATUS: OK: "):
+        raise ValueError(f"BRAKER4 best_by_compleasm did not complete successfully: {status or 'missing status'}")
+    # BRAKER4 can keep the original TSEBRA prediction after a successful rescue
+    # check. Confirm that the three evaluations and final assessment are present.
     for name in ("genemark", "augustus", "braker"):
         folder = root / "best_by_compleasm_tmp" / "single" / name
         summaries = list(folder.rglob("summary.txt"))
