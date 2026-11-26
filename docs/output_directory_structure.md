@@ -62,7 +62,7 @@ Files used to build the final Circos and linear plots from long contigs of the d
 
 Downloaded reference datasets, wrapper scripts, and helper files.
 
-- `braker4/v0.5.0-beta/`
+- `braker4/v0.8.1-beta/`
   SHA256-verified source archive, extracted `source/`, and source `manifest.json`.
 - `braker4/containers/`
   Shared Apptainer image cache for the child annotation workflows.
