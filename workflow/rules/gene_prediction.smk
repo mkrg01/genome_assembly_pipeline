@@ -119,7 +119,8 @@ rule braker4:
         busco_database = "results/downloads/busco_downloads",
         template = os.path.join(workflow.basedir, "config/braker4.ini"),
         script = os.path.join(workflow.basedir, "scripts/run_braker4.py"),
-        validation_script = os.path.join(workflow.basedir, "scripts/filter_gff_by_fasta_ids.py")
+        validation_script = os.path.join(workflow.basedir, "scripts/filter_gff_by_fasta_ids.py"),
+        compleasm_script = os.path.join(workflow.basedir, "scripts/braker4_compleasm.py")
     output:
         gff3 = "results/braker4/{selected_assembly}/{assembly_name}/braker.gff3",
         gtf = "results/braker4/{selected_assembly}/{assembly_name}/braker.gtf",

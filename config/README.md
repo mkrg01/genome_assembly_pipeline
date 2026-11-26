@@ -129,6 +129,11 @@ When updating an existing analysis, remove the unused `dfam_partitions` setting 
 
 BRAKER4 v0.5.0-beta runs in ETP mode with the RepeatMasker soft-masked genome, RNA-seq evidence (fastp-filtered local libraries or VARUS sampling), and OrthoDB proteins. Set `busco_lineage_dataset` to an **odb12** lineage, which is also used by compleasm.
 
+The runner prepares a private Compleasm cache for the selected fixed lineage
+and verifies it against the BUSCO dataset. When Compleasm candidate comparison
+is enabled, all three comparisons and the final protein assessment must finish
+before gene models are exported.
+
 | Parameter | Description | Example |
 | --- | --- | --- |
 | `braker4_rnaseq_source` | Nuclear annotation RNA-seq source: `local` (default) uses the local fastp-filtered pairs; `varus` samples public SRA RNA-seq. VARUS requires a binomial scientific name in `organism_name` (e.g. `Arabidopsis_thaliana`, without cultivar or accession suffixes), network access on the compute node, and suitable public reads. No automatic fallback between modes. | `"varus"` |
